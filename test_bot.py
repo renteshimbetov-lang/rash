@@ -1071,13 +1071,15 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
             log.warning(f"O'quvchi {uid} ga natija yuborishda xatolik: {ex}")
             fail_count += 1
 
+        fail_text = f"⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n" if fail_count > 0 else ""
     await status_msg.edit_text(
         f"✅ <b>Natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
         f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
-        f"{f'⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n' if fail_count > 0 else ''}"
+        f"{fail_text}"
         f"📌 <i>Endi barcha o'quvchilar mini ilovada o'z ballari va to'liq javoblar tahlilini ko'ra oladilar.</i>\n\n"
         f"<i>Agar xohlasangiz, testni qayta davom ettirishingiz ham mumkin.</i>"
     )
+
 
 @router.callback_query(F.data.startswith("adm_rasch_"))
 async def admin_test_rasch_eval(call: CallbackQuery):
