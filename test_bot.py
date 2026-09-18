@@ -34,7 +34,13 @@ import test_db
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8892124781:AAGTRWY78lfHn3pQoBoIG30zH9OoDQF5N2g")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
 PORT = int(os.getenv("PORT", "8080"))
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://bcc029b8f2861a.lhr.life")
+_raw_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "")
+if _raw_url:
+    if not _raw_url.startswith("http"):
+        _raw_url = f"https://{_raw_url}"
+    WEBAPP_URL = _raw_url.rstrip("/")
+else:
+    WEBAPP_URL = "https://rash-test.onrender.com"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,12 +60,6 @@ class RegistrationState(StatesGroup):
 
 class SolveTestState(StatesGroup):
     test_code = State()
-
-class CreateTestState(StatesGroup):
-    title = State()
-    test_code = State()
-    pdf_file = State()
-    answers = State()
 
 class UploadPostPdfState(StatesGroup):
     pdf_file = State()
@@ -119,8 +119,7 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
         btn_text = "👥 Barcha foydalanuvchilar ro'yxati"
 
     buttons = [
-        [make_webapp_button("📱 Yangi test yaratish (Admin Mini App)", admin_webapp_url, fallback_cb="admin_webapp_info")],
-        [InlineKeyboardButton(text="➕ Bot orqali tezkor qo'shish", callback_data="admin_add_test")],
+        [make_webapp_button("➕ Yangi test yaratish (Admin Mini App)", admin_webapp_url, fallback_cb="admin_webapp_info")],
         [InlineKeyboardButton(text="📋 Testlarni boshqarish (O'chirish / Vaqt)", callback_data="admin_manage_tests")],
         [InlineKeyboardButton(text=btn_text, callback_data="admin_view_users")],
         [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")],
@@ -246,20 +245,13 @@ async def start_handler(message: Message, state: FSMContext):
         )
     else:
         is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
-        st = user.get("status", "pending")
-        if not is_adm:
-            if st == "pending":
-                await message.answer(
-                    "⏳ <b>Arizangiz ko'rib chiqilmoqda...</b>\n\n"
-                    "Admin hali botdan foydalanishingizga ruxsat bermagan. Iltimos, admin tasdiqlashini kuting."
-                )
-                return
-            elif st in ["blocked", "rejected"]:
-                await message.answer(
-                    "⛔️ <b>Sizning foydalanish huquqingiz admin tomonidan to'xtatilgan yoki chiqarib yuborilgansiz!</b>\n\n"
-                    "Murojaat uchun: @eshmbetov"
-                )
-                return
+        st = user.get("status", "approved")
+        if not is_adm and st == "blocked":
+            await message.answer(
+                "⛔️ <b>Sizning foydalanish huquqingiz to'xtatilgan!</b>\n\n"
+                "Murojaat uchun: @eshmbetov"
+            )
+            return
 
         await state.clear()
         await message.answer(
@@ -302,44 +294,16 @@ async def reg_phone(message: Message, state: FSMContext):
     user_tg_id = message.from_user.id
     username = message.from_user.username
 
-    is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
-    status = "approved" if is_adm else "pending"
-
+    status = "approved"
     test_db.add_or_update_user(user_tg_id, fullname, phone, username, status=status)
     await state.clear()
 
-    if is_adm or status == "approved":
-        await message.answer(
-            f"🎉 <b>Tabriklaymiz, {fullname}!</b>\n\n"
-            "Siz tizimdan muvaffaqiyatli ro'yxatdan o'tdingiz.\n"
-            "Endi testlarni ishlashingiz mumkin!",
-            reply_markup=main_menu_kb(user_tg_id)
-        )
-    else:
-        await message.answer(
-            f"⏳ <b>Hurmatli {fullname}!</b>\n\n"
-            "Arizangiz qabul qilindi va <b>Adminga ruxsat olish uchun yuborildi</b>.\n\n"
-            "Admin arizangizni tasdiqlashi bilan sizga xabar yuboriladi va bot to'liq ishga tushadi!",
-            reply_markup=ReplyKeyboardRemove()
-        )
-        # Adminga tezkor ruxsat berish xabari
-        req_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="✅ Ruxsat berish", callback_data=f"user_quick_approve_{user_tg_id}"),
-                InlineKeyboardButton(text="❌ Rad etish", callback_data=f"user_quick_reject_{user_tg_id}")
-            ]
-        ])
-        admin_alert = (
-            f"🔔 <b>Yangi foydalanuvchi botga kirish uchun ruxsat so'ramoqda:</b>\n\n"
-            f"👤 <b>Ism:</b> {fullname}\n"
-            f"📱 <b>Telefon:</b> <code>{phone}</code>\n"
-            f"🆔 <b>Telegram ID:</b> <code>{user_tg_id}</code>\n"
-            f"🌐 <b>Username:</b> @{username or 'yo_q'}"
-        )
-        try:
-            await bot.send_message(chat_id=ADMIN_ID, text=admin_alert, reply_markup=req_kb)
-        except Exception as e:
-            log.warning(f"Adminga so'rov yuborishda xatolik: {e}")
+    await message.answer(
+        f"🎉 <b>Tabriklaymiz, {fullname}!</b>\n\n"
+        "Siz tizimdan muvaffaqiyatli ro'yxatdan o'tdingiz.\n"
+        "Endi testlarni ishlashingiz mumkin!",
+        reply_markup=main_menu_kb(user_tg_id)
+    )
 
 # 1. 🔢 Test kodini kiritish (Prompt)
 @router.message(F.text == "🔢 Test kodini kiritish")
@@ -508,166 +472,14 @@ async def admin_panel_handler(message: Message):
         reply_markup=admin_menu_kb()
     )
 
-# 1. Tezkor test qo'shish (Fan so'ralmaydi — har doim Matematika)
+# 1. Yangi test yaratish (Faqat Admin Mini App orqali)
 @router.callback_query(F.data == "admin_add_test")
 async def admin_start_add_test(call: CallbackQuery, state: FSMContext):
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
         return
-
-    await state.set_state(CreateTestState.title)
-    cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_cancel_create_test")]
-    ])
-    text = (
-        "➕ <b>Yangi test qo'shish (1/4):</b>\n\n"
-        "Test nomini kiriting:\n<i>(Masalan: Matematika Blok Test #1)</i>"
-    )
-    try:
-        await call.message.edit_text(text, reply_markup=cancel_kb)
-    except Exception:
-        await call.message.answer(text, reply_markup=cancel_kb)
-    await call.answer()
-
-@router.callback_query(F.data == "admin_cancel_create_test")
-async def admin_cancel_create_test_cb(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    text = (
-        "⚙️ <b>ADMIN BOSHQARUV PANELI</b>\n\n"
-        "Quyidagi bo'limlardan birini tanlang 👇"
-    )
-    try:
-        await call.message.edit_text(text, reply_markup=admin_menu_kb())
-    except Exception:
-        await call.message.answer(text, reply_markup=admin_menu_kb())
-    await call.answer("Bekor qilindi.")
+    await admin_webapp_info_cb(call)
 
-@router.message(CreateTestState.title)
-async def admin_test_title(message: Message, state: FSMContext):
-    await state.update_data(title=message.text.strip(), subject="Matematika")
-    await state.set_state(CreateTestState.test_code)
-    await message.answer(
-        "➕ <b>Test unikal kodini kiriting (2/4):</b>\n<i>(Masalan: 101 yoki MAT-01)</i>"
-    )
-
-@router.message(CreateTestState.test_code)
-async def admin_test_code(message: Message, state: FSMContext):
-    code = message.text.strip().upper()
-    existing = test_db.get_test_by_code(code)
-    if existing:
-        await message.answer("⚠️ Bu kod bilan test allaqachon mavjud! Boshqa kod kiriting:")
-        return
-
-    await state.update_data(test_code=code)
-    await state.set_state(CreateTestState.pdf_file)
-    await message.answer(
-        "➕ <b>Testning PDF faylini yuboring (3/4):</b>\n"
-        "<i>(Fayl sifatida .pdf yuklang yoki 'yoq' deb yozing)</i>"
-    )
-
-@router.message(CreateTestState.pdf_file)
-async def admin_test_pdf(message: Message, state: FSMContext):
-    pdf_id = None
-    pdf_name = None
-
-    if message.document:
-        pdf_id = message.document.file_id
-        pdf_name = message.document.file_name
-    elif (message.text or "").lower() == "yoq":
-        pdf_id = None
-    else:
-        await message.answer("⚠️ Iltimos, PDF fayl yuboring yoki 'yoq' deb yozing:")
-        return
-
-    await state.update_data(pdf_file_id=pdf_id, pdf_file_name=pdf_name)
-    await state.set_state(CreateTestState.answers)
-
-    admin_webapp_url = f"{WEBAPP_URL}/admin.html"
-    inline_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [make_webapp_button("📱 Kalitlarni Mini Appda tugmalar bilan kiritish", admin_webapp_url, fallback_cb="admin_webapp_info")]
-    ])
-
-    await message.answer(
-        "➕ <b>To'g'ri javoblar kalitini kiriting (4/4):</b>\n\n"
-        "Quyidagi namuna shaklida yuboring:\n"
-        "<code>1a2b3c4d...34a 35f 36a:12 36b:5 37a:√3 37b:2.5 ... 45a:10 45b:4</code>\n\n"
-        "<i>(Yoki quyidagi tugma orqali Mini Appda tugmalarni bosib, ballarini belgilab kiritishingiz mumkin 👇)</i>",
-        reply_markup=inline_kb
-    )
-
-def parse_answers_input(text: str) -> Dict[str, str]:
-    """Admin kiritgan kalitlarni 1..32 (ABCD), 33..35 (ABCDEF), 36a..45b (ochiq javob) ko'rinishida lug'atga aylantiradi."""
-    answers = {}
-    cleaned = text.replace(",", " ").replace(";", " ")
-    
-    import re
-    # 1. 36a-45b qismlarini topish (ochiq javoblar: har qanday son, belgi, amal)
-    for match in re.finditer(r'(\d{2}[a-bA-B])\s*[:=\-]?\s*([^\s]+)', cleaned):
-        key = match.group(1).lower()
-        val = match.group(2).strip()
-        answers[key] = val
-
-    # 2. 1-35 savollar
-    for match in re.finditer(r'(\b\d{1,2}\b)\s*[:=\-]?\s*([A-Fa-f])\b', cleaned):
-        num = int(match.group(1))
-        if 1 <= num <= 35:
-            answers[str(num)] = match.group(2).upper()
-
-    # Agar qisqa formatda kiritilgan bo'lsa
-    raw_letters = re.findall(r'[A-Fa-f]', text)
-    if len(answers) < 10 and len(raw_letters) >= 35:
-        for idx in range(min(35, len(raw_letters))):
-            answers[str(idx + 1)] = raw_letters[idx].upper()
-
-    # Default to'ldirish
-    for q in range(1, 33):
-        if str(q) not in answers:
-            answers[str(q)] = "A"
-    for q in [33, 34, 35]:
-        if str(q) not in answers:
-            answers[str(q)] = "A"
-    for q in range(36, 46):
-        for sub in ["a", "b"]:
-            key = f"{q}{sub}"
-            if key not in answers:
-                answers[key] = "1"
-
-    return answers
-
-@router.message(CreateTestState.answers)
-async def admin_save_test(message: Message, state: FSMContext):
-    if message.text in ["📚 Mavjud testlar", "📊 Mening natijalarim", "👤 Profilim", "ℹ️ Bot haqida", "⚙️ Admin Panel"]:
-        await state.clear()
-        if message.text == "📚 Mavjud testlar":
-            await show_active_tests(message)
-        elif message.text == "⚙️ Admin Panel":
-            await admin_panel_handler(message)
-        return
-
-    answers = parse_answers_input(message.text or "")
-    data = await state.get_data()
-
-    success = test_db.create_test(
-        test_code=data.get("test_code", "TEST-01"),
-        title=data.get("title", "Yangi Test"),
-        subject="Matematika",
-        answers=answers,
-        pdf_file_id=data.get("pdf_file_id"),
-        pdf_file_name=data.get("pdf_file_name")
-    )
-    await state.clear()
-
-    if success:
-        await message.answer(
-            f"✅ <b>Test muvaffaqiyatli saqlandi!</b>\n\n"
-            f"📖 <b>Nomi:</b> {data['title']}\n"
-            f"📌 <b>Fani:</b> Matematika\n"
-            f"🔢 <b>Kodi:</b> <code>#{data['test_code']}</code>\n"
-            f"🔑 <b>Kalitlar soni:</b> {len(answers)} ta javob saqlandi.\n\n"
-            f"Foydalanuvchilar endi '📚 Mavjud testlar' bo'limi orqali topshirishlari mumkin!",
-            reply_markup=admin_menu_kb()
-        )
-    else:
-        await message.answer("❌ Testni saqlashda xatolik yuz berdi.", reply_markup=admin_menu_kb())
 
 # 2. Testlarni boshqarish (O'chirish, To'xtatish/Yoqish, Vaqt)
 @router.callback_query(F.data == "admin_manage_tests")
@@ -1169,19 +981,35 @@ async def admin_test_stats_detail(call: CallbackQuery):
     if count > 0:
         avg_score = round(sum(r['score'] for r in results) / count, 1)
 
+    is_active = (test.get("is_active", 1) == 1)
+    is_pub = test_db.is_test_results_published(test_id)
+
+    status_badge = "🟢 Faol (O'quvchilar topshirmoqda)" if is_active else "🔴 To'xtatilgan"
+    pub_badge = "📢 Natijalar e'lon qilingan" if is_pub else "🔒 Natijalar yashirin (Hali e'lon qilinmagan)"
+
     text = (
-        f"📋 <b>Test ma'lumotlari va hisoboti:</b>\n\n"
+        f"📋 <b>Test boshqaruvi va hisoboti:</b>\n\n"
         f"📖 <b>Nomi:</b> {test['title']}\n"
         f"🔑 <b>Kodi:</b> <code>#{test['test_code']}</code>\n"
-        f"📌 <b>Fani:</b> {test.get('subject', 'Matematika')}\n\n"
+        f"📌 <b>Fani:</b> {test.get('subject', 'Matematika')}\n"
+        f"🚦 <b>Holati:</b> {status_badge}\n"
+        f"📢 <b>Natijalar:</b> {pub_badge}\n\n"
         f"👥 <b>Topshirganlar soni:</b> <b>{count} nafar</b>\n"
         f"📈 <b>O'rtacha ball:</b> <b>{avg_score} ball</b>\n\n"
-        f"Kerakli hisobot shaklini tanlang 👇"
+        f"<i>Quyidagi tugmalar orqali testni to'xtatish, natijalarni ko'rish va o'quvchilarga yuborish mumkin 👇</i>"
     )
 
+    toggle_btn_text = "🔴 Testni to'xtatish" if is_active else "🟢 Testni davom ettirish"
+    pub_btn_text = "📢 Natijalarni o'quvchilarga yuborish" if not is_pub else "🔄 Natijalarni qayta yuborish"
+
     buttons = [
-        [InlineKeyboardButton(text="📄 Matn shaklida natijalar", callback_data=f"adm_restxt_{test_id}")],
-        [InlineKeyboardButton(text="📑 PDF hisobotni yuklab olish", callback_data=f"adm_respdf_{test_id}")],
+        [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_{test_id}")],
+        [InlineKeyboardButton(text=pub_btn_text, callback_data=f"adm_broadcast_results_{test_id}")],
+        [
+            InlineKeyboardButton(text="📄 Matn shaklida", callback_data=f"adm_restxt_{test_id}"),
+            InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
+        ],
+        [InlineKeyboardButton(text="🧮 Rasch Modeli bo'yicha tahlil (JMLE)", callback_data=f"adm_rasch_{test_id}")],
         [InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")]
     ]
 
@@ -1190,6 +1018,116 @@ async def admin_test_stats_detail(call: CallbackQuery):
     except Exception:
         await call.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await call.answer()
+
+@router.callback_query(F.data.startswith("adm_broadcast_results_"))
+async def admin_broadcast_results_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+
+    test_id = int(call.data.split("_")[3])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    await call.answer("⏳ Natijalar e'lon qilinmoqda...")
+    status_msg = await call.message.answer(
+        f"⏳ <b>«{test['title']}»</b> testi bo'yicha Rasch kalibrlanmoqda va o'quvchilarga shaxsiy natijalar yuborilmoqda..."
+    )
+
+    # 1. Rasch modeli orqali yakuniy kalibrlash va bazani yangilash
+    test_db.evaluate_test_rasch(test_id, auto_update_db=True)
+
+    # 2. Test natijalarini e'lon qilingan holatga o'tkazish
+    test_db.set_test_results_published(test_id, True)
+
+    # 3. Topshirgan barcha o'quvchilarga shaxsiy Telegram xabarini yuborish
+    submissions = test_db.get_test_submissions_with_users(test_id)
+    sent_count = 0
+    fail_count = 0
+
+    for sub in submissions:
+        uid = sub.get("user_tg_id")
+        if not uid:
+            continue
+        score = sub.get("score", 0.0)
+        grade = sub.get("grade", "—")
+        corr = sub.get("correct_count", 0)
+        name = sub.get("fullname", "Foydalanuvchi")
+        code = sub.get("test_code", test["test_code"])
+
+        msg_text = (
+            f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
+            f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
+            f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
+            f"✅ <b>To'g'ri javoblar:</b> {corr} / 55 ta band\n\n"
+            f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
+            f"🏆 <i>Ishtirokingiz uchun rahmat!</i>"
+        )
+        try:
+            await bot.send_message(chat_id=uid, text=msg_text)
+            sent_count += 1
+        except Exception as ex:
+            log.warning(f"O'quvchi {uid} ga natija yuborishda xatolik: {ex}")
+            fail_count += 1
+
+    await status_msg.edit_text(
+        f"✅ <b>Natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
+        f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
+        f"{f'⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n' if fail_count > 0 else ''}"
+        f"📌 <i>Endi barcha o'quvchilar mini ilovada o'z ballari va to'liq javoblar tahlilini ko'ra oladilar.</i>\n\n"
+        f"<i>Agar xohlasangiz, testni qayta davom ettirishingiz ham mumkin.</i>"
+    )
+
+@router.callback_query(F.data.startswith("adm_rasch_"))
+async def admin_test_rasch_eval(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+
+    test_id = int(call.data.split("_")[2])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    await call.answer("⏳ Rasch modeli hisoblanmoqda...")
+    status_msg = await call.message.answer("⏳ <i>Rasch JMLE modeli bo'yicha savollar qiyinligi va o'quvchilar qobiliyati hisoblanmoqda...</i>")
+
+    res = test_db.evaluate_test_rasch(test_id)
+    if not res or not res.get("students"):
+        await status_msg.edit_text(
+            f"⚠️ <b>«{test['title']}»</b> testi uchun Rasch modelini hisoblashning imkoni bo'lmadi.\n\n"
+            f"📌 <i>Talab: Rasch modeli ishlashi uchun testni kamida 2 nafar o'quvchi topshirgan bo'lishi kerak.</i>"
+        )
+        return
+
+    meta = res.get("meta", {})
+    students = res.get("students", [])
+    items = res.get("items", [])
+
+    text = (
+        f"🧮 <b>Rasch Modeli (JMLE) Baholash Natijalari</b>\n\n"
+        f"📖 <b>Test:</b> {test['title']} (<code>#{test['test_code']}</code>)\n"
+        f"👥 <b>Talabalar:</b> {meta.get('num_students', len(students))} nafar\n"
+        f"❓ <b>Elementlar:</b> {meta.get('num_items', len(items))} ta (55 ta band)\n"
+        f"🔄 <b>Iteratsiyalar:</b> {meta.get('iterations', 0)} (Konvergensiya: {meta.get('converged', True)})\n\n"
+        f"🏆 <b>O'quvchilar darajalari va yakuniy ballari (0-100):</b>\n"
+    )
+
+    for idx, s in enumerate(students[:25], 1):
+        sid = s.get('student_id')
+        u = test_db.get_user(sid) if sid else None
+        name = u['fullname'] if u else f"ID: {sid}"
+        theta_val = s.get('theta', 0.0)
+        text += f"<b>{idx}. {name}</b>: <b>{s['final_score']} ball</b> [🎖 <b>{s['grade']}</b>] (θ={theta_val:+.2f})\n"
+
+    if len(students) > 25:
+        text += f"\n<i>...va yana {len(students) - 25} nafar talaba.</i>"
+
+    buttons = [
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"adm_tstat_{test_id}")]
+    ]
+    await status_msg.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
 @router.callback_query(F.data.startswith("adm_restxt_"))
 async def admin_test_res_text(call: CallbackQuery):
@@ -1310,28 +1248,51 @@ async def handle_submit_test_api(request):
         # Bazada tekshirish va saqlash
         result = test_db.check_and_save_submission(test_id, user_tg_id, user_answers)
 
-        # Foydalanuvchiga Telegram bot orqali shaxsiy natija xabarini yuborish
+        # Natijalar e'lon qilingan yoki yo'qligini tekshirish
+        is_published = test_db.is_test_results_published(test_id)
+
+        # Foydalanuvchiga Telegram bot orqali shaxsiy xabar yuborish
         if user_tg_id:
-            grade = result.get('grade') or test_db.calculate_grade(result.get('score', 0))
-            score_val = result.get('score', 0)
-            msg_user = (
-                f"🎉 <b>Hurmatli {result['fullname']}, sizning natijangiz:</b>\n\n"
-                f"📚 <b>Test:</b> {result['test_title']}\n"
-                f"🎖 <b>Milliy Sertifikat darajasi:</b> <b>{grade}</b> ({score_val} ball)\n\n"
-                f"✅ <b>To'g'ri javoblar:</b> {result['correct_count']} ta\n"
-                f"❌ <b>Noto'g'ri javoblar:</b> {result['incorrect_count']} ta\n"
-                f"⚪ <b>Belgilanmagan:</b> {result['unanswered_count']} ta\n\n"
-                f"🏆 <i>Natijangiz tizimda muvaffaqiyatli qayd etildi!</i>"
-            )
+            if is_published:
+                grade = result.get('grade') or "C"
+                score_val = result.get('score', 0)
+                theta_val = result.get('rasch_theta', 0.0)
+                msg_user = (
+                    f"🎉 <b>Hurmatli {result['fullname']}, sizning natijangiz:</b>\n\n"
+                    f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
+                    f"🧮 <b>Rasch Modeli (JMLE) bo'yicha baholash:</b>\n"
+                    f"🎖 <b>Milliy Sertifikat darajasi:</b> <b>{grade}</b> ({score_val} ball)\n"
+                    f"📈 <b>Rasch qobiliyat parametri (θ):</b> <code>{theta_val:+.2f}</code> logit\n\n"
+                    f"✅ <b>To'g'ri javoblar:</b> {result['correct_count']} / 55 ta band\n"
+                    f"❌ <b>Noto'g'ri javoblar:</b> {result['incorrect_count']} ta\n"
+                    f"⚪ <b>Belgilanmagan:</b> {result['unanswered_count']} ta\n\n"
+                    f"💡 <i>Eslatma: Savollar qiyinligi va yakuniy 100 ballik natija Rasch modeli tomonidan avtomatik hisoblandi.</i>\n\n"
+                    f"🏆 <i>Natijangiz tizimda muvaffaqiyatli qayd etildi!</i>"
+                )
+            else:
+                msg_user = (
+                    f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
+                    f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
+                    f"📝 <b>Javob berilgan savollar:</b> {result['correct_count'] + result['incorrect_count']} / 55 ta\n\n"
+                    f"⏳ <b>Eslatma:</b> Test hozirda boshqa o'quvchilar uchun davom etmoqda. "
+                    f"Barcha natijalar va Milliy sertifikat darajalari admin tomonidan test to'xtatilib, "
+                    f"e'lon qilingandan so'ng botingizga yuboriladi!\n\n"
+                    f"🏆 <i>Javoblaringiz tizimda muvaffaqiyatli saqlandi.</i>"
+                )
             try:
                 await bot.send_message(chat_id=user_tg_id, text=msg_user)
             except Exception as ex:
                 log.warning(f"Foydalanuvchiga xabar yuborishda xatolik: {ex}")
 
-        # Eslatma: Adminga har bir topshirishda alohida spam xabar yuborilmaydi.
-        # Admin natijalarni «📊 Test natijalari va reyting» bo'limida istalgan vaqtda matn yoki PDF ko'rinishida oladi.
+        # WebApp uchun mijoz ma'lumotlari
+        client_data = dict(result)
+        client_data["is_published"] = is_published
+        if not is_published:
+            client_data["score"] = None
+            client_data["grade"] = "Kutilmoqda"
+            client_data["details"] = None
 
-        return web.json_response({"success": True, "data": result})
+        return web.json_response({"success": True, "data": client_data})
 
     except Exception as e:
         log.error(f"Submit API Error: {e}", exc_info=True)
@@ -1429,10 +1390,12 @@ async def handle_static_file(request):
     fpath = await find_web_file(path_name)
     if os.path.exists(fpath) and os.path.isfile(fpath):
         resp = web.FileResponse(fpath)
-        if any(path_name.endswith(ext) for ext in ['.html', '.js', '.css']):
+        if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+        elif any(path_name.endswith(ext) for ext in ['.css', '.js']):
+            resp.headers['Cache-Control'] = 'public, max-age=60'
+        else:
             resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-            resp.headers['Pragma'] = 'no-cache'
-            resp.headers['Expires'] = '0'
         return resp
     return web.Response(status=404, text="Fayl topilmadi")
 
@@ -1537,6 +1500,12 @@ async def handle_app_compare_keys(request):
         if not test:
             return web.json_response({"success": False, "message": "Test topilmadi"}, status=404)
 
+        if not test_db.is_test_results_published(test_id):
+            return web.json_response({
+                "success": False, 
+                "message": "Natijalar va kalitlar admin tomonidan test yakunlanib, rasmiy e'lon qilingach ochiladi."
+            }, status=403)
+
         expected_code = str(test.get('key_access_code', '')).strip()
         if expected_code and expected_code != code:
             return web.json_response({"success": False, "message": "Parol noto'g'ri!"}, status=403)
@@ -1609,12 +1578,23 @@ async def handle_app_users(request):
         log.error(f"App Users API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+async def handle_rasch_evaluate_api(request):
+    try:
+        test_id = int(request.match_info.get('test_id', 0))
+        res = test_db.evaluate_test_rasch(test_id)
+        if not res:
+            return web.json_response({"success": False, "message": "Kamida 2 ta talaba topshirgan bo'lishi kerak yoki test topilmadi"}, status=400)
+        return web.json_response({"success": True, "data": res})
+    except Exception as e:
+        return web.json_response({"success": False, "message": str(e)}, status=500)
+
 async def create_web_app():
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/index.html', handle_index)
     app.router.add_get('/admin.html', handle_admin)
     app.router.add_get('/app.html', handle_app)
+    app.router.add_get('/api/rasch/{test_id}', handle_rasch_evaluate_api)
     app.router.add_post('/api/submit-test', handle_submit_test_api)
     app.router.add_post('/api/create-test', handle_create_test_api)
     # Asosiy Mini App API
@@ -1623,6 +1603,8 @@ async def create_web_app():
     app.router.add_get('/api/app/my-results', handle_app_my_results)
     app.router.add_get('/api/app/users', handle_app_users)
     app.router.add_get('/api/app/status', handle_app_status)
+    app.router.add_get('/healthz', handle_app_status)
+    app.router.add_get('/ping', handle_app_status)
     app.router.add_post('/api/app/compare-keys', handle_app_compare_keys)
     app.router.add_post('/api/app/set-pin', handle_app_set_pin)
     app.router.add_post('/api/app/verify-pin', handle_app_verify_pin)
@@ -1635,19 +1617,19 @@ async def create_web_app():
     return app
 
 async def keep_alive_pinger(url: str):
-    """Render.com yoki bulutli server uxlamasligi uchun har 8 daqiqada avtomatik so'rov yuborish (24/7 Keep-Alive)."""
+    """Render.com bepul tarifi uxlamasligi uchun har 5 daqiqada avtomatik so'rov yuborish (24/7 Keep-Alive)."""
     import aiohttp
     log.info(f"🔄 24/7 Keep-Alive xizmati faollashtirildi: {url}")
-    await asyncio.sleep(60) # Ilk urinish 1 daqiqadan so'ng
+    await asyncio.sleep(45) # Ilk urinish 45 soniyadan so'ng
     while True:
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{url}/api/app/status", timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                async with session.get(f"{url}/healthz", timeout=aiohttp.ClientTimeout(total=15)) as resp:
                     if resp.status == 200:
-                        log.info("💓 Keep-Alive ping muvaffaqiyatli (Server faol).")
+                        log.info("💓 Keep-Alive ping muvaffaqiyatli (Render server faol).")
         except Exception as e:
             log.warning(f"Keep-Alive ping xatosi: {e}")
-        await asyncio.sleep(480) # Har 8 daqiqada (480s) qaytariladi
+        await asyncio.sleep(300) # Har 5 daqiqada (300s) qaytariladi
 
 # ── AVTOMATIK HTTPS TUNNEL (OGOHLANTIRISHLARSIZ / TO'G'RIDAN-TO'G'RI OCHILUVCHI) ──
 async def maintain_tunnel(local_port: int):
@@ -1675,6 +1657,7 @@ async def maintain_tunnel(local_port: int):
         asyncio.create_task(keep_alive_pinger(WEBAPP_URL))
         return
 
+    railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
     if railway_domain:
         WEBAPP_URL = f"https://{railway_domain}"
         log.info(f"🚂 Railway Production muhiti aniqlandi: {WEBAPP_URL}")
@@ -1689,7 +1672,7 @@ async def maintain_tunnel(local_port: int):
         return
 
     env_url = os.getenv("WEBAPP_URL", "")
-    if env_url and not any(k in env_url for k in [".lhr.life", ".trycloudflare.com", ".serveo.net", "localhost"]):
+    if env_url and not any(k in env_url for k in [".lhr.life", ".trycloudflare.com", ".serveo.net", "serveousercontent.com", "localhost", "127.0.0.1"]):
         WEBAPP_URL = env_url.rstrip("/")
         log.info(f"🌐 Doimiy WEBAPP_URL sozlamasi aniqlandi: {WEBAPP_URL}")
         try:
@@ -1704,8 +1687,7 @@ async def maintain_tunnel(local_port: int):
 
     providers = [
         ("Cloudflare", ["cloudflared", "tunnel", "--url", f"http://localhost:{local_port}"], r'https://[a-zA-Z0-9\-\.]+\.trycloudflare\.com'),
-        ("LocalhostRun", ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", "-R", f"80:localhost:{local_port}", "nokey@localhost.run"], r'https://[a-zA-Z0-9\-\.]+\.lhr\.life'),
-        ("Serveo", ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", "-R", f"80:localhost:{local_port}", "serveo.net"], r'https://[a-zA-Z0-9\-\.]+\.serveo\.net')
+        ("LocalhostRun", ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=30", "-R", f"80:localhost:{local_port}", "nokey@localhost.run"], r'https://[a-zA-Z0-9\-\.]+\.lhr\.life')
     ]
 
     while True:
@@ -1787,7 +1769,7 @@ async def main():
         except Exception as ce:
             log.warning(f"Bot buyruqlarini o'rnatishda ogohlantirish: {ce}")
 
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await bot.session.close()
         if runner:

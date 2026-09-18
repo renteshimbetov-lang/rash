@@ -34,10 +34,9 @@ const TestApp = {
         this.userFullname = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Foydalanuvchi';
       }
 
-      // Mavzu
-      if (tg.colorScheme === 'dark') {
-        this.setTheme(true);
-      }
+      // Mavzu (kirishda har doim oq/light)
+      const savedTheme = localStorage.getItem('app_theme') || 'light';
+      this.setTheme(savedTheme === 'dark');
     }
 
     // 2. URL parametrlardan test ma'lumotlarini olish
@@ -82,26 +81,11 @@ const TestApp = {
     if (userEl) userEl.innerHTML = `Ishtirokchi: <strong>${this.userFullname}</strong>`;
 
     setTimeout(() => {
-      if (barEl) barEl.style.width = '35%';
-      if (statusEl) statusEl.innerHTML = '<span>📐 Matematik modul tayyorlanmoqda...</span>';
-    }, 150);
-
-    setTimeout(() => {
-      if (barEl) barEl.style.width = '75%';
-      if (statusEl) statusEl.innerHTML = '<span>⚡ 45 ta savol va formulalar yuklandi...</span>';
-    }, 600);
-
-    setTimeout(() => {
-      if (barEl) barEl.style.width = '100%';
-      if (statusEl) statusEl.innerHTML = '<span>🚀 Boshladik! Omad tilaymiz!</span>';
-    }, 1050);
-
-    setTimeout(() => {
       splash.classList.add('fade-out');
       setTimeout(() => {
         splash.style.display = 'none';
-      }, 600);
-    }, 1450);
+      }, 200);
+    }, 250);
   },
 
   toggleTheme() {
@@ -430,24 +414,52 @@ const TestApp = {
     if (!modal) return;
 
     const nameEl = document.getElementById('result-user-name');
-    const scoreNum = document.getElementById('result-score-num');
-    const correctEl = document.getElementById('r-correct-count');
-    const incorrectEl = document.getElementById('r-incorrect-count');
-    const emptyEl = document.getElementById('r-unanswered-count');
+    const titleEl = modal.querySelector('.result-title');
+    const gradeContainer = document.getElementById('result-grade-container');
+    const detailsGrid = modal.querySelector('.result-details-grid');
+    const noteEl = modal.querySelector('.result-actions div');
+    const analysisBtn = document.getElementById('btn-open-analysis');
 
     if (nameEl) nameEl.textContent = data.fullname || this.userFullname;
-    
-    // Real statistika raqamlarini o'rnatish
-    if (correctEl) correctEl.textContent = `${data.correct_count ?? 0} ta`;
-    if (incorrectEl) incorrectEl.textContent = `${data.incorrect_count ?? 0} ta`;
-    if (emptyEl) emptyEl.textContent = `${data.unanswered_count ?? 0} ta`;
 
-    // Milliy sertifikat darajasi va to'plangan ball
-    const gradeVal = document.getElementById('result-grade-val');
-    if (gradeVal) {
-      const grade = data.grade || '—';
-      const score = (data.score !== undefined && data.score !== null) ? `${data.score} ball` : '';
-      gradeVal.textContent = `${grade} ${score ? `(${score})` : ''}`;
+    const isPublished = Boolean(data.is_published);
+
+    if (!isPublished) {
+      if (titleEl) titleEl.textContent = "Javoblaringiz qabul qilindi! ✅";
+      if (gradeContainer) {
+        gradeContainer.style.borderColor = "#3B82F6";
+        gradeContainer.style.background = "rgba(59, 130, 246, 0.12)";
+        gradeContainer.innerHTML = `
+          <span style="font-size: 26px;">⏳</span>
+          <div style="text-align: left;">
+            <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #2563EB; letter-spacing: 0.5px;">Test holati</div>
+            <div style="font-size: 16px; font-weight: 800; color: #1D4ED8;">Natijalar kutilmoqda</div>
+          </div>
+        `;
+      }
+      if (detailsGrid) detailsGrid.style.display = 'none';
+      if (analysisBtn) analysisBtn.style.display = 'none';
+      if (noteEl) {
+        noteEl.innerHTML = `⏳ <b>Eslatma:</b> Test hozirda barcha o'quvchilar uchun davom etmoqda. Admin testni to'xtatib, natijalarni e'lon qilgach, yakuniy ball va darajangiz botingizga yuboriladi va bu yerda ko'rinadi.`;
+      }
+    } else {
+      if (titleEl) titleEl.textContent = "Test Yakunlandi! 🎉";
+      if (detailsGrid) detailsGrid.style.display = 'grid';
+      if (analysisBtn) analysisBtn.style.display = 'block';
+
+      const correctEl = document.getElementById('r-correct-count');
+      const incorrectEl = document.getElementById('r-incorrect-count');
+      const emptyEl = document.getElementById('r-unanswered-count');
+      if (correctEl) correctEl.textContent = `${data.correct_count ?? 0} ta`;
+      if (incorrectEl) incorrectEl.textContent = `${data.incorrect_count ?? 0} ta`;
+      if (emptyEl) emptyEl.textContent = `${data.unanswered_count ?? 0} ta`;
+
+      const gradeVal = document.getElementById('result-grade-val');
+      if (gradeVal) {
+        const grade = data.grade || '—';
+        const score = (data.score !== undefined && data.score !== null) ? `${data.score} ball` : '';
+        gradeVal.textContent = `${grade} ${score ? `(${score})` : ''}`;
+      }
     }
 
     this.lastResultData = data;
@@ -460,7 +472,10 @@ const TestApp = {
 
   openAnswersAnalysis() {
     const data = this.lastResultData;
-    if (!data || !data.details) return;
+    if (!data || !data.details || !data.is_published) {
+      alert("Natijalar va to'liq tahlil test admin tomonidan to'xtatilib, rasmiy e'lon qilingach ochiladi.");
+      return;
+    }
 
     const container = document.getElementById('analysis-items-container');
     if (!container) return;
@@ -480,11 +495,17 @@ const TestApp = {
 
       let userAnsDisplay = (item.user || '').trim() || '<span style="color: #94A3B8; font-style: italic;">(Belgilanmadi)</span>';
       let correctAnsDisplay = item.correct || '—';
+      let scoreBadge = '';
+      if (item.score !== undefined && item.max_score !== undefined) {
+        scoreBadge = isCorrect
+          ? `<span style="font-size: 11.5px; color: #10B981; font-weight: 700; margin-left: 6px;">(+${item.score} ball)</span>`
+          : `<span style="font-size: 11px; color: #94A3B8; margin-left: 6px;">(${item.max_score} ball)</span>`;
+      }
 
       html += `
         <div style="background: ${statusBg}; border: 1px solid ${statusBorder}; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="font-weight: 800; font-size: 13.5px; color: var(--text-main);">${item.num || key + '-savol'}</span>
+            <span style="font-weight: 800; font-size: 13.5px; color: var(--text-main);">${item.num || key + '-savol'} ${scoreBadge}</span>
             <span style="font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">${statusIcon} ${statusLabel}</span>
           </div>
           <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 2px;">

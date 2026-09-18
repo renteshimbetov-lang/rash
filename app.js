@@ -103,10 +103,10 @@ var state = {
 
 // ── INIT ────────────────────────────────────────
 function initApp() {
-  // Tema va tilni DARHOL yuklash
-  var savedTheme = localStorage.getItem(LS_THEME) || 'dark';
-  document.documentElement.setAttribute('data-theme', savedTheme);
-  updateThemeIcon(savedTheme);
+  // Kirishda main app har doim oq (light) rejimda ochiladi
+  document.documentElement.setAttribute('data-theme', 'light');
+  localStorage.setItem(LS_THEME, 'light');
+  updateThemeIcon('light');
   updateLangLabel();
 
   try {
@@ -139,7 +139,7 @@ if (document.readyState === 'loading') {
   initApp();
 }
 
-// ── SPLASH ──────────────────────────────────────
+// ── SPLASH (Chiroyli kirish animatsiyasi) ──────────
 function runSplash() {
   var splash = document.getElementById('splash-screen');
   var logoBox = document.getElementById('splash-logo-box');
@@ -148,21 +148,30 @@ function runSplash() {
 
   if (!splash) { launchApp(); return; }
 
-  // 1.5s — checkmark / animatsiya
+  // Ma'lumotlarni fonda oldindan tayyorlab qo'yish
+  launchApp();
+
+  // 1.0s — Muvaffaqiyatli tekshiruv (checkmark) animatsiyasi
   setTimeout(function() {
     if (logoBox) logoBox.classList.add('success');
     if (ring) ring.classList.add('success');
     if (ring2) ring2.classList.add('success');
-  }, 1400);
+  }, 1000);
 
-  // 2.2s — To'g'ridan-to'g'ri asosiy ilovani ochish
+  // 1.8s — Yumshoq tarzda asosiy ilovaga o'tish (fade-out)
   setTimeout(function() {
     if (splash) splash.classList.add('hide-splash');
-    launchApp();
     setTimeout(function() {
       if (splash) splash.style.display = 'none';
+
+      // Kirish animatsiyasi 100% tugagachgina tugmalar va dizayn yo'riqnomasini ochish
+      if (!localStorage.getItem('onboarding_nav_tour_seen')) {
+        setTimeout(function() {
+          openOnboardingModal();
+        }, 350);
+      }
     }, 450);
-  }, 2200);
+  }, 1800);
 }
 
 // ── PIN SYSTEM ──────────────────────────────────
@@ -326,13 +335,19 @@ async function launchApp() {
   }
 
   applyI18n();
-
-  try { await loadUserProfile(); } catch(e) { console.warn('Profile:', e); }
   updateHeaderUser();
-  switchTab('home');
 
-  // Yangi foydalanuvchilar uchun avtomatik qo'llanma oynasini ochish
-  if (!localStorage.getItem('onboarding_seen')) {
+  // Profil va faol testlarni parallel (bir vaqtda) yuklash
+  Promise.all([
+    loadUserProfile().catch(function(e) { console.warn('Profile:', e); }),
+    loadActiveTests().catch(function(e) { console.warn('ActiveTests:', e); })
+  ]).then(function() {
+    updateHeaderUser();
+  });
+
+  // Yangi foydalanuvchilar uchun tugmalar va dizayn qo'llanmasi
+  var splashScreen = document.getElementById('splash-screen');
+  if (!splashScreen && !localStorage.getItem('onboarding_nav_tour_seen')) {
     setTimeout(function() {
       openOnboardingModal();
     }, 600);
@@ -340,7 +355,7 @@ async function launchApp() {
 
   // Real vaqt rejimida Bot & Server faolligini tekshirish
   checkBotServerStatus();
-  setInterval(checkBotServerStatus, 10000);
+  setInterval(checkBotServerStatus, 25000);
 }
 
 // ── SERVER & BOT STATUS MONITOR ─────────────────
@@ -515,18 +530,30 @@ function renderTestsTab(results) {
   } else {
     window._myResults = results;
     results.forEach(function(r, i) {
-      var score = (r.score != null) ? r.score : 0;
+      var isPub = Boolean(r.results_published);
       var maxScore = r.max_score || 100;
-      var grade = r.grade || getGradeFromScore(score, maxScore);
-      var gradeClass = gradeToClass(grade);
       var date = formatDate(r.submitted_at);
-      html += '<div class="history-card animate-in" style="animation-delay:' + (i * 0.05) + 's;cursor:pointer" onclick="showResultModal(window._myResults[' + i + '])">' +
-        '<div class="history-info" style="padding-left:12px">' +
-        '<div class="history-title">' + escHtml(r.test_title || r.title || 'Test') + '</div>' +
-        '<div class="history-meta"><span class="badge ' + gradeClass + '" style="margin-right:6px;font-weight:800;padding:2px 8px;border-radius:6px;font-size:11px;">' + grade + '</span> 📅 ' + date + ' • ✅ ' + r.correct_count + '/' + (r.total_count || 45) + '</div>' +
-        '</div>' +
-        '<div class="history-score"><div class="history-score-val" style="color:var(--primary);font-weight:800;">' + score + '</div><div class="history-score-sub">ball</div></div>' +
-        '</div>';
+
+      if (isPub) {
+        var score = (r.score != null) ? r.score : 0;
+        var grade = r.grade || getGradeFromScore(score, maxScore);
+        var gradeClass = gradeToClass(grade);
+        html += '<div class="history-card animate-in" style="animation-delay:' + (i * 0.05) + 's;cursor:pointer" onclick="showResultModal(window._myResults[' + i + '])">' +
+          '<div class="history-info" style="padding-left:12px">' +
+          '<div class="history-title">' + escHtml(r.test_title || r.title || 'Test') + '</div>' +
+          '<div class="history-meta"><span class="badge ' + gradeClass + '" style="margin-right:6px;font-weight:800;padding:2px 8px;border-radius:6px;font-size:11px;">' + grade + '</span> 📅 ' + date + ' • ✅ ' + r.correct_count + '/' + (r.total_count || 55) + '</div>' +
+          '</div>' +
+          '<div class="history-score"><div class="history-score-val" style="color:var(--primary);font-weight:800;">' + score + '</div><div class="history-score-sub">ball</div></div>' +
+          '</div>';
+      } else {
+        html += '<div class="history-card animate-in" style="animation-delay:' + (i * 0.05) + 's;cursor:pointer" onclick="showResultModal(window._myResults[' + i + '])">' +
+          '<div class="history-info" style="padding-left:12px">' +
+          '<div class="history-title">' + escHtml(r.test_title || r.title || 'Test') + '</div>' +
+          '<div class="history-meta"><span class="badge" style="margin-right:6px;font-weight:800;padding:2px 8px;border-radius:6px;font-size:11px;background:rgba(245,158,11,0.15);color:#F59E0B;">⏳ Test davom etmoqda</span> 📅 ' + date + '</div>' +
+          '</div>' +
+          '<div class="history-score"><div class="history-score-val" style="color:#F59E0B;font-weight:800;font-size:13px;">Kutilmoqda</div><div class="history-score-sub">natija</div></div>' +
+          '</div>';
+      }
     });
   }
   tab.innerHTML = html;
@@ -718,7 +745,21 @@ function showResultModal(result) {
   var gradeColor = { 'grade-5':'#10B981', 'grade-4':'#3B82F6', 'grade-3':'#F59E0B', 'grade-2':'#EF4444' };
   var gradeBorder = { 'grade-5':'#10B981', 'grade-4':'#3B82F6', 'grade-3':'#F59E0B', 'grade-2':'#EF4444' };
 
+  var isPub = Boolean(result.results_published);
   title.textContent = (result.test_title || result.title || 'Test Natijasi');
+
+  if (!isPub) {
+    body.innerHTML = 
+      '<div style="text-align:center;margin:16px 0 20px;">' +
+        '<div style="width:70px;height:70px;border-radius:24px;background:rgba(245,158,11,0.15);color:#F59E0B;font-size:32px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">⏳</div>' +
+        '<h3 style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:6px;">Javoblaringiz qabul qilindi!</h3>' +
+        '<p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;max-width:300px;margin:0 auto 16px;">Test hozirda boshqa o‘quvchilar uchun davom etmoqda. Admin testni to‘xtatib, natijalarni e’lon qilgach, bu yerda to‘liq ball va darajangiz ko‘rsatiladi.</p>' +
+        '<div style="background:var(--bg-body);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;color:var(--text-muted);font-weight:600;">📅 Topshirilgan vaqt: ' + date + '</div>' +
+      '</div>';
+    modal.style.display = 'flex';
+    return;
+  }
+
   body.innerHTML =
     '<div style="text-align:center;margin:10px 0 16px;">' +
       '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 28px;border-radius:18px;background:' + (gradeBg[gradeClass]||'rgba(99,102,241,0.15)') + ';border:2px solid ' + (gradeBorder[gradeClass]||'#6366F1') + ';min-width:140px;">' +
@@ -789,15 +830,26 @@ function renderKeyComparison(correct, user, container) {
   var html = '<h4 style="margin:0 0 8px;font-size:14px;">Kalitlar solishtiruvi</h4>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(60px, 1fr));gap:6px;">';
   
+  function getAnswerVal(val) {
+    if (val === undefined || val === null) return '-';
+    if (typeof val === 'object') {
+      if (val.ans !== undefined) return val.ans;
+      if (val.answer !== undefined) return val.answer;
+      return '-';
+    }
+    var s = String(val).trim();
+    return s.length > 0 ? s : '-';
+  }
+
   for (var i = 1; i <= 45; i++) {
     // Handling open questions like 36a, 36b
     var isMultiple = (i >= 36);
     if (isMultiple) {
       ['a', 'b'].forEach(function(sub) {
         var key = i + sub;
-        var cVal = correct[key] ? correct[key].ans : '-';
-        var uVal = user[key] || '-';
-        var isOk = (cVal === uVal);
+        var cVal = getAnswerVal(correct ? correct[key] : null);
+        var uVal = getAnswerVal(user ? user[key] : null);
+        var isOk = (cVal !== '-' && uVal !== '-' && String(cVal).trim().toLowerCase() === String(uVal).trim().toLowerCase());
         var bg = isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
         var col = isOk ? '#10B981' : '#EF4444';
         
@@ -807,9 +859,9 @@ function renderKeyComparison(correct, user, container) {
       });
     } else {
       var key = String(i);
-      var cVal = correct[key] ? correct[key].ans : '-';
-      var uVal = user[key] || '-';
-      var isOk = (cVal === uVal);
+      var cVal = getAnswerVal(correct ? correct[key] : null);
+      var uVal = getAnswerVal(user ? user[key] : null);
+      var isOk = (cVal !== '-' && uVal !== '-' && String(cVal).trim().toLowerCase() === String(uVal).trim().toLowerCase());
       var bg = isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
       var col = isOk ? '#10B981' : '#EF4444';
       
@@ -821,7 +873,6 @@ function renderKeyComparison(correct, user, container) {
   
   html += '</div>';
   container.innerHTML = html;
-
 }
 
 function closeResultModal(e) {
@@ -940,12 +991,12 @@ function goOnboardingSlide(idx) {
     }
   }
 
-  var btnNext = document.getElementById('onboarding-next-btn');
+  var btnNext = document.getElementById('btn-onboarding-next') || document.getElementById('onboarding-next-btn');
   if (btnNext) {
     if (idx === totalOnboardingSlides - 1) {
-      btnNext.innerHTML = 'Boshlash 🚀';
+      btnNext.innerHTML = 'Tushunarli / Boshlash 🚀';
     } else {
-      btnNext.innerHTML = 'Keyingisi ›';
+      btnNext.innerHTML = 'Keyingisi ➔';
     }
   }
 }
@@ -959,7 +1010,7 @@ function nextOnboardingSlide() {
 }
 
 function finishOnboarding() {
-  localStorage.setItem('onboarding_seen', 'true');
+  localStorage.setItem('onboarding_nav_tour_seen', 'true');
   closeOnboardingModal();
-  showToast('Tizimdan muvaffaqiyatli foydalanishingiz mumkin! 🎉');
+  showToast('Yo‘riqnoma yakunlandi. Xush kelibsiz! 🎉');
 }

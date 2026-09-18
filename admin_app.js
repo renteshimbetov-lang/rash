@@ -2,7 +2,7 @@
  * Admin Test & Key Creator Controller
  */
 const AdminApp = {
-  answers: {}, // {"1": {"ans": "", "score": 2.0}, ...}
+  answers: {}, // {"1": {"ans": ""}, ...} — ball Rasch tomonidan avtomatik hisoblanadi
 
   init() {
     if (window.Telegram && window.Telegram.WebApp) {
@@ -12,7 +12,7 @@ const AdminApp = {
 
     this.initAnswers();
     this.renderForm();
-    this.recalculateTotal();
+    this.updateRaschBadge();
     this.updateUnfilledStats();
     this.runIntroAnimation();
   },
@@ -26,18 +26,18 @@ const AdminApp = {
   },
 
   initAnswers() {
-    // 1-32 (2.0 ball dan, 4 ta variant) - boshlang'ichda bo'sh
+    // 1-32 (4 ta variant: A, B, C, D) — ball Rasch tomonidan avtomatik hisoblanadi
     for (let q = 1; q <= 32; q++) {
-      this.answers[String(q)] = { ans: '', score: 2.0 };
+      this.answers[String(q)] = { ans: '' };
     }
-    // 33, 34, 35 (2.0 ball dan, 6 ta variant: A-F) - boshlang'ichda bo'sh
+    // 33, 34, 35 (6 ta variant: A-F)
     for (let q = 33; q <= 35; q++) {
-      this.answers[String(q)] = { ans: '', score: 2.0 };
+      this.answers[String(q)] = { ans: '' };
     }
-    // 36a-45b (1.5 ball dan, yozma/ochiq javob) - boshlang'ichda bo'sh
+    // 36a-45b (ochiq yozma javoblar)
     for (let q = 36; q <= 45; q++) {
-      this.answers[`${q}a`] = { ans: '', score: 1.5 };
-      this.answers[`${q}b`] = { ans: '', score: 1.5 };
+      this.answers[`${q}a`] = { ans: '' };
+      this.answers[`${q}b`] = { ans: '' };
     }
   },
 
@@ -51,7 +51,6 @@ const AdminApp = {
       let html = '';
       for (let q = 1; q <= 32; q++) {
         const curAns = this.answers[String(q)].ans;
-        const curScore = this.answers[String(q)].score;
         html += `
           <div class="q-admin-row">
             <span class="q-admin-num">${q}.</span>
@@ -61,10 +60,6 @@ const AdminApp = {
                   ${opt}
                 </button>
               `).join('')}
-            </div>
-            <div class="score-input-wrap">
-              <input type="number" step="0.5" min="0" class="score-input" id="score-${q}" value="${curScore}" onchange="AdminApp.updateScore('${q}', this.value)">
-              <span class="score-unit">ball</span>
             </div>
           </div>
         `;
@@ -77,15 +72,10 @@ const AdminApp = {
       let html = '';
       for (let q = 33; q <= 35; q++) {
         const curAns = this.answers[String(q)].ans;
-        const curScore = this.answers[String(q)].score;
         html += `
           <div class="q-admin-row" style="flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <span class="q-admin-num" style="font-weight: 800;">${q}-savol (6 ta variant)</span>
-              <div class="score-input-wrap">
-                <input type="number" step="0.5" min="0" class="score-input" id="score-${q}" value="${curScore}" onchange="AdminApp.updateScore('${q}', this.value)">
-                <span class="score-unit">ball</span>
-              </div>
             </div>
             <div class="options-group-6">
               ${['A', 'B', 'C', 'D', 'E', 'F'].map(opt => `
@@ -100,7 +90,7 @@ const AdminApp = {
       part2.innerHTML = html;
     }
 
-    // 3. 36-45
+    // 3. 36-45 (ochiq yozma javoblar)
     if (part3) {
       let html = '';
       for (let q = 36; q <= 45; q++) {
@@ -117,10 +107,6 @@ const AdminApp = {
                 <input type="text" class="savol-input" id="input-${q}a" readonly placeholder="Kalitni klaviaturadan kiriting" value="${itemA.ans}" onclick="MathKeyboard.openFor('${q}a')" style="font-size: 13px; cursor: pointer;">
               </div>
               <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; font-size: 16px; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}a')" title="Matematik klaviatura">⌨️</button>
-              <div class="score-input-wrap">
-                <input type="number" step="0.5" min="0" class="score-input" value="${itemA.score}" onchange="AdminApp.updateScore('${q}a', this.value)">
-                <span class="score-unit">ball</span>
-              </div>
             </div>
 
             <!-- b -->
@@ -130,10 +116,6 @@ const AdminApp = {
                 <input type="text" class="savol-input" id="input-${q}b" readonly placeholder="Kalitni klaviaturadan kiriting" value="${itemB.ans}" onclick="MathKeyboard.openFor('${q}b')" style="font-size: 13px; cursor: pointer;">
               </div>
               <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; font-size: 16px; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}b')" title="Matematik klaviatura">⌨️</button>
-              <div class="score-input-wrap">
-                <input type="number" step="0.5" min="0" class="score-input" value="${itemB.score}" onchange="AdminApp.updateScore('${q}b', this.value)">
-                <span class="score-unit">ball</span>
-              </div>
             </div>
           </div>
         `;
@@ -159,14 +141,6 @@ const AdminApp = {
     }
   },
 
-  updateScore(key, val) {
-    const num = parseFloat(val) || 0.0;
-    if (this.answers[key]) {
-      this.answers[key].score = num;
-    }
-    this.recalculateTotal();
-  },
-
   updateOpenAns(key, val) {
     if (this.answers[key]) {
       this.answers[key].ans = val;
@@ -182,18 +156,13 @@ const AdminApp = {
     this.updateUnfilledStats();
   },
 
-  recalculateTotal() {
-    let total = 0.0;
-    Object.values(this.answers).forEach(item => {
-      total += (parseFloat(item.score) || 0.0);
-    });
-    total = Math.round(total * 10) / 10;
-
+  updateRaschBadge() {
+    // Rasch tizimida ballar avtomatik hisoblanadi
     const badge = document.getElementById('admin-total-badge');
     const dock = document.getElementById('admin-dock-total');
-
-    if (badge) badge.textContent = `🎯 Jami: ${total} ball`;
-    if (dock) dock.textContent = `Jami: ${total} ball`;
+    const msg = '🤖 Rasch: ball avtomatik hisoblanadi';
+    if (badge) badge.textContent = msg;
+    if (dock) dock.textContent = msg;
   },
 
   updateUnfilledStats() {
@@ -337,7 +306,7 @@ const AdminApp = {
         const key = `${q}${sub}`;
         const input = document.getElementById(`input-${key}`);
         if (!this.answers[key]) {
-          this.answers[key] = { ans: '', score: 1.5 };
+          this.answers[key] = { ans: '' };
         }
         if (input && input.value !== undefined) {
           this.answers[key].ans = input.value.trim();

@@ -39,9 +39,13 @@ def init_db():
     )
     """)
     
-    # Mavjud jadvalga status ustunini xavfsiz qo'shish (agar yo'q bo'lsa)
+    # Mavjud jadvalga status va pin_code ustunlarini xavfsiz qo'shish (agar yo'q bo'lsa)
     try:
         cur.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
+    except Exception:
+        pass
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN pin_code TEXT")
     except Exception:
         pass
 
@@ -63,9 +67,14 @@ def init_db():
     )
     """)
 
-    # Eski DB uchun key_access_code ustunini qo'shish (agar yo'q bo'lsa)
+    # Eski DB uchun key_access_code va results_published ustunlarini qo'shish (agar yo'q bo'lsa)
     try:
         cur.execute("ALTER TABLE tests ADD COLUMN key_access_code TEXT")
+    except sqlite3.OperationalError:
+        pass  # Ustun allaqachon mavjud
+
+    try:
+        cur.execute("ALTER TABLE tests ADD COLUMN results_published INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # Ustun allaqachon mavjud
 
@@ -109,7 +118,7 @@ def init_db():
     conn.close()
 
 # ----------------- USERS & ACCESS -----------------
-def add_or_update_user(tg_id: int, fullname: str, phone: str, username: Optional[str] = None, status: str = "pending") -> bool:
+def add_or_update_user(tg_id: int, fullname: str, phone: str, username: Optional[str] = None, status: str = "approved") -> bool:
     conn = get_connection()
     cur = conn.cursor()
     now = int(time.time())
@@ -121,7 +130,7 @@ def add_or_update_user(tg_id: int, fullname: str, phone: str, username: Optional
             fullname=excluded.fullname,
             phone=excluded.phone,
             username=excluded.username,
-            status=CASE WHEN users.status = 'approved' THEN 'approved' ELSE excluded.status END
+            status=CASE WHEN users.status = 'blocked' THEN 'blocked' ELSE 'approved' END
         """, (tg_id, fullname, phone, username, status, now))
         conn.commit()
         return True
@@ -140,13 +149,11 @@ def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
     return dict(row) if row else None
 
 def is_user_approved(tg_id: int, admin_id: int = 8039427064) -> bool:
-    """Foydalanuvchiga botdan foydalanish ruxsati berilganligini tekshirish."""
-    if is_admin(tg_id, admin_id):
-        return True
+    """Foydalanuvchiga botdan foydalanish ruxsati borligini tekshirish (admin ruxsati shart emas, ochiq)."""
     user = get_user(tg_id)
     if not user:
-        return False
-    return user.get("status") == "approved"
+        return True
+    return user.get("status") != "blocked"
 
 def approve_user(tg_id: int) -> bool:
     """Foydalanuvchiga botdan foydalanish huquqini berish."""
@@ -173,6 +180,34 @@ def reject_user(tg_id: int) -> bool:
     except Exception as e:
         print(f"Error rejecting user: {e}")
         return False
+    finally:
+        conn.close()
+
+def set_user_pin(tg_id: int, pin: str) -> bool:
+    """Foydalanuvchi PIN kodini saqlash."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE users SET pin_code = ? WHERE tg_id = ?", (pin, tg_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error setting PIN: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_user_pin(tg_id: int) -> Optional[str]:
+    """Foydalanuvchi PIN kodini olish."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT pin_code FROM users WHERE tg_id = ?", (tg_id,))
+        row = cur.fetchone()
+        return row["pin_code"] if row and row["pin_code"] else None
+    except Exception as e:
+        print(f"Error getting PIN: {e}")
+        return None
     finally:
         conn.close()
 
@@ -334,6 +369,58 @@ def update_test_time_limit(test_id: int, time_limit_min: int) -> bool:
     finally:
         conn.close()
 
+def set_test_results_published(test_id: int, published: bool = True) -> bool:
+    """Natijalar o'quvchilarga e'lon qilinganligini belgilash (1 yoki 0)."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE tests SET results_published = ? WHERE id = ?", (1 if published else 0, test_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error publishing results: {e}")
+        return False
+    finally:
+        conn.close()
+
+def is_test_results_published(test_id: int) -> bool:
+    """Test natijalari e'lon qilinganmi?"""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT results_published FROM tests WHERE id = ?", (test_id,))
+        row = cur.fetchone()
+        if row:
+            try:
+                return bool(row["results_published"])
+            except (IndexError, KeyError):
+                return False
+        return False
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+def get_test_submissions_with_users(test_id: int) -> List[Dict[str, Any]]:
+    """Test topshirgan barcha o'quvchilar ro'yxati (natija yuborish uchun)."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT s.*, t.title as test_title, t.test_code, t.results_published
+    FROM submissions s
+    JOIN tests t ON s.test_id = t.id
+    WHERE s.test_id = ?
+    ORDER BY s.score DESC, s.submitted_at ASC
+    """, (test_id,))
+    rows = cur.fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["grade"] = calculate_grade(d.get("score", 0.0))
+        out.append(d)
+    return out
+
 def delete_test(test_id: int) -> bool:
     conn = get_connection()
     cur = conn.cursor()
@@ -414,6 +501,18 @@ def get_all_users() -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 # ----------------- SUBMISSIONS / RESULTS -----------------
+def parse_answers_json(raw: Any) -> Dict[str, Any]:
+    """JSON formatidagi javoblarni lug'at (dict) ga o'tkazish."""
+    if not raw:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
 def normalize_answer(ans: Any) -> str:
     """Ochiq va yopiq javoblarni moslashtirish: har qanday belgi, son, ildiz, kasr, daraja va amallarni to'g'ri qabul qiladi."""
     if ans is None:
@@ -617,9 +716,10 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
             }
 
     earned_score = round(earned_score, 1)
-    total_possible_score = round(total_possible_score, 1) or 100.0
-    percentage = round((earned_score / total_possible_score) * 100, 1)
+    total_possible_score = 100.0
+    percentage = round((earned_score / total_possible_score) * 100.0, 1)
     grade = calculate_grade(earned_score)
+    rasch_theta = 0.0
 
     now = int(time.time())
     conn = get_connection()
@@ -640,6 +740,20 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
     conn.commit()
     conn.close()
 
+    # Rasch modeli (boshqalar bilan solishtirib baholash) orqali qayta kalibrlash
+    try:
+        rasch_res = evaluate_test_rasch(test["id"], auto_update_db=True)
+        if rasch_res and rasch_res.get("students"):
+            for s in rasch_res["students"]:
+                if s.get("student_id") in (user_tg_id, fullname):
+                    earned_score = s.get("final_score", earned_score)
+                    grade = s.get("grade", grade)
+                    rasch_theta = s.get("theta", 0.0)
+                    percentage = earned_score
+                    break
+    except Exception as ex:
+        print(f"[rasch post-submit] Xatolik: {ex}")
+
     return {
         "submission_id": submission_id,
         "test_title": test["title"],
@@ -649,6 +763,7 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
         "max_score": total_possible_score,
         "percentage": percentage,
         "grade": grade,
+        "rasch_theta": rasch_theta,
         "correct_count": correct_count,
         "incorrect_count": incorrect_count,
         "unanswered_count": unanswered_count,
@@ -660,7 +775,8 @@ def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-    SELECT s.*, t.title as test_title FROM submissions s
+    SELECT s.*, t.title as test_title, t.results_published, t.is_active 
+    FROM submissions s
     JOIN tests t ON s.test_id = t.id
     WHERE s.user_tg_id = ? ORDER BY s.id DESC
     """, (user_tg_id,))
@@ -669,7 +785,14 @@ def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
     results = []
     for r in rows:
         d = dict(r)
-        d["grade"] = calculate_grade(d.get("score", 0))
+        is_pub = bool(d.get("results_published", 0))
+        d["results_published"] = is_pub
+        if is_pub:
+            d["grade"] = calculate_grade(d.get("score", 0))
+        else:
+            d["grade"] = "Kutilmoqda"
+            d["score"] = None
+            d["details_json"] = "{}"
         results.append(d)
     return results
 
@@ -698,6 +821,87 @@ def get_tests_with_stats() -> List[Dict[str, Any]]:
     rows = cur.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+# ----------------- RASCH MODEL INTEGRATION -----------------
+def get_test_submissions_for_rasch(test_id: int) -> List[Dict[str, Any]]:
+    """
+    Rasch baholash uchun test submissions ni qaytaradi.
+    Faqat details_json mavjud bo'lgan yozuvlar qaytariladi.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT user_tg_id, fullname, details_json, score, correct_count, submitted_at
+    FROM submissions
+    WHERE test_id = ? AND details_json IS NOT NULL AND details_json != ''
+    ORDER BY submitted_at ASC
+    """, (test_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def evaluate_test_rasch(test_id: int, auto_update_db: bool = False) -> Optional[Dict[str, Any]]:
+    """
+    Berilgan test uchun Rasch JMLE baholashni o'tkazadi (tahlil va statistika uchun).
+    """
+    try:
+        from rasch_engine import evaluate_single_test
+        res = evaluate_single_test(test_id, get_test_submissions_for_rasch)
+        if res and auto_update_db and res.get("students"):
+            item_score_map = {it["item_label"].replace("Q", ""): it.get("item_score", 1.0) for it in res.get("items", [])}
+            conn = get_connection()
+            cur = conn.cursor()
+            for s in res["students"]:
+                student_id = s.get("student_id")
+                final_score = s.get("final_score", 0.0)
+                cur.execute("""
+                    SELECT id, details_json FROM submissions 
+                    WHERE test_id = ? AND (user_tg_id = ? OR id = ?)
+                """, (test_id, student_id, student_id))
+                row = cur.fetchone()
+                if row:
+                    sub_id, det_raw = row[0], row[1]
+                    try:
+                        det = json.loads(det_raw) if det_raw else {}
+                        for k, v in det.items():
+                            if k in item_score_map:
+                                is_c = (v.get("status") == "correct")
+                                sc = item_score_map[k]
+                                v["score"] = sc if is_c else 0.0
+                                v["max_score"] = sc
+                        new_det = json.dumps(det, ensure_ascii=False)
+                        cur.execute("""
+                            UPDATE submissions 
+                            SET score = ?, details_json = ? 
+                            WHERE id = ?
+                        """, (final_score, new_det, sub_id))
+                    except Exception:
+                        cur.execute("""
+                            UPDATE submissions 
+                            SET score = ? 
+                            WHERE id = ?
+                        """, (final_score, sub_id))
+            conn.commit()
+            conn.close()
+        return res
+    except ImportError:
+        print("[rasch] rasch_engine.py topilmadi — Rasch baholash o'tkazib yuborildi.")
+        return None
+    except Exception as e:
+        print(f"[rasch] Xatolik: {e}")
+        return None
+
+
+def _clean_pdf_text(text: Any) -> str:
+    """PDF uchun matnni xavfsiz tozalash (XML va maxsus belgilarni to'g'rilash)."""
+    if text is None:
+        return ""
+    s = str(text)
+    s = s.replace("—", "-").replace("–", "-").replace("ʻ", "'").replace("ʼ", "'").replace("‘", "'").replace("’", "'")
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+    return s
 
 def generate_test_results_pdf(test_id: int) -> Optional[str]:
     """Test natijalari bo'yicha rasmiy PDF reyting jadvali generatsiya qiladi."""
@@ -732,8 +936,8 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
             'TitleStyle',
             parent=styles['Normal'],
             fontName='Helvetica-Bold',
-            fontSize=16,
-            leading=20,
+            fontSize=15,
+            leading=19,
             textColor=colors.HexColor("#1E3A8A"),
             alignment=1
         )
@@ -742,8 +946,8 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
             'SubTitleStyle',
             parent=styles['Normal'],
             fontName='Helvetica',
-            fontSize=11,
-            leading=15,
+            fontSize=10,
+            leading=14,
             textColor=colors.HexColor("#475569"),
             alignment=1
         )
@@ -765,9 +969,12 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         )
 
         elements = []
-        elements.append(Paragraph("BUXORIYLAR MAKTABI — BM RASH TEST", title_style))
+        elements.append(Paragraph("BUXORIYLAR MAKTABI - BM RASH TEST", title_style))
         elements.append(Spacer(1, 6))
-        elements.append(Paragraph(f"Test: <b>{test['title']}</b> | Fan: {test.get('subject', 'Matematika')}", subtitle_style))
+        
+        test_title_clean = _clean_pdf_text(test['title'])
+        test_subject_clean = _clean_pdf_text(test.get('subject', 'Matematika'))
+        elements.append(Paragraph(f"Test: <b>{test_title_clean}</b> | Fan: {test_subject_clean}", subtitle_style))
         elements.append(Paragraph(f"Jami ishtirokchilar soni: <b>{len(results)} nafar</b> | Sana: {time.strftime('%d.%m.%Y %H:%M')}", subtitle_style))
         elements.append(Spacer(1, 14))
 
@@ -787,12 +994,16 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         for rank, r in enumerate(results, 1):
             dt = time.strftime("%d.%m %H:%M", time.localtime(r["submitted_at"]))
             grade = calculate_grade(r["score"])
+            fullname_clean = _clean_pdf_text(r["fullname"] or "Foydalanuvchi")
+            phone_clean = _clean_pdf_text(r["phone"] or "-")
+            grade_clean = _clean_pdf_text(grade)
+
             table_data.append([
                 Paragraph(f"<b>#{rank}</b>", cell_bold),
-                Paragraph(r["fullname"] or "Foydalanuvchi", cell_style),
-                Paragraph(r["phone"] or "-", cell_style),
+                Paragraph(fullname_clean, cell_style),
+                Paragraph(phone_clean, cell_style),
                 Paragraph(f"<b>{r['score']} ball</b>", cell_bold),
-                Paragraph(f"<b>{grade}</b>", cell_style),
+                Paragraph(f"<b>{grade_clean}</b>", cell_style),
                 Paragraph(f"{r['correct_count']} ta", cell_style),
                 Paragraph(dt, cell_style)
             ])
@@ -814,7 +1025,9 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         doc.build(elements)
         return pdf_path
     except Exception as e:
-        print(f"PDF Error: {e}")
+        import traceback
+        print(f"PDF Generation Error: {e}")
+        traceback.print_exc()
         return None
 
 # Baza inicializatsiyasi

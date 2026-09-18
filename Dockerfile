@@ -5,7 +5,12 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
     PORT=8080
 
-RUN pip install --no-cache-dir "aiogram>=3.15.0" "aiofiles>=24.1.0" "python-dotenv>=1.0.1" "requests>=2.32.3"
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 

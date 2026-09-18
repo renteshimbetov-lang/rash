@@ -1,29 +1,23 @@
 <!DOCTYPE html>
-<html lang="uz" data-theme="dark">
+<html lang="uz" data-theme="light">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <meta name="theme-color" content="#0a0b14"/>
+  <meta name="theme-color" content="#f8fafc"/>
   <title>Buxoriylar Maktabi — Test Markazi</title>
   <meta name="description" content="Buxoriylar Maktabi — Shaxsiy test markazi va profil"/>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link rel="stylesheet" href="/css/app_style.css?v=3.5"/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/app_style.css?v=3.8"/>
   <script>
     (function() {
-      var savedTheme = localStorage.getItem('app_theme');
-      var isDark = true;
-      if (savedTheme) {
-        isDark = (savedTheme === 'dark');
-      } else if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.colorScheme) {
-        isDark = (window.Telegram.WebApp.colorScheme === 'dark');
-      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        isDark = false;
-      }
-      document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+      // Kirishda har doim oq (light) rejimda boshlanadi
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('app_theme', 'light');
       var metaTheme = document.querySelector('meta[name="theme-color"]');
-      if (metaTheme) metaTheme.setAttribute('content', isDark ? '#0a0b14' : '#f8fafc');
+      if (metaTheme) metaTheme.setAttribute('content', '#f8fafc');
     })();
   </script>
 </head>
@@ -42,7 +36,6 @@
   </div>
   <div class="splash-title">BUXORIYLAR MAKTABI</div>
   <div class="splash-subtitle">TO'G'RI TANLOV MUKAMMAL NATIJA</div>
-  <div class="splash-badge">⭐️ 2018-YILDAN BUYON ⭐️</div>
   <div class="splash-dots">
     <div class="splash-dot"></div>
     <div class="splash-dot"></div>
@@ -152,42 +145,74 @@
   </div>
 </div>
 
-<!-- ONBOARDING / INTRO MODAL -->
+<!-- ONBOARDING / BOTTOM NAV & THEME GUIDE MODAL -->
 <div id="onboarding-modal" class="modal-overlay" style="display:none;z-index:99999;">
-  <div class="modal-box onboarding-box" style="max-width:380px;text-align:center;padding:26px 20px 22px;border-radius:24px;background:var(--bg-card);box-shadow:0 20px 50px rgba(0,0,0,0.5);border:1px solid var(--border);">
+  <div class="modal-box onboarding-box" style="max-width:390px;width:92%;text-align:center;padding:26px 20px 22px;border-radius:24px;background:var(--bg-card);box-shadow:0 24px 60px rgba(0,0,0,0.35);border:1px solid var(--border);">
     
     <div id="onboarding-slides-container">
-      <!-- Slide 0 -->
+      <!-- Slide 0: Asosiy (Home) -->
       <div class="onboarding-slide" id="onboarding-slide-0">
-        <div style="width:72px;height:72px;border-radius:24px;background:rgba(59,130,246,0.15);color:#3B82F6;font-size:36px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(59,130,246,0.25);">🎓</div>
-        <h3 style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px;">RASH TEST ga Xush kelibsiz!</h3>
-        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;margin:0 auto;max-width:300px;">Ushbu bot va ilova orqali siz Milliy sertifikat va fan olimpiadalari testlarini onlayn topshirishingiz va tahlil qilishingiz mumkin.</p>
+        <div style="width:72px;height:72px;border-radius:24px;background:rgba(59,130,246,0.12);color:#3B82F6;font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:0 8px 22px rgba(59,130,246,0.2);">
+          🏠
+        </div>
+        <div style="display:inline-block;padding:3px 12px;border-radius:20px;background:rgba(59,130,246,0.12);color:#3B82F6;font-size:11.5px;font-weight:800;letter-spacing:0.5px;margin-bottom:8px;">1-TUGMA: ASOSIY</div>
+        <h3 style="font-size:19px;font-weight:900;color:var(--text);margin-bottom:8px;">«Asosiy» bo‘limi</h3>
+        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.55;margin:0 auto 12px;max-width:310px;">
+          Pastki menyudagi birinchi <b>«Asosiy»</b> tugmasi orqali faol testlar ro‘yxatini ko‘rishingiz, test kodini kiritib sinovni boshlashingiz mumkin.
+        </p>
+        <div style="background:var(--bg-body);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:12.5px;color:var(--text);font-weight:600;">
+          <span style="font-size:16px;">⚡️</span> Tezkor kirish, test kodlari va e’lonlar
+        </div>
       </div>
 
-      <!-- Slide 1 -->
+      <!-- Slide 1: Testlar (Tests) -->
       <div class="onboarding-slide" id="onboarding-slide-1" style="display:none;">
-        <div style="width:72px;height:72px;border-radius:24px;background:rgba(16,185,129,0.15);color:#10B981;font-size:36px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(16,185,129,0.25);">✍️</div>
-        <h3 style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px;">1. Testlarni topshirish</h3>
-        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;margin:0 auto;max-width:300px;">Botga test kodini (masalan: <b>102</b>) kiritasiz va PDF fayl hamda qulay test varaqasi orqali javoblarni belgilab yuborasiz.</p>
+        <div style="width:72px;height:72px;border-radius:24px;background:rgba(16,185,129,0.12);color:#10B981;font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:0 8px 22px rgba(16,185,129,0.2);">
+          📝
+        </div>
+        <div style="display:inline-block;padding:3px 12px;border-radius:20px;background:rgba(16,185,129,0.12);color:#10B981;font-size:11.5px;font-weight:800;letter-spacing:0.5px;margin-bottom:8px;">2-TUGMA: TESTLAR</div>
+        <h3 style="font-size:19px;font-weight:900;color:var(--text);margin-bottom:8px;">«Testlar» tarixi & Kalitlar</h3>
+        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.55;margin:0 auto 12px;max-width:310px;">
+          Pastdagi <b>«Testlar»</b> tugmasida siz topshirgan barcha testlaringiz ro‘yxati, to‘liq javoblar tahlili va to‘g‘ri kalitlar saqlanadi.
+        </p>
+        <div style="background:var(--bg-body);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:12.5px;color:var(--text);font-weight:600;">
+          <span style="font-size:16px;">🔍</span> Har bir savolning to‘g‘ri/noto‘g‘ri tahlili
+        </div>
       </div>
 
-      <!-- Slide 2 -->
+      <!-- Slide 2: Profil (Profile) -->
       <div class="onboarding-slide" id="onboarding-slide-2" style="display:none;">
-        <div style="width:72px;height:72px;border-radius:24px;background:rgba(245,158,11,0.15);color:#F59E0B;font-size:36px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(245,158,11,0.25);">🎖️</div>
-        <h3 style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px;">2. Ball va Darajalar</h3>
-        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;margin:0 auto;max-width:300px;">Javoblarni yuborishingiz bilan tizim sizning toʻplagan <b>aniq ballingiz</b> va rasmiy <b>A+, A, B+, B, C</b> darajangizni hisoblab beradi.</p>
+        <div style="width:72px;height:72px;border-radius:24px;background:rgba(245,158,11,0.12);color:#F59E0B;font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:0 8px 22px rgba(245,158,11,0.2);">
+          👤
+        </div>
+        <div style="display:inline-block;padding:3px 12px;border-radius:20px;background:rgba(245,158,11,0.12);color:#F59E0B;font-size:11.5px;font-weight:800;letter-spacing:0.5px;margin-bottom:8px;">3-TUGMA: PROFIL</div>
+        <h3 style="font-size:19px;font-weight:900;color:var(--text);margin-bottom:8px;">«Profil» & Sertifikat darajasi</h3>
+        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.55;margin:0 auto 12px;max-width:310px;">
+          Pastdagi <b>«Profil»</b> tugmasi orqali Rasch modeli bo‘yicha to‘plagan ballaringiz, Milliy sertifikat darajalaringiz (<b>A+, A, B+, B, C</b>) va shaxsiy sozlamalarni ko‘rasiz.
+        </p>
+        <div style="background:var(--bg-body);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:12.5px;color:var(--text);font-weight:600;">
+          <span style="font-size:16px;">🎖</span> Shaxsiy ballar, reyting va PIN-kod
+        </div>
       </div>
 
-      <!-- Slide 3 -->
+      <!-- Slide 3: Oq va Qorong'u rejim (Theme) -->
       <div class="onboarding-slide" id="onboarding-slide-3" style="display:none;">
-        <div style="width:72px;height:72px;border-radius:24px;background:rgba(139,92,246,0.15);color:#8B5CF6;font-size:36px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 20px rgba(139,92,246,0.25);">🔑</div>
-        <h3 style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:8px;">3. Natijalar va Kalitlar</h3>
-        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;margin:0 auto;max-width:300px;">Ilovaning <b>"Testlar"</b> boʻlimida barcha ishlagan testlaringiz saqlanadi. Maxfiy parol orqali toʻgʻri javoblar kalitini solishtirishingiz mumkin.</p>
+        <div style="width:72px;height:72px;border-radius:24px;background:rgba(139,92,246,0.12);color:#8B5CF6;font-size:34px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;box-shadow:0 8px 22px rgba(139,92,246,0.2);">
+          ☀️ 🌙
+        </div>
+        <div style="display:inline-block;padding:3px 12px;border-radius:20px;background:rgba(139,92,246,0.12);color:#8B5CF6;font-size:11.5px;font-weight:800;letter-spacing:0.5px;margin-bottom:8px;">QULAY DIZAYN</div>
+        <h3 style="font-size:19px;font-weight:900;color:var(--text);margin-bottom:8px;">Oq va Qorong‘u rejim</h3>
+        <p style="font-size:13.5px;color:var(--text-muted);line-height:1.55;margin:0 auto 12px;max-width:310px;">
+          Ilova kirishda har doim qulay <b>Oq (kunduzgi)</b> rejimda ochiladi. Tepadagi <b>☀️ / 🌙</b> tugma orqali ilovani xohlagan vaqtingizda <b>Qorong‘u (tungi)</b> yoki <b>Oq</b> rejimga o‘tkaza olasiz!
+        </p>
+        <div style="background:var(--bg-body);border:1px solid var(--border);border-radius:14px;padding:10px 14px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:12.5px;color:var(--text);font-weight:700;">
+          <span>☀️ Kunduzgi (Oq)</span> <span style="color:var(--text-muted);">⇄</span> <span>🌙 Tungi (Qorong‘u)</span>
+        </div>
       </div>
     </div>
 
     <!-- Onboarding Dots -->
-    <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin:22px 0 18px;">
+    <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin:20px 0 16px;">
       <span class="onboarding-dot active" id="ob-dot-0" onclick="goOnboardingSlide(0)" style="width:24px;height:8px;border-radius:4px;background:var(--primary);cursor:pointer;transition:all 0.3s ease;"></span>
       <span class="onboarding-dot" id="ob-dot-1" onclick="goOnboardingSlide(1)" style="width:8px;height:8px;border-radius:4px;background:var(--border);cursor:pointer;transition:all 0.3s ease;"></span>
       <span class="onboarding-dot" id="ob-dot-2" onclick="goOnboardingSlide(2)" style="width:8px;height:8px;border-radius:4px;background:var(--border);cursor:pointer;transition:all 0.3s ease;"></span>
@@ -205,6 +230,6 @@
 <!-- TOAST -->
 <div id="toast"></div>
 
-<script src="/js/app.js?v=3.5"></script>
+<script src="/js/app.js?v=3.8"></script>
 </body>
 </html>
