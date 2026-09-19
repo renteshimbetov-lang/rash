@@ -665,12 +665,37 @@ function renderUsersSection(users, stats) {
 }
 
 function openAdminUserModal(idx) {
-  var u = window.currentAdminUsers && window.currentAdminUsers[idx];
-  if (!u) return;
+  var u = null;
+  if (typeof idx === 'object' && idx !== null) {
+    u = idx;
+  } else if (window.currentAdminUsers && window.currentAdminUsers[idx]) {
+    u = window.currentAdminUsers[idx];
+  }
+  if (!u) {
+    console.warn('Foydalanuvchi topilmadi:', idx);
+    return;
+  }
 
   var modal = document.getElementById('admin-user-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'admin-user-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:16px;';
+    modal.onclick = function(e) { closeAdminUserModal(e); };
+    modal.innerHTML =
+      '<div class="modal-box" id="admin-user-modal-box" style="max-width:390px;width:100%;max-height:90vh;overflow-y:auto;padding:20px 18px 22px;border-radius:24px;background:var(--bg-card,#1e293b);border:1px solid var(--border,rgba(255,255,255,0.12));box-shadow:0 24px 60px rgba(0,0,0,0.4);position:relative;">' +
+      '  <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+      '    <div class="modal-title" style="font-size:16px;font-weight:800;color:var(--text,#fff);">Foydalanuvchi ma\'lumotlari</div>' +
+      '    <button class="modal-close" onclick="closeAdminUserModal()" style="background:none;border:none;font-size:20px;color:var(--text-muted,#94a3b8);cursor:pointer;padding:4px 8px;line-height:1;">✕</button>' +
+      '  </div>' +
+      '  <div class="modal-body" id="admin-user-modal-body"></div>' +
+      '</div>';
+    document.body.appendChild(modal);
+  }
+
   var body = document.getElementById('admin-user-modal-body');
-  if (!modal || !body) return;
+  if (!body) return;
 
   var letter = (u.fullname || 'F').charAt(0).toUpperCase();
   var st = u.status || 'pending';
@@ -722,7 +747,7 @@ function closeAdminUserModal(e) {
 
 async function updateUserStatusFromModal(targetUid, newStatus) {
   var adminId = (state.tgUser && state.tgUser.id) || 0;
-  var btn = event && event.target;
+  var btn = (typeof event !== 'undefined' && event && event.target) ? event.target : null;
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Bajarilmoqda...';
