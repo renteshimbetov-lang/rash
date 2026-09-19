@@ -51,7 +51,7 @@ if _raw_url:
         _raw_url = f"https://{_raw_url}"
     WEBAPP_URL = _raw_url.rstrip("/")
 else:
-    WEBAPP_URL = "https://rash-test.onrender.com"
+    WEBAPP_URL = "https://rash-vmrm.onrender.com"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1587,28 +1587,85 @@ async def handle_create_test_api(request):
         log.error(f"Create Test API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
-WEB_DIR = os.path.join(os.path.dirname(__file__), 'test_webapp')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+WEB_DIR = os.path.join(BASE_DIR, 'test_webapp')
+
+# Agar test_webapp yoki undagi fayllar Render diskida mavjud bo'lmasa, avtomatik tiklash
+try:
+    import web_assets_fallback
+    web_assets_fallback.ensure_assets_on_disk(WEB_DIR)
+except Exception as _we:
+    log.warning(f"Web assets fallback xatoligi: {_we}")
 
 async def find_web_file(filename: str) -> str:
+    filename_clean = filename.lstrip('/')
     candidates = [
-        os.path.join(WEB_DIR, filename),
-        os.path.join(WEB_DIR, 'css', filename),
-        os.path.join(WEB_DIR, 'js', filename),
-        os.path.join(WEB_DIR, 'img', filename),
+        os.path.join(WEB_DIR, filename_clean),
+        os.path.join(WEB_DIR, 'css', filename_clean),
+        os.path.join(WEB_DIR, 'js', filename_clean),
+        os.path.join(WEB_DIR, 'img', filename_clean),
+        os.path.join(BASE_DIR, filename_clean),
+        os.path.join(BASE_DIR, 'css', filename_clean),
+        os.path.join(BASE_DIR, 'js', filename_clean),
+        os.path.join(BASE_DIR, 'img', filename_clean),
+        os.path.join(os.getcwd(), 'test_webapp', filename_clean),
+        os.path.join(os.getcwd(), filename_clean),
     ]
     for c in candidates:
         if os.path.exists(c) and os.path.isfile(c):
             return c
-    return os.path.join(WEB_DIR, filename)
+    # Fallback: Papkalar bo'ylab qidirish
+    target = os.path.basename(filename_clean)
+    for root_dir in [WEB_DIR, BASE_DIR, os.getcwd()]:
+        if os.path.exists(root_dir):
+            for root, dirs, files in os.walk(root_dir):
+                if target in files:
+                    found = os.path.join(root, target)
+                    log.info(f"🔍 Topildi (recursive search): {found}")
+                    return found
+    return os.path.join(WEB_DIR, filename_clean)
 
 async def handle_index(request):
-    return web.FileResponse(await find_web_file('index.html'))
+    fpath = await find_web_file('index.html')
+    if os.path.exists(fpath) and os.path.isfile(fpath):
+        return web.FileResponse(fpath)
+    try:
+        import web_assets_fallback
+        data, mime = web_assets_fallback.get_asset_bytes('index.html')
+        if data:
+            return web.Response(body=data, content_type=mime or 'text/html', charset='utf-8')
+    except Exception as e:
+        log.error(f"index.html yuklashda xatolik: {e}")
+    return web.Response(status=404, text="index.html topilmadi")
 
 async def handle_admin(request):
-    return web.FileResponse(await find_web_file('admin.html'))
+    fpath = await find_web_file('admin.html')
+    if os.path.exists(fpath) and os.path.isfile(fpath):
+        return web.FileResponse(fpath)
+    try:
+        import web_assets_fallback
+        data, mime = web_assets_fallback.get_asset_bytes('admin.html')
+        if data:
+            return web.Response(body=data, content_type=mime or 'text/html', charset='utf-8')
+    except Exception as e:
+        log.error(f"admin.html yuklashda xatolik: {e}")
+    return web.Response(status=404, text="admin.html topilmadi")
 
 async def handle_app(request):
-    resp = web.FileResponse(await find_web_file('app.html'))
+    fpath = await find_web_file('app.html')
+    if os.path.exists(fpath) and os.path.isfile(fpath):
+        resp = web.FileResponse(fpath)
+    else:
+        try:
+            import web_assets_fallback
+            data, mime = web_assets_fallback.get_asset_bytes('app.html')
+            if data:
+                resp = web.Response(body=data, content_type=mime or 'text/html', charset='utf-8')
+            else:
+                resp = web.Response(status=404, text="app.html topilmadi")
+        except Exception as e:
+            log.error(f"app.html yuklashda xatolik: {e}")
+            resp = web.Response(status=404, text="app.html topilmadi")
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
@@ -1628,6 +1685,21 @@ async def handle_static_file(request):
         else:
             resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return resp
+
+    # Fallback to embedded in-memory asset
+    try:
+        import web_assets_fallback
+        data, mime = web_assets_fallback.get_asset_bytes(path_name)
+        if data:
+            resp = web.Response(body=data, content_type=mime or 'application/octet-stream')
+            if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
+                resp.headers['Cache-Control'] = 'public, max-age=86400'
+            elif any(path_name.endswith(ext) for ext in ['.css', '.js']):
+                resp.headers['Cache-Control'] = 'public, max-age=60'
+            return resp
+    except Exception as e:
+        log.error(f"Statik faylni xotiradan yuklashda xatolik ({path_name}): {e}")
+
     return web.Response(status=404, text="Fayl topilmadi")
 
 # ── ASOSIY MINI APP API ENDPOINTLARI ────────────────────────────────────────
@@ -1921,7 +1993,7 @@ async def maintain_tunnel(local_port: int):
     is_render = os.getenv("RENDER") == "true" or bool(os.getenv("RENDER_SERVICE_ID")) or bool(os.getenv("RENDER_INSTANCE_ID"))
     if render_domain or is_render:
         if not render_domain:
-            render_domain = os.getenv("WEBAPP_URL") or "https://rash-test.onrender.com"
+            render_domain = os.getenv("WEBAPP_URL") or "https://rash-vmrm.onrender.com"
         WEBAPP_URL = (render_domain if render_domain.startswith("http") else f"https://{render_domain}").rstrip("/")
         log.info(f"🚀 Render.com Production muhiti aniqlandi: {WEBAPP_URL}")
         try:
