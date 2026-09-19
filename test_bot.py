@@ -418,6 +418,9 @@ async def process_solve_test_code(message: Message, state: FSMContext):
     if not await check_access(message):
         await state.clear()
         return
+    text = (message.text or "").strip()
+    if not text:
+        return
     menu_cmds = [
         "🔢 Test kodini kiritish", "📊 Mening natijalarim", "👤 Profilim",
         "ℹ️ Yordam", "ℹ️ Bot haqida", "⚙️ Admin Panel",
@@ -719,14 +722,29 @@ async def admin_manage_test_card(call: CallbackQuery):
         f"<i>Boshqarish uchun quyidagi amallardan birini tanlang:</i>"
     )
 
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+    kb_rows = [
         [
             InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_{t['id']}"),
             InlineKeyboardButton(text="⏱ Vaqt", callback_data=f"set_time_prompt_{t['id']}")
-        ],
-        [InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del_test_confirm_{t['id']}")],
-        [InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_manage_tests")]
-    ])
+        ]
+    ]
+    if t["is_active"] == 0:
+        kb_rows.append([
+            InlineKeyboardButton(text="🧮 Rasch orqali tekshirish (JMLE)", callback_data=f"adm_rasch_{t['id']}")
+        ])
+        kb_rows.append([
+            InlineKeyboardButton(text="📢 Natijalarni e'lon qilish", callback_data=f"adm_broadcast_results_{t['id']}"),
+            InlineKeyboardButton(text="📊 Reyting", callback_data=f"adm_tstat_{t['id']}")
+        ])
+    else:
+        kb_rows.append([
+            InlineKeyboardButton(text="📊 Natijalar va statistika", callback_data=f"adm_tstat_{t['id']}")
+        ])
+
+    kb_rows.append([InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del_test_confirm_{t['id']}")])
+    kb_rows.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_manage_tests")])
+
+    kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
 
     try:
         await call.message.edit_text(card_text, reply_markup=kb)
@@ -1349,6 +1367,7 @@ async def admin_test_rasch_eval(call: CallbackQuery):
         text += f"\n<i>...va yana {len(students) - 25} nafar talaba.</i>"
 
     buttons = [
+        [InlineKeyboardButton(text="📢 Natijalarni o'quvchilarga yuborish", callback_data=f"adm_broadcast_results_{test_id}")],
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"adm_tstat_{test_id}")]
     ]
     await status_msg.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
@@ -1440,6 +1459,13 @@ async def admin_test_res_pdf(call: CallbackQuery):
 async def handle_direct_text(message: Message, state: FSMContext):
     cur_state = await state.get_state()
     if cur_state is not None:
+        return
+
+    raw_text = (message.text or "").strip()
+    if not raw_text:
+        return
+
+    if not await check_access(message):
         return
 
     menu_cmds = [
