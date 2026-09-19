@@ -29,6 +29,17 @@ from aiogram.types import (
 )
 from aiohttp import web
 import test_db
+from datetime import datetime, timezone, timedelta
+
+UZB_TZ = timezone(timedelta(hours=5))
+
+def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%M") -> str:
+    """O'zbekiston (Toshkent, UTC+5) vaqti bo'yicha formatlash"""
+    if timestamp is None:
+        dt = datetime.now(UZB_TZ)
+    else:
+        dt = datetime.fromtimestamp(timestamp, tz=UZB_TZ)
+    return dt.strftime(fmt)
 
 # ── SOZLAMALAR ────────────────────────────────────────
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8892124781:AAGTRWY78lfHn3pQoBoIG30zH9OoDQF5N2g")
@@ -142,7 +153,7 @@ async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_
     existing_sub = test_db.get_user_submission_for_test(test["id"], user_tg_id)
     
     if existing_sub:
-        dt = time.strftime("%d.%m.%Y %H:%M", time.localtime(existing_sub["submitted_at"]))
+        dt = format_uzb_time(existing_sub["submitted_at"])
         grade = test_db.calculate_grade(existing_sub.get("score", 0))
         text = (
             f"⛔️ <b>Siz ushbu testni allaqachon topshirgansiz!</b>\n\n"
@@ -346,7 +357,8 @@ async def reg_phone(message: Message, state: FSMContext):
         f"👤 <b>Ism-familiya:</b> {fullname}\n"
         f"📱 <b>Telefon:</b> <code>{phone}</code>\n"
         f"🆔 <b>Telegram ID:</b> <code>{user_tg_id}</code>\n"
-        f"🔗 <b>Username:</b> {username_str}\n\n"
+        f"🔗 <b>Username:</b> {username_str}\n"
+        f"🕒 <b>So'rov vaqti:</b> {format_uzb_time()}\n\n"
         f"<i>Ushbu foydalanuvchiga tizimdan foydalanishga ruxsat berasizmi?</i>"
     )
 
@@ -479,7 +491,7 @@ async def show_profile(message: Message):
 
     submissions = test_db.get_user_submissions(message.from_user.id)
     tests_count = len(submissions)
-    dt = time.strftime("%d.%m.%Y", time.localtime(user["registered_at"]))
+    dt = format_uzb_time(user["registered_at"], "%d.%m.%Y")
 
     await message.answer(
         f"👤 <b>{user['fullname']}</b>\n"
@@ -747,7 +759,8 @@ async def user_req_access_cb(call: CallbackQuery):
         f"👤 <b>Foydalanuvchi:</b> {u['fullname']}\n"
         f"📱 <b>Telefon:</b> <code>{u['phone']}</code>\n"
         f"🆔 <b>Telegram ID:</b> <code>{uid}</code>\n"
-        f"🔗 <b>Username:</b> {username_str}\n\n"
+        f"🔗 <b>Username:</b> {username_str}\n"
+        f"🕒 <b>So'rov vaqti:</b> {format_uzb_time()}\n\n"
         f"<i>Ushbu foydalanuvchiga tizimdan foydalanishga ruxsat berasizmi?</i>"
     )
 
@@ -871,7 +884,7 @@ async def adm_user_card_cb(call: CallbackQuery):
     else:
         st_text = "❌ Rad etilgan"
 
-    dt = time.strftime("%d.%m.%Y %H:%M", time.localtime(u["registered_at"]))
+    dt = format_uzb_time(u["registered_at"])
     uname = f"@{u['username']}" if u.get("username") else "mavjud emas"
 
     text = (
@@ -1158,7 +1171,8 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
             f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
             f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
             f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
-            f"✅ <b>To'g'ri javoblar:</b> {corr} / 55 ta band\n\n"
+            f"✅ <b>To'g'ri javoblar:</b> {corr} / 55 ta band\n"
+            f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
             f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
             f"🏆 <i>Ishtirokingiz uchun rahmat!</i>"
         )
@@ -1245,7 +1259,7 @@ async def admin_test_res_text(call: CallbackQuery):
         return
 
     text = f"🏆 <b>«{test['title']}» Natijalari (Matn ko'rinishida):</b>\n"
-    text += f"👥 <b>Jami ishtirokchilar:</b> {len(results)} nafar\n\n"
+    text += f"👥 <b>Jami ishtirokchilar:</b> {len(results)} nafar | 🕒 {format_uzb_time()}\n\n"
 
     for idx, row in enumerate(results[:30], 1):
         grade = test_db.calculate_grade(row["score"])
@@ -1290,7 +1304,7 @@ async def admin_test_res_pdf(call: CallbackQuery):
             caption = (
                 f"📑 <b>«{test['title']}»</b> bo'yicha rasmiy test natijalari va reyting hisoboti.\n\n"
                 f"👥 <b>Ishtirokchilar:</b> {len(results)} nafar\n"
-                f"🕒 <b>Sana:</b> {time.strftime('%d.%m.%Y %H:%M')}"
+                f"🕒 <b>Sana:</b> {format_uzb_time()}"
             )
             await bot.send_document(
                 chat_id=call.from_user.id,
@@ -1364,7 +1378,8 @@ async def handle_submit_test_api(request):
                     f"📈 <b>Rasch qobiliyat parametri (θ):</b> <code>{theta_val:+.2f}</code> logit\n\n"
                     f"✅ <b>To'g'ri javoblar:</b> {result['correct_count']} / 55 ta band\n"
                     f"❌ <b>Noto'g'ri javoblar:</b> {result['incorrect_count']} ta\n"
-                    f"⚪ <b>Belgilanmagan:</b> {result['unanswered_count']} ta\n\n"
+                    f"⚪ <b>Belgilanmagan:</b> {result['unanswered_count']} ta\n"
+                    f"🕒 <b>Vaqt:</b> {format_uzb_time()}\n\n"
                     f"💡 <i>Eslatma: Savollar qiyinligi va yakuniy 100 ballik natija Rasch modeli tomonidan avtomatik hisoblandi.</i>\n\n"
                     f"🏆 <i>Natijangiz tizimda muvaffaqiyatli qayd etildi!</i>"
                 )
@@ -1372,7 +1387,8 @@ async def handle_submit_test_api(request):
                 msg_user = (
                     f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
                     f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
-                    f"📝 <b>Javob berilgan savollar:</b> {result['correct_count'] + result['incorrect_count']} / 55 ta\n\n"
+                    f"📝 <b>Javob berilgan savollar:</b> {result['correct_count'] + result['incorrect_count']} / 55 ta\n"
+                    f"🕒 <b>Topshirilgan vaqt:</b> {format_uzb_time()}\n\n"
                     f"⏳ <b>Eslatma:</b> Test hozirda boshqa o'quvchilar uchun davom etmoqda. "
                     f"Barcha natijalar va Milliy sertifikat darajalari admin tomonidan test to'xtatilib, "
                     f"e'lon qilingandan so'ng botingizga yuboriladi!\n\n"
@@ -1677,6 +1693,43 @@ async def handle_app_users(request):
         log.error(f"App Users API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+async def handle_app_update_user_status(request):
+    """Admin tomonidan foydalanuvchi holatini (approved / rejected) o'zgartirish."""
+    try:
+        data = await request.json()
+        admin_id = int(data.get('admin_id', 0))
+        target_uid = int(data.get('target_uid', 0))
+        new_status = str(data.get('status', '')).strip().lower()
+
+        if not test_db.is_admin(admin_id, ADMIN_ID):
+            return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
+
+        if not target_uid or new_status not in ['approved', 'rejected', 'blocked', 'pending']:
+            return web.json_response({"success": False, "message": "Noto'g'ri parametrlar"}, status=400)
+
+        if new_status == 'approved':
+            test_db.approve_user(target_uid)
+            try:
+                await bot.send_message(
+                    chat_id=target_uid,
+                    text=(
+                        "🎉 <b>Xushxabar! Sizga test tizimidan to'liq foydalanishga ruxsat berildi!</b>\n\n"
+                        "Endi botdagi barcha imkoniyatlar va Mini ilovadan to'siqsiz foydalanishingiz mumkin.\n"
+                        "Test topshirish uchun bot menyusidan foydalaning!"
+                    )
+                )
+            except Exception:
+                pass
+        elif new_status == 'rejected':
+            test_db.reject_user(target_uid)
+        elif new_status == 'blocked':
+            test_db.block_user(target_uid)
+
+        return web.json_response({"success": True, "status": new_status})
+    except Exception as e:
+        log.error(f"App Update User Status Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=400)
+
 async def handle_rasch_evaluate_api(request):
     try:
         test_id = int(request.match_info.get('test_id', 0))
@@ -1701,6 +1754,7 @@ async def create_web_app():
     app.router.add_get('/api/app/active-tests', handle_app_active_tests)
     app.router.add_get('/api/app/my-results', handle_app_my_results)
     app.router.add_get('/api/app/users', handle_app_users)
+    app.router.add_post('/api/app/update-user-status', handle_app_update_user_status)
     app.router.add_get('/api/app/status', handle_app_status)
     app.router.add_get('/healthz', handle_app_status)
     app.router.add_get('/ping', handle_app_status)

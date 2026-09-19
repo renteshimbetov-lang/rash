@@ -103,10 +103,10 @@ var state = {
 
 // ── INIT ────────────────────────────────────────
 function initApp() {
-  // Kirishda main app har doim oq (light) rejimda ochiladi
-  document.documentElement.setAttribute('data-theme', 'light');
-  localStorage.setItem(LS_THEME, 'light');
-  updateThemeIcon('light');
+  // Birinchi kirishda oq (light), foydalanuvchi qora (dark) qilsa o'sha saqlanadi
+  var savedTheme = localStorage.getItem(LS_THEME) || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeIcon(savedTheme);
   updateLangLabel();
 
   try {
@@ -574,18 +574,32 @@ function renderProfileTab() {
   var status = computeStatus(testsCount, avgScore);
   var avatarLetter = fullname.charAt(0).toUpperCase();
 
+  var st = (u && u.status) || 'pending';
+  var statusBadgeHtml = '';
+  var heroBadgeHtml = '';
+  if (st === 'approved') {
+    statusBadgeHtml = '<div class="stat-status-badge status-approved"><span class="status-dot approved"></span> Faol</div>';
+    heroBadgeHtml = '<span class="profile-status-badge status-approved" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.35)"><span class="status-dot approved"></span> Tasdiqlangan (Faol)</span>';
+  } else if (st === 'pending') {
+    statusBadgeHtml = '<div class="stat-status-badge status-pending"><span class="status-dot pending"></span> Kutilmoqda</div>';
+    heroBadgeHtml = '<span class="profile-status-badge status-pending" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35)"><span class="status-dot pending"></span> Tasdiqlanmagan (Kutilmoqda)</span>';
+  } else {
+    statusBadgeHtml = '<div class="stat-status-badge status-rejected"><span class="status-dot rejected"></span> Rad etilgan</div>';
+    heroBadgeHtml = '<span class="profile-status-badge status-rejected" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.35)"><span class="status-dot rejected"></span> Cheklangan</span>';
+  }
+
   tab.innerHTML =
     '<div class="profile-hero animate-in">' +
     '<div class="profile-avatar">' + avatarLetter + '</div>' +
     '<div class="profile-name">' + escHtml(fullname) + '</div>' +
     '<div class="profile-phone">' + escHtml(phone) + '</div>' +
-    '<span class="profile-status-badge ' + status.cls + '">' + status.icon + ' ' + status.label + '</span>' +
+    heroBadgeHtml +
     '</div>' +
     '<div class="stats-grid animate-in">' +
     '<div class="stat-card"><div class="stat-value">' + testsCount + '</div><div class="stat-label">' + t('stat_tests') + '</div></div>' +
     '<div class="stat-card"><div class="stat-value">' + avgScore + '</div><div class="stat-label">' + t('stat_avg') + '</div></div>' +
     '<div class="stat-card"><div class="stat-value">' + maxScore + '</div><div class="stat-label">' + t('stat_max') + '</div></div>' +
-    '<div class="stat-card"><div class="stat-value">' + ((u && u.status === 'approved') ? '\u2705' : '\u23F3') + '</div><div class="stat-label">' + t('stat_status') + '</div></div>' +
+    '<div class="stat-card" style="display:flex;flex-direction:column;justify-content:center;align-items:center;">' + statusBadgeHtml + '<div class="stat-label">' + t('stat_status') + '</div></div>' +
     '</div>' +
     '<div class="card animate-in">' +
     '<div class="info-row"><div class="info-icon">\uD83D\uDC64</div><div><div class="info-label">' + t('info_name') + '</div><div class="info-value">' + escHtml(fullname) + '</div></div></div>' +
@@ -609,7 +623,7 @@ function renderAdminTab() {
     '<div><div style="font-size:16px;font-weight:800;color:var(--text)">' + t('admin_panel') + '</div>' +
     '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">Tizimni boshqarish</div></div></div>' +
     '<div class="card animate-in" style="margin-top:12px">' +
-    '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">\uD83D\uDC65 ' + t('users_title') + '</div>' +
+    '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">\uD83D\uDC65 ' + t('users_title') + ' <span style="font-size:11px;font-weight:normal;color:var(--text-muted)">(Ma\'lumotlarini ko\'rish uchun bosing)</span></div>' +
     '<div id="users-list"><div class="skeleton skeleton-card" style="height:50px"></div><div class="skeleton skeleton-card" style="height:50px;margin-top:8px"></div></div>' +
     '</div>';
 }
@@ -617,6 +631,7 @@ function renderAdminTab() {
 function renderUsersSection(users, stats) {
   var listEl = document.getElementById('users-list');
   if (!listEl) return;
+  window.currentAdminUsers = users || [];
   if (!users || users.length === 0) {
     listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">\uD83D\uDC65</div><p>' + t('users_title') + '</p></div>';
     return;
@@ -625,27 +640,111 @@ function renderUsersSection(users, stats) {
   if (stats) {
     statsHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">' +
       '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px">' + (stats.total||0) + '</div><div class="stat-label">' + t('total') + '</div></div>' +
-      '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px;color:var(--success)">' + (stats.approved||0) + '</div><div class="stat-label">' + t('approved') + '</div></div>' +
-      '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px;color:var(--warning)">' + (stats.pending||0) + '</div><div class="stat-label">' + t('pending') + '</div></div>' +
+      '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px;color:#10b981">' + (stats.approved||0) + '</div><div class="stat-label">' + t('approved') + '</div></div>' +
+      '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px;color:#f59e0b">' + (stats.pending||0) + '</div><div class="stat-label">' + t('pending') + '</div></div>' +
       '</div>';
   }
-  var usersHtml = users.slice(0, 30).map(function(u) {
+  var usersHtml = users.slice(0, 50).map(function(u, idx) {
     var letter = (u.fullname || 'F').charAt(0).toUpperCase();
     var tc = u.tests_count || 0;
-    var sb = u.status === 'approved'
-      ? '<span class="badge badge-active" style="padding:1px 6px;font-size:10px">\u2705</span>'
-      : u.status === 'pending'
-        ? '<span class="badge badge-pending" style="padding:1px 6px;font-size:10px">\u23F3</span>'
-        : '<span class="badge badge-inactive" style="padding:1px 6px;font-size:10px">\uD83D\uDEAB</span>';
-    return '<div class="user-row">' +
+    var st = u.status || 'pending';
+    var sb = st === 'approved'
+      ? '<span class="badge" style="padding:3px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:12px;"><span class="status-dot approved" style="width:6px;height:6px"></span> Faol</span>'
+      : st === 'pending'
+        ? '<span class="badge" style="padding:3px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:12px;"><span class="status-dot pending" style="width:6px;height:6px"></span> Kutilmoqda</span>'
+        : '<span class="badge" style="padding:3px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:12px;"><span class="status-dot rejected" style="width:6px;height:6px"></span> Rad etilgan</span>';
+    return '<div class="user-row clickable" onclick="openAdminUserModal(' + idx + ')">' +
       '<div class="user-row-avatar">' + letter + '</div>' +
       '<div class="user-row-info">' +
       '<div class="user-row-name">' + escHtml(u.fullname || 'Nomaʼlum') + '</div>' +
       '<div class="user-row-meta">' + escHtml(u.phone || '\u2014') + ' \u2022 ' + tc + ' test</div>' +
-      '</div>' + sb + '</div>';
+      '</div>' + sb + '<span style="color:var(--text-muted);font-size:16px;margin-left:4px">\u203A</span></div>';
   }).join('');
-  if (users.length > 30) usersHtml += '<div style="text-align:center;font-size:12px;color:var(--text-muted);padding:8px">va yana ' + (users.length - 30) + ' ta...</div>';
+  if (users.length > 50) usersHtml += '<div style="text-align:center;font-size:12px;color:var(--text-muted);padding:8px">va yana ' + (users.length - 50) + ' ta...</div>';
   listEl.innerHTML = statsHtml + usersHtml;
+}
+
+function openAdminUserModal(idx) {
+  var u = window.currentAdminUsers && window.currentAdminUsers[idx];
+  if (!u) return;
+
+  var modal = document.getElementById('admin-user-modal');
+  var body = document.getElementById('admin-user-modal-body');
+  if (!modal || !body) return;
+
+  var letter = (u.fullname || 'F').charAt(0).toUpperCase();
+  var st = u.status || 'pending';
+  
+  var statusBadge = '';
+  if (st === 'approved') {
+    statusBadge = '<span class="stat-status-badge status-approved" style="font-size:12px;padding:4px 12px;"><span class="status-dot approved"></span> Tasdiqlangan (Faol)</span>';
+  } else if (st === 'pending') {
+    statusBadge = '<span class="stat-status-badge status-pending" style="font-size:12px;padding:4px 12px;"><span class="status-dot pending"></span> Tasdiqlanmagan (Kutilmoqda)</span>';
+  } else {
+    statusBadge = '<span class="stat-status-badge status-rejected" style="font-size:12px;padding:4px 12px;"><span class="status-dot rejected"></span> Rad etilgan / Cheklangan</span>';
+  }
+
+  var regDateStr = u.registered_at ? formatDate(u.registered_at) : 'Nomaʼlum';
+  var lastTestStr = u.last_test_at ? formatDate(u.last_test_at) : 'Hali test topshirmagan';
+  var usernameStr = u.username ? ('@' + u.username) : 'Mavjud emas';
+
+  var actionBtnHtml = '';
+  if (st === 'approved') {
+    actionBtnHtml = '<button class="btn btn-danger" style="width:100%;padding:12px;font-size:13.5px;border-radius:12px;background:#ef4444;color:#fff;border:none;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'rejected\')">\u274C Ruxsatni bekor qilish (Rad etish)</button>';
+  } else {
+    actionBtnHtml = '<button class="btn btn-primary" style="width:100%;padding:12px;font-size:13.5px;border-radius:12px;background:#10b981;color:#fff;border:none;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'approved\')">\u2705 Ruxsat berish (Faollashtirish)</button>';
+  }
+
+  body.innerHTML =
+    '<div style="text-align:center;padding:6px 0 14px;">' +
+      '<div class="profile-avatar" style="margin:0 auto 10px;width:56px;height:56px;font-size:24px;display:flex;align-items:center;justify-content:center;">' + letter + '</div>' +
+      '<div style="font-size:17px;font-weight:800;color:var(--text);">' + escHtml(u.fullname || 'Foydalanuvchi') + '</div>' +
+      '<div style="margin-top:6px;">' + statusBadge + '</div>' +
+    '</div>' +
+    '<div class="card" style="margin:0;padding:10px 14px;border-radius:14px;background:var(--bg-glass-2);border:1px solid var(--border);">' +
+      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📱</div><div><div class="info-label" style="font-size:11px;">Telefon raqami</div><div class="info-value" style="font-size:14px;font-weight:700;"><a href="tel:' + escHtml(u.phone || '') + '" style="color:var(--primary);text-decoration:none;">' + escHtml(u.phone || '—') + '</a></div></div></div>' +
+      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🆔</div><div><div class="info-label" style="font-size:11px;">Telegram ID</div><div class="info-value" style="font-size:14px;font-weight:700;"><code>' + u.tg_id + '</code></div></div></div>' +
+      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🔗</div><div><div class="info-label" style="font-size:11px;">Username</div><div class="info-value" style="font-size:14px;font-weight:700;">' + escHtml(usernameStr) + '</div></div></div>' +
+      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🕒</div><div><div class="info-label" style="font-size:11px;">Roʻyxatdan oʻtgan (Kirgan vaqti)</div><div class="info-value" style="font-size:14px;font-weight:700;color:var(--primary);">' + regDateStr + '</div></div></div>' +
+      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📝</div><div><div class="info-label" style="font-size:11px;">Topshirgan testlari soni</div><div class="info-value" style="font-size:14px;font-weight:700;">' + (u.tests_count || 0) + ' ta</div></div></div>' +
+      '<div class="info-row" style="padding:9px 0;border-bottom:none;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">⏱</div><div><div class="info-label" style="font-size:11px;">Oxirgi test topshirgan vaqti</div><div class="info-value" style="font-size:13px;font-weight:600;">' + lastTestStr + '</div></div></div>' +
+    '</div>' +
+    actionBtnHtml;
+
+  modal.style.display = 'flex';
+}
+
+function closeAdminUserModal(e) {
+  if (e && e.target && e.target !== e.currentTarget && !e.target.classList.contains('modal-close')) return;
+  var modal = document.getElementById('admin-user-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function updateUserStatusFromModal(targetUid, newStatus) {
+  var adminId = (state.tgUser && state.tgUser.id) || 0;
+  var btn = event && event.target;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Bajarilmoqda...';
+  }
+  try {
+    var res = await fetch('/api/app/update-user-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_id: adminId, target_uid: targetUid, status: newStatus })
+    });
+    var data = await res.json();
+    if (data.success) {
+      closeAdminUserModal();
+      loadAllUsers();
+    } else {
+      alert(data.message || 'Xatolik yuz berdi');
+      if (btn) { btn.disabled = false; btn.textContent = 'Qayta urinish'; }
+    }
+  } catch (err) {
+    alert('Server bilan bogʻlanishda xatolik: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Qayta urinish'; }
+  }
 }
 
 // Webapp redirection functions removed (users will use bot inline buttons directly)
@@ -925,8 +1024,8 @@ function gradeToClass(grade) {
 function formatDate(ts) {
   if (!ts) return '\u2014';
   var d = new Date(ts * 1000);
-  return d.toLocaleDateString('uz-UZ', { day:'2-digit', month:'2-digit', year:'numeric' }) +
-    ' ' + d.toLocaleTimeString('uz-UZ', { hour:'2-digit', minute:'2-digit' });
+  return d.toLocaleDateString('uz-UZ', { timeZone: 'Asia/Tashkent', day:'2-digit', month:'2-digit', year:'numeric' }) +
+    ' ' + d.toLocaleTimeString('uz-UZ', { timeZone: 'Asia/Tashkent', hour:'2-digit', minute:'2-digit', hour12: false });
 }
 
 function escHtml(str) {

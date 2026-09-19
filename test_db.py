@@ -5,7 +5,18 @@ import sqlite3
 import json
 import os
 import time
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
+
+UZB_TZ = timezone(timedelta(hours=5))
+
+def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%M") -> str:
+    """O'zbekiston (Toshkent, UTC+5) vaqti bo'yicha formatlash"""
+    if timestamp is None:
+        dt = datetime.now(UZB_TZ)
+    else:
+        dt = datetime.fromtimestamp(timestamp, tz=UZB_TZ)
+    return dt.strftime(fmt)
 
 data_dir = os.getenv("DATA_DIR")
 if data_dir:
@@ -975,7 +986,7 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         test_title_clean = _clean_pdf_text(test['title'])
         test_subject_clean = _clean_pdf_text(test.get('subject', 'Matematika'))
         elements.append(Paragraph(f"Test: <b>{test_title_clean}</b> | Fan: {test_subject_clean}", subtitle_style))
-        elements.append(Paragraph(f"Jami ishtirokchilar soni: <b>{len(results)} nafar</b> | Sana: {time.strftime('%d.%m.%Y %H:%M')}", subtitle_style))
+        elements.append(Paragraph(f"Jami ishtirokchilar soni: <b>{len(results)} nafar</b> | Sana: {format_uzb_time()}", subtitle_style))
         elements.append(Spacer(1, 14))
 
         # Jadval ma'lumotlari
@@ -992,7 +1003,7 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         ]
 
         for rank, r in enumerate(results, 1):
-            dt = time.strftime("%d.%m %H:%M", time.localtime(r["submitted_at"]))
+            dt = format_uzb_time(r["submitted_at"], "%d.%m %H:%M")
             grade = calculate_grade(r["score"])
             fullname_clean = _clean_pdf_text(r["fullname"] or "Foydalanuvchi")
             phone_clean = _clean_pdf_text(r["phone"] or "-")

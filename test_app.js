@@ -33,11 +33,11 @@ const TestApp = {
         this.userTgId = u.id;
         this.userFullname = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || 'Foydalanuvchi';
       }
-
-      // Mavzu (kirishda har doim oq/light)
-      const savedTheme = localStorage.getItem('app_theme') || 'light';
-      this.setTheme(savedTheme === 'dark');
     }
+
+    // Mavzu (birinchi kirishda oq/light, agar foydalanuvchi qoraga o'tkazsa saqlanadi)
+    const savedTheme = localStorage.getItem('app_theme') || 'light';
+    this.setTheme(savedTheme === 'dark');
 
     // 2. URL parametrlardan test ma'lumotlarini olish
     const params = new URLSearchParams(window.location.search);
@@ -95,6 +95,7 @@ const TestApp = {
   setTheme(isDark) {
     this.isDarkMode = isDark;
     document.body.classList.toggle('dark-mode', isDark);
+    localStorage.setItem('app_theme', isDark ? 'dark' : 'light');
   },
 
   // ----------------------------------------------------
@@ -427,13 +428,13 @@ const TestApp = {
     if (!isPublished) {
       if (titleEl) titleEl.textContent = "Javoblaringiz qabul qilindi! ✅";
       if (gradeContainer) {
-        gradeContainer.style.borderColor = "#3B82F6";
-        gradeContainer.style.background = "rgba(59, 130, 246, 0.12)";
+        gradeContainer.style.borderColor = "rgba(245, 158, 11, 0.4)";
+        gradeContainer.style.background = "rgba(245, 158, 11, 0.12)";
         gradeContainer.innerHTML = `
           <span style="font-size: 26px;">⏳</span>
           <div style="text-align: left;">
-            <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #2563EB; letter-spacing: 0.5px;">Test holati</div>
-            <div style="font-size: 16px; font-weight: 800; color: #1D4ED8;">Natijalar kutilmoqda</div>
+            <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #D97706; letter-spacing: 0.5px;">Test holati</div>
+            <div style="font-size: 16px; font-weight: 800; color: #B45309;">Natijalar kutilmoqda</div>
           </div>
         `;
       }
