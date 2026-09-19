@@ -1927,7 +1927,7 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            menu_btn = MenuButtonWebApp(text="Mini App", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
             await bot.set_chat_menu_button(menu_button=menu_btn)
             log.info("✅ Bot menyu tugmasi Render.com doimiy URL ga ulandi!")
         except Exception as e:
@@ -1943,7 +1943,7 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            menu_btn = MenuButtonWebApp(text="Mini App", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
             await bot.set_chat_menu_button(menu_button=menu_btn)
             log.info("✅ Bot menyu tugmasi Railway doimiy URL ga ulandi!")
         except Exception as e:
@@ -1957,7 +1957,7 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            menu_btn = MenuButtonWebApp(text="Mini App", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
             await bot.set_chat_menu_button(menu_button=menu_btn)
             log.info("✅ Bot menyu tugmasi doimiy URL ga ulandi!")
         except Exception as e:
@@ -1992,7 +1992,7 @@ async def maintain_tunnel(local_port: int):
                             with open("tunnel_url.txt", "w") as f:
                                 f.write(WEBAPP_URL)
                             # Update Bot Menu Button automatically
-                            menu_btn = MenuButtonWebApp(text="Mini App", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+                            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
                             await bot.set_chat_menu_button(menu_button=menu_btn)
                             log.info("✅ Bot menyu tugmasi Mini App URL ga ulandi!")
                         except Exception as e:
@@ -2045,6 +2045,14 @@ async def main():
                 BotCommand(command="help", description="ℹ️ Qo'llanma va yordam"),
             ])
             log.info("✅ Telegram Bot rasmiy buyruqlar menyusi o'rnatildi (/start, /app, ...)")
+
+            # Telegram pastki chat menyu tugmasini doimiy ravishda "Profil 👤" qilib o'rnatish
+            try:
+                menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+                await bot.set_chat_menu_button(menu_button=menu_btn)
+                log.info("✅ Telegram Bot pastki menyu tugmasi 'Profil 👤' qilib sozlandi!")
+            except Exception as me:
+                log.warning(f"Bot chat menyu tugmasini o'rnatishda ogohlantirish: {me}")
         except Exception as ce:
             log.warning(f"Bot buyruqlarini o'rnatishda ogohlantirish: {ce}")
 
