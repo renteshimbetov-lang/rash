@@ -84,13 +84,40 @@ class SetTimeLimitState(StatesGroup):
 
 # ── KEYBOARDS (TUGMALAR) ──────────────────────────────
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
-    buttons = [
-        [KeyboardButton(text="🔢 Test kodini kiritish")],
-        [KeyboardButton(text="📊 Mening natijalarim"), KeyboardButton(text="👤 Profilim")],
-        [KeyboardButton(text="ℹ️ Bot haqida")]
-    ]
-    if test_db.is_admin(user_tg_id, ADMIN_ID):
-        buttons.append([KeyboardButton(text="⚙️ Admin Panel")])
+    is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
+    
+    app_url = f"{WEBAPP_URL}/app.html"
+    admin_webapp_url = f"{WEBAPP_URL}/admin.html"
+
+    # Agar HTTPS bo'lsa to'g'ridan-to'g'ri Telegram WebApp ochadi
+    if app_url.startswith("https://"):
+        results_btn = KeyboardButton(text="📊 Mening natijalarim", web_app=WebAppInfo(url=app_url))
+    else:
+        results_btn = KeyboardButton(text="📊 Mening natijalarim")
+
+    if admin_webapp_url.startswith("https://"):
+        create_test_btn = KeyboardButton(text="➕ Yangi test yaratish", web_app=WebAppInfo(url=admin_webapp_url))
+    else:
+        create_test_btn = KeyboardButton(text="➕ Yangi test yaratish")
+
+    if is_adm:
+        # Adminlar uchun faqat admin funksiyalari:
+        # 1-qator: Test kodini kiritish + Yangi test yaratish (Mini App)
+        # 2-qator: Test natijalari va reyting + Testlarni boshqarish
+        # 3-qator: Admin Panel
+        buttons = [
+            [KeyboardButton(text="🔢 Test kodini kiritish"), create_test_btn],
+            [KeyboardButton(text="📊 Test natijalari va reyting"), KeyboardButton(text="📋 Testlarni boshqarish")],
+            [KeyboardButton(text="⚙️ Admin Panel")]
+        ]
+    else:
+        # Oddiy foydalanuvchilar uchun menyu tartibi:
+        # 1-qator: Test kodini kiritish + Mening natijalarim (Asosiy App)
+        # 2-qator: Profilim + Yordam (adminga murojaat)
+        buttons = [
+            [KeyboardButton(text="🔢 Test kodini kiritish"), results_btn],
+            [KeyboardButton(text="👤 Profilim"), KeyboardButton(text="ℹ️ Yordam")]
+        ]
 
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
@@ -118,7 +145,10 @@ def contact_share_kb() -> ReplyKeyboardMarkup:
     )
 
 def admin_menu_kb() -> InlineKeyboardMarkup:
-    admin_webapp_url = f"{WEBAPP_URL}/admin.html"
+    """
+    Admin Panel inline menyusi — asosiy menyuda mavjud bo'lgan narsalar (test yaratish,
+    reyting, testlarni boshqarish) olib tashlangan, faqat foydalanuvchilar va adminlar boshqaruvi qoldirilgan.
+    """
     try:
         counts = test_db.get_users_count()
         total_u = counts.get("total", 0)
@@ -130,11 +160,8 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
         btn_text = "👥 Barcha foydalanuvchilar ro'yxati"
 
     buttons = [
-        [make_webapp_button("➕ Yangi test yaratish (Admin Mini App)", admin_webapp_url, fallback_cb="admin_webapp_info")],
-        [InlineKeyboardButton(text="📋 Testlarni boshqarish (O'chirish / Vaqt)", callback_data="admin_manage_tests")],
         [InlineKeyboardButton(text=btn_text, callback_data="admin_view_users")],
-        [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")],
-        [InlineKeyboardButton(text="📊 Test natijalari va reyting", callback_data="admin_leaderboard")]
+        [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -391,17 +418,27 @@ async def process_solve_test_code(message: Message, state: FSMContext):
     if not await check_access(message):
         await state.clear()
         return
-    text = (message.text or "").strip()
-    if text in ["🔢 Test kodini kiritish", "📊 Mening natijalarim", "👤 Profilim", "ℹ️ Bot haqida", "⚙️ Admin Panel"]:
+    menu_cmds = [
+        "🔢 Test kodini kiritish", "📊 Mening natijalarim", "👤 Profilim",
+        "ℹ️ Yordam", "ℹ️ Bot haqida", "⚙️ Admin Panel",
+        "➕ Yangi test yaratish", "📊 Test natijalari va reyting", "📋 Testlarni boshqarish"
+    ]
+    if text in menu_cmds:
         await state.clear()
         if text == "📊 Mening natijalarim":
             await show_my_results(message)
         elif text == "👤 Profilim":
             await show_profile(message)
-        elif text == "ℹ️ Bot haqida":
-            await show_about(message)
+        elif text in ["ℹ️ Yordam", "ℹ️ Bot haqida"]:
+            await show_help(message)
         elif text == "⚙️ Admin Panel":
             await admin_panel_handler(message)
+        elif text == "➕ Yangi test yaratish":
+            await admin_create_test_text_handler(message)
+        elif text == "📊 Test natijalari va reyting":
+            await admin_leaderboard_text_handler(message)
+        elif text == "📋 Testlarni boshqarish":
+            await admin_manage_tests_text_handler(message)
         elif text == "🔢 Test kodini kiritish":
             await enter_test_code_prompt(message, state)
         return
@@ -502,19 +539,93 @@ async def show_profile(message: Message):
         reply_markup=profile_webapp_kb(message.from_user.id)
     )
 
-# 4. ℹ️ Bot haqida
+# 4. ℹ️ Yordam va murojaat
+@router.message(F.text == "ℹ️ Yordam")
 @router.message(F.text == "ℹ️ Bot haqida")
 @router.message(Command("help"))
-async def show_about(message: Message):
+async def show_help(message: Message):
+    contact_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✍️ Adminga murojaat (@eshmbetov)", url="https://t.me/eshmbetov")],
+        [make_webapp_button("📱 BM Test Mini App", f"{WEBAPP_URL}/app.html")]
+    ])
     await message.answer(
-        "🤖 <b>Test Tekshirish Tizimi Boti</b>\n\n"
-        "Ushbu bot orqali siz:\n"
-        "• PDF formatidagi testlarni yuklab olishingiz;\n"
-        "• Telegram Mini App orqali 45 talik testlarga javob belgilashingiz;\n"
-        "• Maxsus matematik klaviaturadan foydalanib yopiq savollarni kiritishingiz;\n"
-        "• Natijalarni bir zumda tekshirib, xatolaringiz ustida ishlashingiz mumkin!\n\n"
-        "📞 <b>Murojaat uchun:</b> @eshmbetov"
+        "ℹ️ <b>YORDAM VA QO'LLAB-QUVVATLASH</b>\n\n"
+        "🎓 <b>BUXORIYLAR MAKTABI — BM RASH TEST</b>\n\n"
+        "Ushbu tizim orqali siz:\n"
+        "• Milliy sertifikat formatidagi 55 talik testlarni yechishingiz;\n"
+        "• Virtual matematik klaviaturadan foydalanib yozma javoblarni kiritishingiz;\n"
+        "• Rasch modeli bo'yicha darajangiz (A+, A, B+, B, ...) va to'liq tahlilni ko'rishingiz mumkin.\n\n"
+        "💬 <b>Savol, taklif yoki yordam uchun to'g'ridan-to'g'ri bog'lanishingiz mumkin:</b>\n"
+        "👤 <b>Aloqa:</b> @eshmbetov\n\n"
+        "<i>Pastdagi tugma orqali murojaat yuborishingiz mumkin 👇</i>",
+        reply_markup=contact_kb
     )
+
+show_about = show_help
+
+# ➕ Yangi test yaratish (Admin Mini App ochish)
+@router.message(F.text == "➕ Yangi test yaratish")
+async def admin_create_test_text_handler(message: Message):
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        return
+    admin_webapp_url = f"{WEBAPP_URL}/admin.html"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [make_webapp_button("➕ Yangi test yaratish (Mini App)", admin_webapp_url)]
+    ])
+    await message.answer(
+        "➕ <b>YANGI TEST YARATISH BO'LIMI</b>\n\n"
+        "Quyidagi tugma orqali Admin Mini Appni ochib, test kodi, fani, vaqti va 55 ta savol kalitlarini kiritishingiz mumkin 👇",
+        reply_markup=kb
+    )
+
+# 📋 Testlarni boshqarish (O'chirish, to'xtatish, vaqt)
+@router.message(F.text == "📋 Testlarni boshqarish")
+async def admin_manage_tests_text_handler(message: Message):
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        return
+    tests = test_db.get_all_tests()
+    if not tests:
+        await message.answer("ℹ️ Hozircha bazada birorta ham test yo'q.")
+        return
+
+    text = (
+        "📋 <b>Barcha testlar ro'yxati va boshqaruvi:</b>\n\n"
+        "<i>Boshqarish (to'xtatish / vaqt / o'chirish) uchun kerakli testni tanlang 👇</i>\n\n"
+    )
+    buttons = []
+    for idx, t in enumerate(tests, 1):
+        status_icon = "🟢" if t["is_active"] == 1 else "🔴"
+        time_str = f"{t['time_limit_min']} daqiqa" if t.get("time_limit_min", 0) > 0 else "Cheksiz"
+        text += f"<b>{idx}. #{t['test_code']}</b> — {t['title']} ({status_icon}, ⏱ {time_str})\n"
+        buttons.append([InlineKeyboardButton(text=f"{status_icon} #{t['test_code']} — {t['title'][:25]}", callback_data=f"adm_mng_test_{t['id']}")])
+
+    buttons.append([InlineKeyboardButton(text="🔙 Admin Menyuga qaytish", callback_data="admin_back_to_menu")])
+    await message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+# 📊 Test natijalari va reyting
+@router.message(F.text == "📊 Test natijalari va reyting")
+async def admin_leaderboard_text_handler(message: Message):
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        return
+    tests = test_db.get_tests_with_stats()
+    if not tests:
+        await message.answer("⚠️ Hozirda tizimda mavjud testlar yo'q.")
+        return
+    buttons = []
+    msg_list = ""
+    for idx, t in enumerate(tests, 1):
+        sub_cnt = t.get("submissions_count", 0)
+        btn_text = f"📊 #{t['test_code']} — 👥 {sub_cnt} kishi"
+        buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"adm_tstat_{t['id']}")])
+        msg_list += f"<b>{idx}. #{t['test_code']}</b> — {t['title']}: <b>{sub_cnt} kishi</b>\n"
+
+    buttons.append([InlineKeyboardButton(text="⬅️ Admin Panelga qaytish", callback_data="admin_panel_back")])
+    msg_text = (
+        "📊 <b>Mavjud Testlar va Ishtirokchilar Soni:</b>\n\n"
+        f"{msg_list}\n"
+        "<i>Batafsil natijalarni (Matn yoki PDF shaklida) olish uchun kerakli test kodini tanlang 👇</i>"
+    )
+    await message.answer(msg_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
 
 # 5. 📱 Mini App buyrug'i
 @router.message(Command("app"))
@@ -1331,8 +1442,12 @@ async def handle_direct_text(message: Message, state: FSMContext):
     if cur_state is not None:
         return
 
-    raw_text = (message.text or "").strip()
-    if raw_text in ["🔢 Test kodini kiritish", "📊 Mening natijalarim", "👤 Profilim", "ℹ️ Bot haqida", "⚙️ Admin Panel"]:
+    menu_cmds = [
+        "🔢 Test kodini kiritish", "📊 Mening natijalarim", "👤 Profilim",
+        "ℹ️ Yordam", "ℹ️ Bot haqida", "⚙️ Admin Panel",
+        "➕ Yangi test yaratish", "📊 Test natijalari va reyting", "📋 Testlarni boshqarish"
+    ]
+    if raw_text in menu_cmds:
         return
 
     code = raw_text.upper().replace("#", "")
@@ -1472,20 +1587,19 @@ async def handle_create_test_api(request):
         log.error(f"Create Test API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+WEB_DIR = os.path.join(os.path.dirname(__file__), 'test_webapp')
+
 async def find_web_file(filename: str) -> str:
-    base_dir = os.path.dirname(__file__)
     candidates = [
-        os.path.join(base_dir, 'test_webapp', filename),
-        os.path.join(base_dir, 'test_webapp', 'css', filename),
-        os.path.join(base_dir, 'test_webapp', 'js', filename),
-        os.path.join(base_dir, 'test_webapp', 'img', filename),
-        os.path.join(base_dir, filename),
-        os.path.join(base_dir, os.path.basename(filename))
+        os.path.join(WEB_DIR, filename),
+        os.path.join(WEB_DIR, 'css', filename),
+        os.path.join(WEB_DIR, 'js', filename),
+        os.path.join(WEB_DIR, 'img', filename),
     ]
     for c in candidates:
         if os.path.exists(c) and os.path.isfile(c):
             return c
-    return os.path.join(base_dir, filename)
+    return os.path.join(WEB_DIR, filename)
 
 async def handle_index(request):
     return web.FileResponse(await find_web_file('index.html'))
@@ -1502,6 +1616,8 @@ async def handle_app(request):
 
 async def handle_static_file(request):
     path_name = request.match_info.get('path', '')
+    if '..' in path_name:
+        return web.Response(status=403, text="Ruxsat berilmagan yo'l")
     fpath = await find_web_file(path_name)
     if os.path.exists(fpath) and os.path.isfile(fpath):
         resp = web.FileResponse(fpath)
@@ -1733,6 +1849,16 @@ async def handle_app_update_user_status(request):
 async def handle_rasch_evaluate_api(request):
     try:
         test_id = int(request.match_info.get('test_id', 0))
+        tg_id = int(request.rel_url.query.get('tg_id', 0))
+        is_adm = test_db.is_admin(tg_id, ADMIN_ID) if tg_id else False
+        is_pub = test_db.is_test_results_published(test_id)
+
+        if not is_adm and not is_pub:
+            return web.json_response({
+                "success": False,
+                "message": "Ushbu test natijalari hali e'lon qilinmagan yoki ruxsat yo'q"
+            }, status=403)
+
         res = test_db.evaluate_test_rasch(test_id)
         if not res:
             return web.json_response({"success": False, "message": "Kamida 2 ta talaba topshirgan bo'lishi kerak yoki test topilmadi"}, status=400)

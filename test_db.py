@@ -28,14 +28,20 @@ if data_dir:
 else:
     DB_FILE = os.getenv("DB_PATH", "test_system.db")
 
-def get_connection():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+def get_connection(timeout: float = 20.0):
+    conn = sqlite3.connect(DB_FILE, timeout=timeout, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=20000;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
     return conn
 
 def init_db():
     conn = get_connection()
     cur = conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL;")
+    cur.execute("PRAGMA busy_timeout=20000;")
+    cur.execute("PRAGMA synchronous=NORMAL;")
     
     # 1. Foydalanuvchilar jadvali
     cur.execute("""
@@ -750,21 +756,7 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
     submission_id = cur.lastrowid
     conn.commit()
     conn.close()
-
-    # Rasch modeli (boshqalar bilan solishtirib baholash) orqali qayta kalibrlash
-    try:
-        rasch_res = evaluate_test_rasch(test["id"], auto_update_db=True)
-        if rasch_res and rasch_res.get("students"):
-            for s in rasch_res["students"]:
-                if s.get("student_id") in (user_tg_id, fullname):
-                    earned_score = s.get("final_score", earned_score)
-                    grade = s.get("grade", grade)
-                    rasch_theta = s.get("theta", 0.0)
-                    percentage = earned_score
-                    break
-    except Exception as ex:
-        print(f"[rasch post-submit] Xatolik: {ex}")
-
+    # Eslatma: To'liq Rasch JMLE kalibratsiyasi admin testni yakunlab, natijalarni e'lon qilganda bir marta amalga oshiriladi
     return {
         "submission_id": submission_id,
         "test_title": test["title"],
