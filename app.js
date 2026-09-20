@@ -876,8 +876,8 @@ function showResultModal(result) {
     body.innerHTML = 
       '<div style="text-align:center;margin:16px 0 20px;">' +
         '<div style="width:70px;height:70px;border-radius:24px;background:rgba(245,158,11,0.15);color:#F59E0B;font-size:32px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">⏳</div>' +
-        '<h3 style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:6px;">Javoblaringiz qabul qilindi!</h3>' +
-        '<p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;max-width:300px;margin:0 auto 16px;">Test hozirda boshqa o‘quvchilar uchun davom etmoqda. Admin testni to‘xtatib, natijalarni e’lon qilgach, bu yerda to‘liq ball va darajangiz ko‘rsatiladi.</p>' +
+        '<h3 style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:6px;">⏳ Javoblaringiz tekshirilmoqda...</h3>' +
+        '<p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;max-width:300px;margin:0 auto 16px;">Test hozirda davom etmoqda. Admin testni to‘xtatib, Rasch tahlili asosida natijalarni e’lon qilgach, bu yerda to‘liq ball, to‘g‘ri javoblar va darajangiz ko‘rsatiladi.</p>' +
         '<div style="background:var(--bg-body);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;color:var(--text-muted);font-weight:600;">📅 Topshirilgan vaqt: ' + date + '</div>' +
       '</div>';
     modal.style.display = 'flex';
