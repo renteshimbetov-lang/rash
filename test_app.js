@@ -426,22 +426,22 @@ const TestApp = {
     const isPublished = Boolean(data.is_published);
 
     if (!isPublished) {
-      if (titleEl) titleEl.textContent = "Javoblaringiz qabul qilindi! ✅";
+      if (titleEl) titleEl.textContent = "Javoblaringiz qabul qilindi! ⏳";
       if (gradeContainer) {
         gradeContainer.style.borderColor = "rgba(245, 158, 11, 0.4)";
         gradeContainer.style.background = "rgba(245, 158, 11, 0.12)";
         gradeContainer.innerHTML = `
           <span style="font-size: 26px;">⏳</span>
           <div style="text-align: left;">
-            <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #D97706; letter-spacing: 0.5px;">Test holati</div>
-            <div style="font-size: 16px; font-weight: 800; color: #B45309;">Natijalar kutilmoqda</div>
+            <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #D97706; letter-spacing: 0.5px;">Holat</div>
+            <div style="font-size: 16px; font-weight: 800; color: #B45309;">Javoblar tekshirilmoqda...</div>
           </div>
         `;
       }
       if (detailsGrid) detailsGrid.style.display = 'none';
       if (analysisBtn) analysisBtn.style.display = 'none';
       if (noteEl) {
-        noteEl.innerHTML = `⏳ <b>Eslatma:</b> Test hozirda barcha o'quvchilar uchun davom etmoqda. Admin testni to'xtatib, natijalarni e'lon qilgach, yakuniy ball va darajangiz botingizga yuboriladi va bu yerda ko'rinadi.`;
+        noteEl.innerHTML = `⏳ <b>Eslatma:</b> Test hozirda davom etmoqda. Admin testni to'xtatib, Rasch tahlili asosida natijalarni e'lon qilgach, to'g'ri ishlangan savollar soni, ball va Milliy sertifikat darajangiz botingizga yuboriladi va bu yerda ochiladi.`;
       }
     } else {
       if (titleEl) titleEl.textContent = "Test Yakunlandi! 🎉";

@@ -287,8 +287,8 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
     now = int(time.time())
     try:
         cur.execute("""
-        INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name, answers_json, total_questions, time_limit_min, is_active, key_access_code, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+        INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name, answers_json, total_questions, time_limit_min, is_active, key_access_code, created_at, results_published)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0)
         ON CONFLICT(test_code) DO UPDATE SET
             title=excluded.title,
             subject=excluded.subject,
@@ -297,7 +297,8 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
             answers_json=excluded.answers_json,
             time_limit_min=excluded.time_limit_min,
             key_access_code=excluded.key_access_code,
-            is_active=1
+            is_active=1,
+            results_published=0
         """, (test_code, title, subject, pdf_file_id, pdf_file_name, json.dumps(answers, ensure_ascii=False), 45, time_limit_min, key_access_code, now))
         conn.commit()
         return True
@@ -802,6 +803,8 @@ def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
         else:
             d["grade"] = "Kutilmoqda"
             d["score"] = None
+            d["correct_count"] = None
+            d["total_count"] = None
             d["details_json"] = "{}"
         results.append(d)
     return results

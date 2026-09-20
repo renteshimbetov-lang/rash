@@ -182,15 +182,28 @@ async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_
     
     if existing_sub and not is_admin:
         dt = format_uzb_time(existing_sub["submitted_at"])
-        grade = test_db.calculate_grade(existing_sub.get("score", 0))
-        text = (
-            f"⛔️ <b>Siz ushbu testni allaqachon topshirgansiz!</b>\n\n"
-            f"📖 <b>Test:</b> {test['title']}\n"
-            f"🎖 <b>Daraja:</b> <b>{grade}</b> ({existing_sub['score']} ball)\n"
-            f"✅ <b>To'g'ri javoblar:</b> {existing_sub['correct_count']} ta\n"
-            f"🕒 <b>Topshirilgan vaqt:</b> {dt}\n\n"
-            f"⚠️ <i>Qoidalarga ko'ra, har bir testni faqat 1 marta topshirish mumkin. Qayta ishlash huquqi mavjud emas!</i>"
-        )
+        is_published = test_db.is_test_results_published(test["id"])
+        if is_published:
+            grade = test_db.calculate_grade(existing_sub.get("score", 0))
+            score_val = existing_sub.get("score", 0)
+            corr_val = existing_sub.get("correct_count", 0)
+            text = (
+                f"⛔️ <b>Siz ushbu testni topshirgansiz!</b>\n\n"
+                f"📖 <b>Test:</b> {test['title']}\n"
+                f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score_val} ball)\n"
+                f"✅ <b>To'g'ri javoblar:</b> {corr_val} ta\n"
+                f"🕒 <b>Topshirilgan vaqt:</b> {dt}\n\n"
+                f"💡 <i>To'liq savollar tahlili va natijalaringizni asosiy ilovadan ko'rishingiz mumkin.</i>"
+            )
+        else:
+            text = (
+                f"⏳ <b>Siz ushbu testni topshirgansiz!</b>\n\n"
+                f"📖 <b>Test:</b> {test['title']}\n"
+                f"📌 <b>Holat:</b> ⏳ <b>Javoblaringiz tekshirilmoqda...</b>\n"
+                f"🕒 <b>Topshirilgan vaqt:</b> {dt}\n\n"
+                f"ℹ️ <i>Test hozirda davom etmoqda. Admin testni to'xtatib, Rasch tahlilini e'lon qilgandan so'ng, "
+                f"to'g'ri javoblar soni, yakuniy ball va Milliy sertifikat darajangiz bot orqali shaxsiy xabar qilib yuboriladi!</i>"
+            )
         await target_message.answer(text)
         return
 
@@ -472,8 +485,13 @@ async def solve_test_cb(call: CallbackQuery):
     
     existing_sub = test_db.get_user_submission_for_test(test_id, call.from_user.id)
     if existing_sub:
-        grade = test_db.calculate_grade(existing_sub.get("score", 0))
-        await call.answer(f"⛔️ Siz bu testni topshirgansiz! Daraja: {grade} ({existing_sub['score']} ball)", show_alert=True)
+        is_published = test_db.is_test_results_published(test_id)
+        if is_published:
+            grade = test_db.calculate_grade(existing_sub.get("score", 0))
+            score_val = existing_sub.get("score", 0)
+            await call.answer(f"⛔️ Siz bu testni topshirgansiz! Daraja: {grade} ({score_val} ball)", show_alert=True)
+        else:
+            await call.answer("⏳ Siz bu testni topshirgansiz! Javoblar tekshirilmoqda. Admin natijalarni e'lon qilgach, shaxsiy xabar yuboriladi.", show_alert=True)
         return
 
     params = {
@@ -1273,16 +1291,19 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
 
     await call.answer("⏳ Natijalar e'lon qilinmoqda...")
     status_msg = await call.message.answer(
-        f"⏳ <b>«{test['title']}»</b> testi bo'yicha Rasch kalibrlanmoqda va o'quvchilarga shaxsiy natijalar yuborilmoqda..."
+        f"⏳ <b>«{test['title']}»</b> testi to'xtatilmoqda, Rasch modeli (JMLE) bo'yicha yakuniy ballar kalibrlanmoqda va o'quvchilarga shaxsiy natijalar yuborilmoqda..."
     )
 
-    # 1. Rasch modeli orqali yakuniy kalibrlash va bazani yangilash
+    # 1. Testni to'xtatish (is_active = 0)
+    test_db.set_test_active_status(test_id, 0)
+
+    # 2. Rasch modeli orqali yakuniy kalibrlash va bazani yangilash
     test_db.evaluate_test_rasch(test_id, auto_update_db=True)
 
-    # 2. Test natijalarini e'lon qilingan holatga o'tkazish
+    # 3. Test natijalarini e'lon qilingan holatga o'tkazish
     test_db.set_test_results_published(test_id, True)
 
-    # 3. Topshirgan barcha o'quvchilarga shaxsiy Telegram xabarini yuborish
+    # 4. Topshirgan barcha o'quvchilarga shaxsiy Telegram xabarini yuborish
     submissions = test_db.get_test_submissions_with_users(test_id)
     sent_count = 0
     fail_count = 0
@@ -1291,20 +1312,26 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
         uid = sub.get("user_tg_id")
         if not uid:
             continue
+        user_info = test_db.get_user(uid)
+        name = user_info['fullname'] if user_info else "Foydalanuvchi"
         score = sub.get("score", 0.0)
-        grade = sub.get("grade", "—")
+        grade = sub.get("grade") or test_db.calculate_grade(score)
         corr = sub.get("correct_count", 0)
-        name = sub.get("fullname", "Foydalanuvchi")
+        total = sub.get("total_count", 55) or 55
+        incorr = max(0, total - corr)
         code = sub.get("test_code", test["test_code"])
 
         msg_text = (
             f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
             f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
+            f"🧮 <b>Baholash tizimi:</b> Rasch Modeli (JMLE)\n"
             f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
-            f"✅ <b>To'g'ri javoblar:</b> {corr} / 55 ta band\n"
+            f"✅ <b>To'g'ri ishlangan:</b> {corr} ta band\n"
+            f"❌ <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
+            f"📊 <b>Jami savollar:</b> {total} ta\n"
             f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
             f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
-            f"🏆 <i>Ishtirokingiz uchun rahmat!</i>"
+            f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
         )
         try:
             await bot.send_message(chat_id=uid, text=msg_text)
@@ -1315,11 +1342,10 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
 
     fail_text = f"⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n" if fail_count > 0 else ""
     await status_msg.edit_text(
-        f"✅ <b>Natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
+        f"✅ <b>Test to'xtatildi va natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
         f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
         f"{fail_text}"
-        f"📌 <i>Endi barcha o'quvchilar mini ilovada o'z ballari va to'liq javoblar tahlilini ko'ra oladilar.</i>\n\n"
-        f"<i>Agar xohlasangiz, testni qayta davom ettirishingiz ham mumkin.</i>"
+        f"📌 <i>Endi barcha o'quvchilar botda va mini ilovada o'z ballari, to'g'ri javoblari soni va to'liq tahlilni ko'ra oladilar.</i>"
     )
 
 @router.callback_query(F.data.startswith("adm_rasch_"))
@@ -1336,7 +1362,7 @@ async def admin_test_rasch_eval(call: CallbackQuery):
     await call.answer("⏳ Rasch modeli hisoblanmoqda...")
     status_msg = await call.message.answer("⏳ <i>Rasch JMLE modeli bo'yicha savollar qiyinligi va o'quvchilar qobiliyati hisoblanmoqda...</i>")
 
-    res = test_db.evaluate_test_rasch(test_id)
+    res = test_db.evaluate_test_rasch(test_id, auto_update_db=True)
     if not res or not res.get("students"):
         await status_msg.edit_text(
             f"⚠️ <b>«{test['title']}»</b> testi uchun Rasch modelini hisoblashning imkoni bo'lmadi.\n\n"
@@ -1348,12 +1374,24 @@ async def admin_test_rasch_eval(call: CallbackQuery):
     students = res.get("students", [])
     items = res.get("items", [])
 
+    is_active = (test.get("is_active", 1) == 1)
+    is_pub = test_db.is_test_results_published(test_id)
+
+    status_note = ""
+    if is_active or not is_pub:
+        status_note = (
+            f"⚠️ <b>Eslatma:</b> Test hozirda to'xtatilmagan yoki natijalar o'quvchilarga hali e'lon qilinmagan. "
+            f"O'quvchilarga natijalar ko'rinmaydi (ularga <i>«Javoblaringiz tekshirilmoqda»</i> ko'rinadi).\n"
+            f"Testni to'xtatib, barchaga natijalarni e'lon qilish uchun quyidagi tugmani bosing 👇\n\n"
+        )
+
     text = (
         f"🧮 <b>Rasch Modeli (JMLE) Baholash Natijalari</b>\n\n"
         f"📖 <b>Test:</b> {test['title']} (<code>#{test['test_code']}</code>)\n"
         f"👥 <b>Talabalar:</b> {meta.get('num_students', len(students))} nafar\n"
         f"❓ <b>Elementlar:</b> {meta.get('num_items', len(items))} ta (55 ta band)\n"
         f"🔄 <b>Iteratsiyalar:</b> {meta.get('iterations', 0)} (Konvergensiya: {meta.get('converged', True)})\n\n"
+        f"{status_note}"
         f"🏆 <b>O'quvchilar darajalari va yakuniy ballari (0-100):</b>\n"
     )
 
@@ -1368,7 +1406,7 @@ async def admin_test_rasch_eval(call: CallbackQuery):
         text += f"\n<i>...va yana {len(students) - 25} nafar talaba.</i>"
 
     buttons = [
-        [InlineKeyboardButton(text="📢 Natijalarni o'quvchilarga yuborish", callback_data=f"adm_broadcast_results_{test_id}")],
+        [InlineKeyboardButton(text="📢 Testni to'xtatish va Natijalarni e'lon qilish", callback_data=f"adm_broadcast_results_{test_id}")],
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"adm_tstat_{test_id}")]
     ]
     await status_msg.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
@@ -1529,11 +1567,11 @@ async def handle_submit_test_api(request):
                 msg_user = (
                     f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
                     f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
-                    f"📝 <b>Javob berilgan savollar:</b> {result['correct_count'] + result['incorrect_count']} / 55 ta\n"
+                    f"📌 <b>Holat:</b> ⏳ <b>Javoblaringiz tekshirilmoqda...</b>\n"
                     f"🕒 <b>Topshirilgan vaqt:</b> {format_uzb_time()}\n\n"
-                    f"⏳ <b>Eslatma:</b> Test hozirda boshqa o'quvchilar uchun davom etmoqda. "
-                    f"Barcha natijalar va Milliy sertifikat darajalari admin tomonidan test to'xtatilib, "
-                    f"e'lon qilingandan so'ng botingizga yuboriladi!\n\n"
+                    f"ℹ️ <b>Eslatma:</b> Test hozirda barcha o'quvchilar uchun davom etmoqda. "
+                    f"Admin testni to'xtatib, Rasch tahlili o'tkazilgach, "
+                    f"to'g'ri ishlangan savollar soni, yakuniy ballingiz va Milliy sertifikat darajangiz botingizga shaxsiy xabar qilib yuboriladi!\n\n"
                     f"🏆 <i>Javoblaringiz tizimda muvaffaqiyatli saqlandi.</i>"
                 )
             try:
@@ -1547,6 +1585,10 @@ async def handle_submit_test_api(request):
         if not is_published:
             client_data["score"] = None
             client_data["grade"] = "Kutilmoqda"
+            client_data["correct_count"] = None
+            client_data["incorrect_count"] = None
+            client_data["unanswered_count"] = None
+            client_data["rasch_theta"] = None
             client_data["details"] = None
 
         return web.json_response({"success": True, "data": client_data})
