@@ -1243,8 +1243,8 @@ async def admin_test_stats_detail(call: CallbackQuery):
     is_active = (test.get("is_active", 1) == 1)
     is_pub = test_db.is_test_results_published(test_id)
 
-    status_badge = "🟢 Faol (O'quvchilar topshirmoqda)" if is_active else "🔴 To'xtatilgan"
-    pub_badge = "📢 Natijalar e'lon qilingan" if is_pub else "🔒 Natijalar yashirin (Hali e'lon qilinmagan)"
+    status_badge = "🟢 Javoblar qabul qilinmoqda" if is_active else "🔴 Javoblar qabul qilish to'xtatilgan"
+    pub_badge = "📢 Natijalar e'lon qilingan" if is_pub else "🔒 Yashirin (O'quvchilarga «Javoblar tekshirilmoqda» ko'rinadi)"
 
     text = (
         f"📋 <b>Test boshqaruvi va hisoboti:</b>\n\n"
@@ -1255,21 +1255,91 @@ async def admin_test_stats_detail(call: CallbackQuery):
         f"📢 <b>Natijalar:</b> {pub_badge}\n\n"
         f"👥 <b>Topshirganlar soni:</b> <b>{count} nafar</b>\n"
         f"📈 <b>O'rtacha ball:</b> <b>{avg_score} ball</b>\n\n"
-        f"<i>Quyidagi tugmalar orqali testni to'xtatish, natijalarni ko'rish va o'quvchilarga yuborish mumkin 👇</i>"
+        f"<i>Boshqarish uchun quyidagi amallardan birini tanlang 👇</i>"
     )
 
-    toggle_btn_text = "🔴 Testni to'xtatish" if is_active else "🟢 Testni davom ettirish"
-    pub_btn_text = "📢 Natijalarni o'quvchilarga yuborish" if not is_pub else "🔄 Natijalarni qayta yuborish"
+    toggle_btn_text = "🔴 Javob qabul qilishni to'xtatish" if is_active else "🟢 Javob qabul qilishni boshlash"
 
     buttons = [
-        [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_{test_id}")],
-        [InlineKeyboardButton(text=pub_btn_text, callback_data=f"adm_broadcast_results_{test_id}")],
-        [
-            InlineKeyboardButton(text="📄 Matn shaklida", callback_data=f"adm_restxt_{test_id}"),
-            InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
-        ],
-        [InlineKeyboardButton(text="🧮 Rasch Modeli bo'yicha tahlil (JMLE)", callback_data=f"adm_rasch_{test_id}")],
-        [InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")]
+        [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_tstat_{test_id}")],
+    ]
+
+    if not is_pub:
+        buttons.append([InlineKeyboardButton(text="📢 Natijalarni hisoblash va e'lon qilish", callback_data=f"adm_eval_prompt_{test_id}")])
+    else:
+        buttons.append([InlineKeyboardButton(text="🔄 Qayta hisoblash va e'lon qilish", callback_data=f"adm_eval_prompt_{test_id}")])
+        buttons.append([InlineKeyboardButton(text="🔒 Natijalarni yashirish (Qayta javob qabul qilish)", callback_data=f"adm_hide_results_{test_id}")])
+
+    buttons.append([
+        InlineKeyboardButton(text="📄 Matn shaklida", callback_data=f"adm_restxt_{test_id}"),
+        InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
+    ])
+    buttons.append([InlineKeyboardButton(text="🧮 Rasch Modeli tahlilini ko'rish (JMLE)", callback_data=f"adm_rasch_{test_id}")])
+    buttons.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")])
+
+    try:
+        await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    except Exception:
+        await call.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    await call.answer()
+
+# Javob qabul qilishni boshlash / to'xtatish
+@router.callback_query(F.data.startswith("toggle_test_tstat_"))
+async def admin_toggle_test_tstat_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[3])
+    new_status = test_db.toggle_test_status(test_id)
+    if new_status is not None:
+        status_text = "🟢 Javoblar qabul qilinmoqda" if new_status == 1 else "🔴 Javoblar to'xtatildi"
+        await call.answer(f"Test holati: {status_text}", show_alert=True)
+        call.data = f"adm_tstat_{test_id}"
+        await admin_test_stats_detail(call)
+    else:
+        await call.answer("Xatolik yuz berdi!", show_alert=True)
+
+# Natijalarni qayta yashirish (o'quvchilarga yana "tekshirilmoqda" qilish)
+@router.callback_query(F.data.startswith("adm_hide_results_"))
+async def admin_hide_results_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[3])
+    test_db.set_test_results_published(test_id, False)
+    test_db.set_test_active_status(test_id, 1)
+    await call.answer("🔒 Natijalar yashirildi va test faollashtirildi! Endi o'quvchilarga «Javoblar tekshirilmoqda» ko'rinadi.", show_alert=True)
+    call.data = f"adm_tstat_{test_id}"
+    await admin_test_stats_detail(call)
+
+# Natijalarni e'lon qilishdan oldin SO'ROV: Rasch modeli bo'yicha yoki Standart
+@router.callback_query(F.data.startswith("adm_eval_prompt_"))
+@router.callback_query(F.data.startswith("adm_broadcast_results_"))
+async def admin_eval_prompt_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+
+    parts = call.data.split("_")
+    test_id = int(parts[-1])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    text = (
+        f"📋 <b>«{test['title']}»</b> (<code>#{test['test_code']}</code>)\n\n"
+        f"🤔 <b>Natijalarni qaysi usulda tekshirib, o'quvchilarga e'lon qilmoqchisiz?</b>\n\n"
+        f"1️⃣ <b>🧮 Rasch modeli (JMLE) bo'yicha:</b>\n"
+        f"• Savollarning qiyinlik darajasi (b) va o'quvchilar qobiliyati (θ) hisoblanadi.\n"
+        f"• Rasmiy Milliy Sertifikat darajalari (A+, A, B+, B, C+, C) beriladi.\n\n"
+        f"2️⃣ <b>✅ Standart baholash (To'g'ri javoblar soni bo'yicha):</b>\n"
+        f"• Har bir to'g'ri ishlangan savol soni va standart ball hisoblanadi.\n"
+        f"• Oddiy va shaffof: nechta to'g'ri, noto'g'ri va to'plangan ball ko'rsatiladi.\n\n"
+        f"<i>Quyidagi usullardan birini tanlang 👇</i>"
+    )
+
+    buttons = [
+        [InlineKeyboardButton(text="🧮 1. Rasch modeli (JMLE) bo'yicha e'lon qilish", callback_data=f"adm_broadcast_rasch_{test_id}")],
+        [InlineKeyboardButton(text="✅ 2. Standart (To'g'ri javoblar soni) bo'yicha", callback_data=f"adm_broadcast_std_{test_id}")],
+        [InlineKeyboardButton(text="⬅️ Bekor qilish / Orqaga", callback_data=f"adm_tstat_{test_id}")]
     ]
 
     try:
@@ -1278,8 +1348,9 @@ async def admin_test_stats_detail(call: CallbackQuery):
         await call.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await call.answer()
 
-@router.callback_query(F.data.startswith("adm_broadcast_results_"))
-async def admin_broadcast_results_cb(call: CallbackQuery):
+# 1. Rasch modeli bo'yicha e'lon qilish
+@router.callback_query(F.data.startswith("adm_broadcast_rasch_"))
+async def admin_broadcast_rasch_cb(call: CallbackQuery):
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
         return
 
@@ -1289,7 +1360,7 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
         await call.answer("Test topilmadi!", show_alert=True)
         return
 
-    await call.answer("⏳ Natijalar e'lon qilinmoqda...")
+    await call.answer("⏳ Rasch modeli hisoblanmoqda va e'lon qilinmoqda...")
     status_msg = await call.message.answer(
         f"⏳ <b>«{test['title']}»</b> testi to'xtatilmoqda, Rasch modeli (JMLE) bo'yicha yakuniy ballar kalibrlanmoqda va o'quvchilarga shaxsiy natijalar yuborilmoqda..."
     )
@@ -1343,11 +1414,90 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
                 fail_count += 1
 
         fail_text = f"⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n" if fail_count > 0 else ""
+        back_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")]
+        ])
         await status_msg.edit_text(
-            f"✅ <b>Test to'xtatildi va natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
+            f"✅ <b>Rasch modeli bo'yicha natijalar e'lon qilindi!</b>\n\n"
             f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
             f"{fail_text}"
-            f"📌 <i>Endi barcha o'quvchilar botda va mini ilovada o'z ballari, to'g'ri javoblari soni va to'liq tahlilni ko'ra oladilar.</i>"
+            f"📌 <i>O'quvchilar botda va mini ilovada o'z ballari va to'liq tahlilni ko'ra oladilar.</i>",
+            reply_markup=back_kb
+        )
+    except Exception as e:
+        log.error(f"Xatolik broadcastda: {e}", exc_info=True)
+        await status_msg.edit_text(f"❌ <b>Natijalarni e'lon qilishda xatolik yuz berdi:</b>\n<code>{e}</code>")
+
+# 2. Standart baholash (To'g'ri javoblar soni) bo'yicha e'lon qilish
+@router.callback_query(F.data.startswith("adm_broadcast_std_"))
+async def admin_broadcast_std_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+
+    test_id = int(call.data.split("_")[3])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    await call.answer("⏳ Standart natijalar e'lon qilinmoqda...")
+    status_msg = await call.message.answer(
+        f"⏳ <b>«{test['title']}»</b> testi to'xtatilmoqda va standart to'g'ri javoblar soni bo'yicha natijalar yuborilmoqda..."
+    )
+
+    try:
+        # 1. Testni to'xtatish (is_active = 0)
+        test_db.set_test_active_status(test_id, 0)
+
+        # 2. Test natijalarini e'lon qilingan holatga o'tkazish
+        test_db.set_test_results_published(test_id, True)
+
+        # 3. Topshirgan barcha o'quvchilarga shaxsiy Telegram xabarini yuborish
+        submissions = test_db.get_test_submissions_with_users(test_id)
+        sent_count = 0
+        fail_count = 0
+
+        for sub in submissions:
+            uid = sub.get("user_tg_id")
+            if not uid:
+                continue
+            user_info = test_db.get_user(uid)
+            name = user_info['fullname'] if user_info else "Foydalanuvchi"
+            score = sub.get("score", 0.0)
+            corr = sub.get("correct_count", 0)
+            total = sub.get("total_count", 55) or 55
+            incorr = max(0, total - corr)
+            code = sub.get("test_code", test["test_code"])
+
+            msg_text = (
+                f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
+                f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
+                f"📋 <b>Baholash turi:</b> Standart (To'g'ri javoblar soni)\n"
+                f"✅ <b>To'g'ri javoblar:</b> {corr} / {total} ta\n"
+                f"❌ <b>Noto'g'ri javoblar:</b> {incorr} ta\n"
+                f"🎯 <b>To'plangan ball:</b> {score} ball\n"
+                f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
+                f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
+                f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
+            )
+            try:
+                await bot.send_message(chat_id=uid, text=msg_text)
+                sent_count += 1
+                await asyncio.sleep(0.05)
+            except Exception as ex:
+                log.warning(f"O'quvchi {uid} ga natija yuborishda xatolik: {ex}")
+                fail_count += 1
+
+        fail_text = f"⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n" if fail_count > 0 else ""
+        back_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")]
+        ])
+        await status_msg.edit_text(
+            f"✅ <b>Standart natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
+            f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
+            f"{fail_text}"
+            f"📌 <i>Endi barcha o'quvchilar botda va mini ilovada o'z ballari va to'liq tahlilni ko'ra oladilar.</i>",
+            reply_markup=back_kb
         )
     except Exception as e:
         log.error(f"Xatolik broadcastda: {e}", exc_info=True)
