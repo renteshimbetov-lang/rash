@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 UZB_TZ = timezone(timedelta(hours=5))
+ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
 
 def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%M") -> str:
     """O'zbekiston (Toshkent, UTC+5) vaqti bo'yicha formatlash"""

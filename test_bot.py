@@ -1274,14 +1274,16 @@ async def admin_test_stats_detail(call: CallbackQuery):
         InlineKeyboardButton(text="📄 Matn shaklida", callback_data=f"adm_restxt_{test_id}"),
         InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
     ])
-    buttons.append([InlineKeyboardButton(text="🧮 Rasch Modeli tahlilini ko'rish (JMLE)", callback_data=f"adm_rasch_{test_id}")])
     buttons.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")])
 
     try:
         await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     except Exception:
         await call.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
-    await call.answer()
+    try:
+        await call.answer()
+    except Exception:
+        pass
 
 # Javob qabul qilishni boshlash / to'xtatish
 @router.callback_query(F.data.startswith("toggle_test_tstat_"))
@@ -1292,11 +1294,17 @@ async def admin_toggle_test_tstat_cb(call: CallbackQuery):
     new_status = test_db.toggle_test_status(test_id)
     if new_status is not None:
         status_text = "🟢 Javoblar qabul qilinmoqda" if new_status == 1 else "🔴 Javoblar to'xtatildi"
-        await call.answer(f"Test holati: {status_text}", show_alert=True)
+        try:
+            await call.answer(f"Test holati: {status_text}", show_alert=True)
+        except Exception:
+            pass
         call.data = f"adm_tstat_{test_id}"
         await admin_test_stats_detail(call)
     else:
-        await call.answer("Xatolik yuz berdi!", show_alert=True)
+        try:
+            await call.answer("Xatolik yuz berdi!", show_alert=True)
+        except Exception:
+            pass
 
 # Natijalarni qayta yashirish (o'quvchilarga yana "tekshirilmoqda" qilish)
 @router.callback_query(F.data.startswith("adm_hide_results_"))
