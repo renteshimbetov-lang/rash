@@ -374,6 +374,20 @@ def toggle_test_status(test_id: int) -> Optional[int]:
     finally:
         conn.close()
 
+def set_test_active_status(test_id: int, status: int) -> bool:
+    """Test holatini faol (1) yoki to'xtatilgan (0) qilib belgilash."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE tests SET is_active = ? WHERE id = ?", (1 if status else 0, test_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error setting test active status: {e}")
+        return False
+    finally:
+        conn.close()
+
 def update_test_time_limit(test_id: int, time_limit_min: int) -> bool:
     """Test vaqt chegarasini yangilash (daqiqa). 0 bo'lsa cheksiz."""
     conn = get_connection()

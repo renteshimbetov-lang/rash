@@ -1294,59 +1294,64 @@ async def admin_broadcast_results_cb(call: CallbackQuery):
         f"⏳ <b>«{test['title']}»</b> testi to'xtatilmoqda, Rasch modeli (JMLE) bo'yicha yakuniy ballar kalibrlanmoqda va o'quvchilarga shaxsiy natijalar yuborilmoqda..."
     )
 
-    # 1. Testni to'xtatish (is_active = 0)
-    test_db.set_test_active_status(test_id, 0)
+    try:
+        # 1. Testni to'xtatish (is_active = 0)
+        test_db.set_test_active_status(test_id, 0)
 
-    # 2. Rasch modeli orqali yakuniy kalibrlash va bazani yangilash
-    test_db.evaluate_test_rasch(test_id, auto_update_db=True)
+        # 2. Rasch modeli orqali yakuniy kalibrlash va bazani yangilash
+        test_db.evaluate_test_rasch(test_id, auto_update_db=True)
 
-    # 3. Test natijalarini e'lon qilingan holatga o'tkazish
-    test_db.set_test_results_published(test_id, True)
+        # 3. Test natijalarini e'lon qilingan holatga o'tkazish
+        test_db.set_test_results_published(test_id, True)
 
-    # 4. Topshirgan barcha o'quvchilarga shaxsiy Telegram xabarini yuborish
-    submissions = test_db.get_test_submissions_with_users(test_id)
-    sent_count = 0
-    fail_count = 0
+        # 4. Topshirgan barcha o'quvchilarga shaxsiy Telegram xabarini yuborish
+        submissions = test_db.get_test_submissions_with_users(test_id)
+        sent_count = 0
+        fail_count = 0
 
-    for sub in submissions:
-        uid = sub.get("user_tg_id")
-        if not uid:
-            continue
-        user_info = test_db.get_user(uid)
-        name = user_info['fullname'] if user_info else "Foydalanuvchi"
-        score = sub.get("score", 0.0)
-        grade = sub.get("grade") or test_db.calculate_grade(score)
-        corr = sub.get("correct_count", 0)
-        total = sub.get("total_count", 55) or 55
-        incorr = max(0, total - corr)
-        code = sub.get("test_code", test["test_code"])
+        for sub in submissions:
+            uid = sub.get("user_tg_id")
+            if not uid:
+                continue
+            user_info = test_db.get_user(uid)
+            name = user_info['fullname'] if user_info else "Foydalanuvchi"
+            score = sub.get("score", 0.0)
+            grade = sub.get("grade") or test_db.calculate_grade(score)
+            corr = sub.get("correct_count", 0)
+            total = sub.get("total_count", 55) or 55
+            incorr = max(0, total - corr)
+            code = sub.get("test_code", test["test_code"])
 
-        msg_text = (
-            f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
-            f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
-            f"🧮 <b>Baholash tizimi:</b> Rasch Modeli (JMLE)\n"
-            f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
-            f"✅ <b>To'g'ri ishlangan:</b> {corr} ta band\n"
-            f"❌ <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
-            f"📊 <b>Jami savollar:</b> {total} ta\n"
-            f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
-            f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
-            f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
+            msg_text = (
+                f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
+                f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
+                f"🧮 <b>Baholash tizimi:</b> Rasch Modeli (JMLE)\n"
+                f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
+                f"✅ <b>To'g'ri ishlangan:</b> {corr} ta band\n"
+                f"❌ <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
+                f"📊 <b>Jami savollar:</b> {total} ta\n"
+                f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
+                f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
+                f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
+            )
+            try:
+                await bot.send_message(chat_id=uid, text=msg_text)
+                sent_count += 1
+                await asyncio.sleep(0.05)
+            except Exception as ex:
+                log.warning(f"O'quvchi {uid} ga natija yuborishda xatolik: {ex}")
+                fail_count += 1
+
+        fail_text = f"⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n" if fail_count > 0 else ""
+        await status_msg.edit_text(
+            f"✅ <b>Test to'xtatildi va natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
+            f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
+            f"{fail_text}"
+            f"📌 <i>Endi barcha o'quvchilar botda va mini ilovada o'z ballari, to'g'ri javoblari soni va to'liq tahlilni ko'ra oladilar.</i>"
         )
-        try:
-            await bot.send_message(chat_id=uid, text=msg_text)
-            sent_count += 1
-        except Exception as ex:
-            log.warning(f"O'quvchi {uid} ga natija yuborishda xatolik: {ex}")
-            fail_count += 1
-
-    fail_text = f"⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n" if fail_count > 0 else ""
-    await status_msg.edit_text(
-        f"✅ <b>Test to'xtatildi va natijalar muvaffaqiyatli e'lon qilindi!</b>\n\n"
-        f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
-        f"{fail_text}"
-        f"📌 <i>Endi barcha o'quvchilar botda va mini ilovada o'z ballari, to'g'ri javoblari soni va to'liq tahlilni ko'ra oladilar.</i>"
-    )
+    except Exception as e:
+        log.error(f"Xatolik broadcastda: {e}", exc_info=True)
+        await status_msg.edit_text(f"❌ <b>Natijalarni e'lon qilishda xatolik yuz berdi:</b>\n<code>{e}</code>")
 
 @router.callback_query(F.data.startswith("adm_rasch_"))
 async def admin_test_rasch_eval(call: CallbackQuery):
