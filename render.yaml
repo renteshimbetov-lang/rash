@@ -10,7 +10,7 @@ services:
     healthCheckPath: /healthz
     envVars:
       - key: BOT_TOKEN
-        value: 8892124781:AAGTRWY78lfHn3pQoBoIG30zH9OoDQF5N2g
+        value: 8892124781:AAGapn_ddQobmFpotMp8yaWqfnkahuaY_mg
       - key: ADMIN_ID
         value: "8039427064"
       - key: WEBAPP_URL

@@ -4,6 +4,7 @@ Test Tekshirish Tizimi — SQLite Database moduli
 import sqlite3
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
@@ -614,11 +615,17 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
     if not test:
         raise ValueError("Test topilmadi!")
 
-    # Qayta ishlash huquqini cheklash
+    # Qayta ishlash huquqini cheklash (Oddiy o'quvchilar uchun 1 marta, adminlar uchun erkin sinov)
     if user_tg_id:
         existing = get_user_submission_for_test(test_id, user_tg_id)
         if existing:
-            raise ValueError("Siz ushbu testni allaqachon topshirgansiz! Qayta topshirish mumkin emas.")
+            if is_admin(user_tg_id, ADMIN_ID):
+                conn_del = get_connection()
+                conn_del.execute("DELETE FROM submissions WHERE id = ?", (existing["id"],))
+                conn_del.commit()
+                conn_del.close()
+            else:
+                raise ValueError("Siz ushbu testni allaqachon topshirgansiz! Qayta topshirish mumkin emas.")
 
     user = get_user(user_tg_id) if user_tg_id else None
     fullname = user["fullname"] if user else "Foydalanuvchi"
@@ -897,14 +904,47 @@ def evaluate_test_rasch(test_id: int, auto_update_db: bool = False) -> Optional[
         return None
 
 
+CYRILLIC_TO_LATIN = {
+    'А': 'A', 'а': 'a', 'Б': 'B', 'б': 'b', 'В': 'V', 'в': 'v',
+    'Г': 'G', 'г': 'g', 'Д': 'D', 'д': 'd', 'Е': 'E', 'е': 'e',
+    'Ё': 'Yo', 'ё': 'yo', 'Ж': 'J', 'ж': 'j', 'З': 'Z', 'з': 'z',
+    'И': 'I', 'и': 'i', 'Й': 'Y', 'й': 'y', 'К': 'K', 'к': 'k',
+    'Л': 'L', 'л': 'l', 'М': 'M', 'м': 'm', 'Н': 'N', 'н': 'n',
+    'О': 'O', 'о': 'o', 'П': 'P', 'п': 'p', 'Р': 'R', 'р': 'r',
+    'С': 'S', 'с': 's', 'Т': 'T', 'т': 't', 'У': 'U', 'у': 'u',
+    'Ф': 'F', 'ф': 'f', 'Х': 'X', 'х': 'x', 'Ц': 'Ts', 'ц': 'ts',
+    'Ч': 'Ch', 'ч': 'ch', 'Ш': 'Sh', 'ш': 'sh', 'Щ': 'Sh', 'щ': 'sh',
+    'Ъ': "'", 'ъ': "'", 'Ь': '', 'ь': '', 'Э': 'E', 'э': 'e',
+    'Ю': 'Yu', 'ю': 'yu', 'Я': 'Ya', 'я': 'ya',
+    'Ў': "O'", 'ў': "o'", 'Қ': 'Q', 'қ': 'q', 'Ғ': "G'", 'ғ': "g'", 'Ҳ': 'H', 'ҳ': 'h'
+}
+
+def transliterate_cyrillic(text: str) -> str:
+    """Kirill harflarini lotin yozuviga xavfsiz o'girish."""
+    if not text:
+        return ""
+    res = []
+    for ch in text:
+        res.append(CYRILLIC_TO_LATIN.get(ch, ch))
+    return "".join(res)
+
 def _clean_pdf_text(text: Any) -> str:
-    """PDF uchun matnni xavfsiz tozalash (XML va maxsus belgilarni to'g'rilash)."""
+    """PDF uchun matnni xavfsiz tozalash (emojilar, maxsus belgilar, tutuq belgilari)."""
     if text is None:
         return ""
-    s = str(text)
-    s = s.replace("—", "-").replace("–", "-").replace("ʻ", "'").replace("ʼ", "'").replace("‘", "'").replace("’", "'")
-    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
-    return s
+    s = str(text).strip()
+    # 1. Emojilar va 4-baytli belgilarni tozalash (PDF da qora to'rtburchak bo'lib qolmasligi uchun)
+    s = re.sub(r'[\U00010000-\U0010ffff]', '', s)
+    s = re.sub(r'[\u200B-\u200D\uFEFF]', '', s)
+    # 2. Tutuq belgilari va tirelarni standartlashtirish
+    s = s.replace("—", "-").replace("–", "-").replace("−", "-")
+    for ch in ["ʻ", "ʼ", "‘", "’", "′", "`", "´", "ʹ", "ʽ"]:
+        s = s.replace(ch, "'")
+    for q in ["“", "”", "„", "«", "»"]:
+        s = s.replace(q, '"')
+    # 3. HTML entity
+    s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return s.strip()
 
 def generate_test_results_pdf(test_id: int) -> Optional[str]:
     """Test natijalari bo'yicha rasmiy PDF reyting jadvali generatsiya qiladi."""
@@ -913,6 +953,8 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
         import os
 
         test = get_test_by_id(test_id)
@@ -933,12 +975,51 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
             bottomMargin=30
         )
 
+        # ── Shriftlarni ro'yxatdan o'tkazish (Kirill va Lotin harflari uchun) ──
+        font_name = 'Helvetica'
+        font_bold = 'Helvetica-Bold'
+        
+        font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+        possible_regular = [
+            os.path.join(font_dir, 'Arial.ttf'),
+            '/System/Library/Fonts/Supplemental/Arial.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            '/Library/Fonts/Arial.ttf'
+        ]
+        possible_bold = [
+            os.path.join(font_dir, 'Arial-Bold.ttf'),
+            '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+            '/Library/Fonts/Arial Bold.ttf'
+        ]
+
+        reg_path = next((p for p in possible_regular if os.path.exists(p)), None)
+        bld_path = next((p for p in possible_bold if os.path.exists(p)), None)
+
+        if reg_path:
+            try:
+                pdfmetrics.registerFont(TTFont('UnicodeSans', reg_path))
+                font_name = 'UnicodeSans'
+            except Exception as fe:
+                print(f"Font regular error: {fe}")
+
+        if bld_path:
+            try:
+                pdfmetrics.registerFont(TTFont('UnicodeSansBold', bld_path))
+                font_bold = 'UnicodeSansBold'
+            except Exception as fe:
+                print(f"Font bold error: {fe}")
+        elif font_name == 'UnicodeSans':
+            font_bold = 'UnicodeSans'
+
         styles = getSampleStyleSheet()
         
         title_style = ParagraphStyle(
             'TitleStyle',
             parent=styles['Normal'],
-            fontName='Helvetica-Bold',
+            fontName=font_bold,
             fontSize=15,
             leading=19,
             textColor=colors.HexColor("#1E3A8A"),
@@ -948,27 +1029,48 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         subtitle_style = ParagraphStyle(
             'SubTitleStyle',
             parent=styles['Normal'],
-            fontName='Helvetica',
+            fontName=font_name,
             fontSize=10,
             leading=14,
             textColor=colors.HexColor("#475569"),
             alignment=1
         )
 
+        header_cell_style = ParagraphStyle(
+            'HeaderCellStyle',
+            parent=styles['Normal'],
+            fontName=font_bold,
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor("#1E3A8A"),
+            alignment=1
+        )
+
         cell_style = ParagraphStyle(
             'CellStyle',
             parent=styles['Normal'],
-            fontName='Helvetica',
+            fontName=font_name,
             fontSize=9,
-            leading=11
+            leading=12,
+            alignment=1
+        )
+
+        cell_name_style = ParagraphStyle(
+            'CellNameStyle',
+            parent=styles['Normal'],
+            fontName=font_name,
+            fontSize=9,
+            leading=12,
+            alignment=0
         )
 
         cell_bold = ParagraphStyle(
             'CellBold',
             parent=styles['Normal'],
-            fontName='Helvetica-Bold',
+            fontName=font_bold,
             fontSize=9,
-            leading=11
+            leading=12,
+            alignment=1
         )
 
         elements = []
@@ -977,20 +1079,23 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         
         test_title_clean = _clean_pdf_text(test['title'])
         test_subject_clean = _clean_pdf_text(test.get('subject', 'Matematika'))
+        if font_name == 'Helvetica':
+            test_title_clean = transliterate_cyrillic(test_title_clean)
+            test_subject_clean = transliterate_cyrillic(test_subject_clean)
+
         elements.append(Paragraph(f"Test: <b>{test_title_clean}</b> | Fan: {test_subject_clean}", subtitle_style))
         elements.append(Paragraph(f"Jami ishtirokchilar soni: <b>{len(results)} nafar</b> | Sana: {format_uzb_time()}", subtitle_style))
         elements.append(Spacer(1, 14))
 
-        # Jadval ma'lumotlari
+        # Jadval ma'lumotlari (Telefon ustuni olib tashlandi!)
         table_data = [
             [
-                Paragraph("<b>O'rin</b>", cell_bold),
-                Paragraph("<b>Ism va Familiya</b>", cell_bold),
-                Paragraph("<b>Telefon</b>", cell_bold),
-                Paragraph("<b>To'plangan Ball</b>", cell_bold),
-                Paragraph("<b>Daraja</b>", cell_bold),
-                Paragraph("<b>To'g'ri</b>", cell_bold),
-                Paragraph("<b>Vaqt</b>", cell_bold)
+                Paragraph("<b>O'rin</b>", header_cell_style),
+                Paragraph("<b>Ism va Familiya</b>", header_cell_style),
+                Paragraph("<b>To'plangan Ball</b>", header_cell_style),
+                Paragraph("<b>Daraja</b>", header_cell_style),
+                Paragraph("<b>To'g'ri</b>", header_cell_style),
+                Paragraph("<b>Topshirilgan Vaqt</b>", header_cell_style)
             ]
         ]
 
@@ -998,20 +1103,21 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
             dt = format_uzb_time(r["submitted_at"], "%d.%m %H:%M")
             grade = calculate_grade(r["score"])
             fullname_clean = _clean_pdf_text(r["fullname"] or "Foydalanuvchi")
-            phone_clean = _clean_pdf_text(r["phone"] or "-")
+            if font_name == 'Helvetica':
+                fullname_clean = transliterate_cyrillic(fullname_clean)
             grade_clean = _clean_pdf_text(grade)
 
             table_data.append([
                 Paragraph(f"<b>#{rank}</b>", cell_bold),
-                Paragraph(fullname_clean, cell_style),
-                Paragraph(phone_clean, cell_style),
+                Paragraph(f"&nbsp;{fullname_clean}", cell_name_style),
                 Paragraph(f"<b>{r['score']} ball</b>", cell_bold),
                 Paragraph(f"<b>{grade_clean}</b>", cell_style),
                 Paragraph(f"{r['correct_count']} ta", cell_style),
                 Paragraph(dt, cell_style)
             ])
 
-        col_widths = [35, 140, 85, 75, 70, 50, 75]
+        # Kengliklar (Jami: 535 pt) - Ism-familiyaga keng joy berildi
+        col_widths = [45, 215, 80, 70, 55, 70]
         t = Table(table_data, colWidths=col_widths, repeatRows=1)
         t.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EEF2FF")),

@@ -2,7 +2,7 @@
 STREET TEST — Test Tekshirish Telegram Boti va Mini App Serveri
 Aiogram 3.x + aiohttp WebApp Server
 ============================================================
-Bot Token: 8892124781:AAGTRWY78lfHn3pQoBoIG30zH9OoDQF5N2g
+Bot Token: 8892124781:AAGapn_ddQobmFpotMp8yaWqfnkahuaY_mg
 Admin ID: 8039427064
 """
 
@@ -42,7 +42,7 @@ def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%
     return dt.strftime(fmt)
 
 # ── SOZLAMALAR ────────────────────────────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8892124781:AAGTRWY78lfHn3pQoBoIG30zH9OoDQF5N2g")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8892124781:AAGapn_ddQobmFpotMp8yaWqfnkahuaY_mg")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
 PORT = int(os.getenv("PORT", "8080"))
 _raw_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "")
@@ -178,8 +178,9 @@ def make_webapp_button(text: str, url: str, fallback_cb: str = "open_webapp_info
 async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_id: int):
     """Test ma'lumotlari, PDF va WebApp tugmasini yuboradi. Agar foydalanuvchi allaqachon topshirgan bo'lsa qayta topshirish taqiqlanadi."""
     existing_sub = test_db.get_user_submission_for_test(test["id"], user_tg_id)
+    is_admin = test_db.is_admin(user_tg_id, ADMIN_ID)
     
-    if existing_sub:
+    if existing_sub and not is_admin:
         dt = format_uzb_time(existing_sub["submitted_at"])
         grade = test_db.calculate_grade(existing_sub.get("score", 0))
         text = (
