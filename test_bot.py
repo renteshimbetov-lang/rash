@@ -1107,7 +1107,9 @@ async def admin_view_users_cb(call: CallbackQuery):
         f"<i>Boshqarish (ruxsat berish / chiqarib yuborish / o'chirish) uchun foydalanuvchini tanlang 👇</i>"
     )
 
-    buttons = []
+    buttons = [
+        [InlineKeyboardButton(text="🔒 Barchani cheklash (qayta so'rov)", callback_data="admin_restrict_all_confirm")]
+    ]
     for u in users[:25]:
         st = u.get("status", "pending")
         if st == "approved":
@@ -1168,6 +1170,8 @@ async def adm_user_card_cb(call: CallbackQuery):
     action_buttons = []
     if st != "approved":
         action_buttons.append([InlineKeyboardButton(text="✅ Botga ruxsat berish", callback_data=f"adm_act_approve_{uid}")])
+    else:
+        action_buttons.append([InlineKeyboardButton(text="🔒 Cheklash (qayta so'rovga)", callback_data=f"adm_act_pending_{uid}")])
     if st != "blocked":
         action_buttons.append([InlineKeyboardButton(text="⛔️ Botdan chiqarib yuborish", callback_data=f"adm_act_block_{uid}")])
     action_buttons.append([InlineKeyboardButton(text="🗑 Butunlay o'chirish", callback_data=f"adm_act_del_{uid}")])
@@ -1197,6 +1201,29 @@ async def adm_act_approve_cb(call: CallbackQuery):
     await call.answer("✅ Foydalanuvchiga ruxsat berildi!", show_alert=True)
     await admin_view_users_cb(call)
 
+@router.callback_query(F.data.startswith("adm_act_pending_"))
+async def adm_act_pending_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    uid = int(call.data.split("_")[3])
+    test_db.set_user_pending(uid)
+    try:
+        req_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔔 Admindan ruxsat so'rash", callback_data=f"user_req_access_{uid}")]
+        ])
+        await bot.send_message(
+            chat_id=uid,
+            text=(
+                "⏳ <b>Sizning botdan foydalanish huquqingiz admin tomonidan to'xtatildi!</b>\n\n"
+                "Qayta foydalanish uchun quyidagi tugma orqali adminga so'rov yuborishingiz mumkin."
+            ),
+            reply_markup=req_kb
+        )
+    except Exception:
+        pass
+    await call.answer("🔒 Foydalanuvchi cheklandi (kutilmoqda holatiga o'tkazildi)!", show_alert=True)
+    await admin_view_users_cb(call)
+
 @router.callback_query(F.data.startswith("adm_act_block_"))
 async def adm_act_block_cb(call: CallbackQuery):
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
@@ -1222,6 +1249,74 @@ async def adm_act_del_cb(call: CallbackQuery):
     test_db.delete_user(uid)
     await call.answer("🗑 Foydalanuvchi bazadan o'chirildi!", show_alert=True)
     await admin_view_users_cb(call)
+
+# ── BARCHA FOYDALANUVCHILARNI BIRDA CHEKLASH (PENDING GA O'TKAZISH) ──
+@router.callback_query(F.data == "admin_restrict_all_confirm")
+async def admin_restrict_all_confirm_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    counts = test_db.get_users_count()
+    text = (
+        f"⚠️ <b>DIQQAT! BARCHA FOYDALANUVCHILARNI CHEKLASH</b>\n\n"
+        f"📊 Hozirgi holat:\n"
+        f"• Faol foydalanuvchilar: <b>{counts.get('approved', 0)} ta</b>\n"
+        f"• Kutilayotganlar: <b>{counts.get('pending', 0)} ta</b>\n\n"
+        f"Ushbu amal barcha oddiy foydalanuvchilarning ruxsatini bekor qiladi va ularni <b>kutilmoqda (pending)</b> holatiga o'tkazadi.\n\n"
+        f"🛡 <b>Adminlar daxlsiz qoladi</b> (ularning huquqi to'liq saqlanadi).\n"
+        f"🔄 Foydalanuvchilar botga kirganlarida qaytadan <b>«🔔 Admindan ruxsat so'rash»</b> tugmasini bosib so'rov yuborishlari talab etiladi.\n\n"
+        f"<b>Haqiqatan ham barcha foydalanuvchilarni cheklamoqchimisiz?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔒 Ha, barchasini cheklash!", callback_data="admin_restrict_all_execute")],
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_view_users")]
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data == "admin_restrict_all_execute")
+async def admin_restrict_all_execute_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    count = test_db.restrict_all_users(ADMIN_ID)
+    text = (
+        f"🔒 <b>Barcha foydalanuvchilar muvaffaqiyatli cheklandi!</b>\n\n"
+        f"Jami <b>{count} ta</b> foydalanuvchining huquqi <b>kutilmoqda (pending)</b> holatiga o'tkazildi.\n\n"
+        f"Endi ular botdan foydalanish uchun qaytadan <b>«🔔 Admindan ruxsat so'rash»</b> orqali ruxsat so'rashlari kerak bo'ladi."
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👥 Foydalanuvchilar ro'yxati", callback_data="admin_view_users")],
+        [InlineKeyboardButton(text="🔙 Admin Menyuga qaytish", callback_data="admin_back_to_menu")]
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer(f"🔒 {count} ta foydalanuvchi cheklandi!", show_alert=True)
+
+@router.message(Command("barchani_cheklash"))
+@router.message(Command("restrict_all"))
+async def cmd_restrict_all(message: Message):
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        return
+    counts = test_db.get_users_count()
+    text = (
+        f"⚠️ <b>DIQQAT! BARCHA FOYDALANUVCHILARNI CHEKLASH</b>\n\n"
+        f"📊 Hozirgi holat:\n"
+        f"• Faol foydalanuvchilar: <b>{counts.get('approved', 0)} ta</b>\n"
+        f"• Kutilayotganlar: <b>{counts.get('pending', 0)} ta</b>\n\n"
+        f"Ushbu amal barcha oddiy foydalanuvchilarning ruxsatini bekor qiladi va ularni <b>kutilmoqda (pending)</b> holatiga o'tkazadi.\n\n"
+        f"🛡 <b>Adminlar daxlsiz qoladi</b>.\n"
+        f"🔄 Foydalanuvchilar botga kirganda qaytadan <b>«🔔 Admindan ruxsat so'rash»</b> orqali so'rov yuborishlari kerak bo'ladi.\n\n"
+        f"<b>Haqiqatan ham barcha foydalanuvchilarni cheklamoqchimisiz?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔒 Ha, barchasini cheklash!", callback_data="admin_restrict_all_execute")],
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_back_to_menu")]
+    ])
+    await message.answer(text, reply_markup=kb)
 
 # 4. Adminlar boshqaruvi
 @router.callback_query(F.data == "admin_manage_admins")

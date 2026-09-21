@@ -358,6 +358,61 @@ def block_user(tg_id: int) -> bool:
         return False
 
 
+def set_user_pending(tg_id: int) -> bool:
+    """Foydalanuvchi maqomini 'pending' (kutilmoqda) ga o'tkazadi."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(f"UPDATE users SET status = 'pending' WHERE tg_id = {_ph()}", (tg_id,))
+        _commit_and_close(conn)
+        return True
+    except Exception as e:
+        print(f"Error setting user pending: {e}")
+        conn.close()
+        return False
+
+
+def restrict_all_users(super_admin_id: int = 8039427064) -> int:
+    """
+    Barcha oddiy foydalanuvchilarning maqomini 'pending' (kutilmoqda) ga o'tkazadi.
+    Adminlar daxlsiz qoladi.
+    Qaytaradi: cheklangan foydalanuvchilar soni.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT tg_id FROM admins")
+        admin_rows = cur.fetchall()
+        admin_ids = set()
+        for r in admin_rows:
+            d = _row_to_dict(r)
+            if d and d.get("tg_id"):
+                admin_ids.add(int(d["tg_id"]))
+        admin_ids.add(int(super_admin_id))
+        admin_list = list(admin_ids)
+
+        if USE_POSTGRES:
+            cur.execute("""
+                UPDATE users 
+                SET status = 'pending' 
+                WHERE NOT (tg_id = ANY(%s)) AND status != 'pending'
+            """, (admin_list,))
+        else:
+            placeholders = ",".join("?" for _ in admin_list)
+            cur.execute(f"""
+                UPDATE users 
+                SET status = 'pending' 
+                WHERE tg_id NOT IN ({placeholders}) AND status != 'pending'
+            """, admin_list)
+        count = cur.rowcount
+        _commit_and_close(conn)
+        return count
+    except Exception as e:
+        print(f"Error restricting all users: {e}")
+        conn.close()
+        return 0
+
+
 def delete_user(tg_id: int) -> bool:
     conn = get_connection()
     cur = conn.cursor()
