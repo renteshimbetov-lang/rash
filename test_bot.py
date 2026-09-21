@@ -192,6 +192,7 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
 
     buttons = [
         [InlineKeyboardButton(text=btn_text, callback_data="admin_view_users")],
+        [InlineKeyboardButton(text="🔒 Barchani cheklash (qayta so'rov)", callback_data="admin_restrict_all_confirm")],
         [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
