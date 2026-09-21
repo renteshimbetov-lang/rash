@@ -10,10 +10,16 @@ services:
     healthCheckPath: /healthz
     envVars:
       - key: BOT_TOKEN
-        value: 8892124781:AAGapn_ddQobmFpotMp8yaWqfnkahuaY_mg
+        sync: false          # Render Dashboard orqali qo'lda kiriting
+
       - key: ADMIN_ID
-        value: "8039427064"
+        sync: false          # Render Dashboard orqali qo'lda kiriting
+
+      - key: DATABASE_URL
+        sync: false          # Neon.tech connection string — Dashboard orqali kiriting
+
       - key: WEBAPP_URL
         value: https://rash-vmrm.onrender.com
+
       - key: PYTHON_VERSION
         value: 3.11.9

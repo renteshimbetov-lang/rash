@@ -1,7 +1,8 @@
 """
-Test Tekshirish Tizimi — SQLite Database moduli
+Test Tekshirish Tizimi — PostgreSQL Database moduli (psycopg2)
+Neon.tech PostgreSQL bilan ishlash uchun to'liq refaktoring qilingan.
+SQLite fallback lokal sinov uchun saqlab qolindi.
 """
-import sqlite3
 import json
 import os
 import re
@@ -12,6 +13,24 @@ from typing import Optional, List, Dict, Any
 UZB_TZ = timezone(timedelta(hours=5))
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
 
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# PostgreSQL yoki SQLite ni avtomatik aniqlash
+USE_POSTGRES = bool(DATABASE_URL and ("postgresql" in DATABASE_URL or "postgres" in DATABASE_URL))
+
+if not USE_POSTGRES:
+    import sqlite3
+    data_dir = os.getenv("DATA_DIR")
+    if data_dir:
+        try:
+            os.makedirs(data_dir, exist_ok=True)
+        except Exception:
+            pass
+        DB_FILE = os.path.join(data_dir, "test_system.db")
+    else:
+        DB_FILE = os.getenv("DB_PATH", "test_system.db")
+
+
 def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%M") -> str:
     """O'zbekiston (Toshkent, UTC+5) vaqti bo'yicha formatlash"""
     if timestamp is None:
@@ -20,257 +39,350 @@ def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%
         dt = datetime.fromtimestamp(timestamp, tz=UZB_TZ)
     return dt.strftime(fmt)
 
-data_dir = os.getenv("DATA_DIR")
-if data_dir:
-    try:
-        os.makedirs(data_dir, exist_ok=True)
-    except Exception:
-        pass
-    DB_FILE = os.path.join(data_dir, "test_system.db")
-else:
-    DB_FILE = os.getenv("DB_PATH", "test_system.db")
 
-def get_connection(timeout: float = 20.0):
-    conn = sqlite3.connect(DB_FILE, timeout=timeout, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA busy_timeout=20000;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    return conn
+# ──────────────────────────────────────────────────────────
+# ULANISH MENEJERI
+# ──────────────────────────────────────────────────────────
+
+def get_connection():
+    """PostgreSQL yoki SQLite ulanishini qaytaradi."""
+    if USE_POSTGRES:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        conn.autocommit = False
+        return conn
+    else:
+        conn = sqlite3.connect(DB_FILE, timeout=20.0, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=20000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        return conn
+
+
+def _row_to_dict(row) -> Optional[Dict[str, Any]]:
+    """psycopg2 RealDictRow yoki sqlite3.Row ni dict ga o'tkazish."""
+    if row is None:
+        return None
+    return dict(row)
+
+
+def _commit_and_close(conn):
+    """Commit qilib, ulanishni yopish."""
+    try:
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _placeholder(n: int = 1) -> str:
+    """PostgreSQL uchun %s, SQLite uchun ? placeholder qaytaradi."""
+    ph = "%s" if USE_POSTGRES else "?"
+    if n == 1:
+        return ph
+    return ", ".join([ph] * n)
+
+
+def _ph() -> str:
+    """Bitta placeholder."""
+    return "%s" if USE_POSTGRES else "?"
+
+
+# ──────────────────────────────────────────────────────────
+# JADVALLARNI YARATISH
+# ──────────────────────────────────────────────────────────
 
 def init_db():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("PRAGMA journal_mode=WAL;")
-    cur.execute("PRAGMA busy_timeout=20000;")
-    cur.execute("PRAGMA synchronous=NORMAL;")
-    
-    # 1. Foydalanuvchilar jadvali
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tg_id INTEGER UNIQUE NOT NULL,
-        fullname TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        username TEXT,
-        status TEXT DEFAULT 'pending',
-        registered_at INTEGER NOT NULL
-    )
-    """)
-    
-    # Mavjud jadvalga status va pin_code ustunlarini xavfsiz qo'shish (agar yo'q bo'lsa)
-    try:
-        cur.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'approved'")
-    except Exception:
-        pass
-    try:
-        cur.execute("ALTER TABLE users ADD COLUMN pin_code TEXT")
-    except Exception:
-        pass
 
-    # 2. Testlar jadvali
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS tests (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        test_code TEXT UNIQUE NOT NULL,
-        title TEXT NOT NULL,
-        subject TEXT DEFAULT 'Matematika',
-        pdf_file_id TEXT,
-        pdf_file_name TEXT,
-        answers_json TEXT NOT NULL,
-        total_questions INTEGER DEFAULT 45,
-        time_limit_min INTEGER DEFAULT 0,
-        is_active INTEGER DEFAULT 1,
-        key_access_code TEXT,
-        created_at INTEGER NOT NULL
-    )
-    """)
+    if USE_POSTGRES:
+        # PostgreSQL jadvallar
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            tg_id BIGINT UNIQUE NOT NULL,
+            fullname TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            username TEXT,
+            status TEXT DEFAULT 'pending',
+            pin_code TEXT,
+            registered_at BIGINT NOT NULL
+        )
+        """)
 
-    # Eski DB uchun key_access_code va results_published ustunlarini qo'shish (agar yo'q bo'lsa)
-    try:
-        cur.execute("ALTER TABLE tests ADD COLUMN key_access_code TEXT")
-    except sqlite3.OperationalError:
-        pass  # Ustun allaqachon mavjud
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS tests (
+            id SERIAL PRIMARY KEY,
+            test_code TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            subject TEXT DEFAULT 'Matematika',
+            pdf_file_id TEXT,
+            pdf_file_name TEXT,
+            answers_json TEXT NOT NULL,
+            total_questions INTEGER DEFAULT 45,
+            time_limit_min INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            key_access_code TEXT,
+            results_published INTEGER DEFAULT 0,
+            created_at BIGINT NOT NULL
+        )
+        """)
 
-    try:
-        cur.execute("ALTER TABLE tests ADD COLUMN results_published INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass  # Ustun allaqachon mavjud
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS submissions (
+            id SERIAL PRIMARY KEY,
+            test_id INTEGER NOT NULL REFERENCES tests(id),
+            test_code TEXT NOT NULL,
+            user_tg_id BIGINT NOT NULL,
+            fullname TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            answers_json TEXT NOT NULL,
+            score REAL NOT NULL,
+            max_score REAL DEFAULT 100.0,
+            correct_count INTEGER NOT NULL,
+            total_count INTEGER DEFAULT 45,
+            details_json TEXT NOT NULL,
+            submitted_at BIGINT NOT NULL
+        )
+        """)
 
-    # 3. Natijalar / Submissions jadvali
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS submissions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        test_id INTEGER NOT NULL,
-        test_code TEXT NOT NULL,
-        user_tg_id INTEGER NOT NULL,
-        fullname TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        answers_json TEXT NOT NULL,
-        score REAL NOT NULL,
-        max_score REAL DEFAULT 100.0,
-        correct_count INTEGER NOT NULL,
-        total_count INTEGER DEFAULT 45,
-        details_json TEXT NOT NULL,
-        submitted_at INTEGER NOT NULL,
-        FOREIGN KEY(test_id) REFERENCES tests(id)
-    )
-    """)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            tg_id BIGINT PRIMARY KEY,
+            fullname TEXT,
+            username TEXT,
+            added_by BIGINT,
+            created_at BIGINT NOT NULL
+        )
+        """)
 
-    # 4. Adminlar jadvali
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS admins (
-        tg_id INTEGER PRIMARY KEY,
-        fullname TEXT,
-        username TEXT,
-        added_by INTEGER,
-        created_at INTEGER NOT NULL
-    )
-    """)
-    # Bosh adminni kiritib qo'yish
-    cur.execute("""
-    INSERT OR IGNORE INTO admins (tg_id, fullname, username, added_by, created_at)
-    VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
-    """)
+        # Bosh adminni qo'shish (ON CONFLICT — PostgreSQL)
+        cur.execute("""
+        INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (tg_id) DO NOTHING
+        """, (8039427064, 'Bosh Admin', 'admin', 0, 1789300000))
 
-    conn.commit()
-    conn.close()
+    else:
+        # SQLite jadvallar (fallback)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tg_id INTEGER UNIQUE NOT NULL,
+            fullname TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            username TEXT,
+            status TEXT DEFAULT 'pending',
+            pin_code TEXT,
+            registered_at INTEGER NOT NULL
+        )
+        """)
 
-# ----------------- USERS & ACCESS -----------------
-def add_or_update_user(tg_id: int, fullname: str, phone: str, username: Optional[str] = None, status: str = "approved") -> bool:
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS tests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_code TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            subject TEXT DEFAULT 'Matematika',
+            pdf_file_id TEXT,
+            pdf_file_name TEXT,
+            answers_json TEXT NOT NULL,
+            total_questions INTEGER DEFAULT 45,
+            time_limit_min INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            key_access_code TEXT,
+            results_published INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL
+        )
+        """)
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            test_id INTEGER NOT NULL,
+            test_code TEXT NOT NULL,
+            user_tg_id INTEGER NOT NULL,
+            fullname TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            answers_json TEXT NOT NULL,
+            score REAL NOT NULL,
+            max_score REAL DEFAULT 100.0,
+            correct_count INTEGER NOT NULL,
+            total_count INTEGER DEFAULT 45,
+            details_json TEXT NOT NULL,
+            submitted_at INTEGER NOT NULL,
+            FOREIGN KEY(test_id) REFERENCES tests(id)
+        )
+        """)
+
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            tg_id INTEGER PRIMARY KEY,
+            fullname TEXT,
+            username TEXT,
+            added_by INTEGER,
+            created_at INTEGER NOT NULL
+        )
+        """)
+
+        cur.execute("""
+        INSERT OR IGNORE INTO admins (tg_id, fullname, username, added_by, created_at)
+        VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
+        """)
+
+    _commit_and_close(conn)
+
+
+# ──────────────────────────────────────────────────────────
+# USERS & ACCESS
+# ──────────────────────────────────────────────────────────
+
+def add_or_update_user(tg_id: int, fullname: str, phone: str,
+                       username: Optional[str] = None, status: str = "approved") -> bool:
     conn = get_connection()
     cur = conn.cursor()
     now = int(time.time())
     try:
-        cur.execute("""
-        INSERT INTO users (tg_id, fullname, phone, username, status, registered_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(tg_id) DO UPDATE SET
-            fullname=excluded.fullname,
-            phone=excluded.phone,
-            username=excluded.username,
-            status=CASE WHEN users.status = 'blocked' THEN 'blocked' ELSE 'approved' END
-        """, (tg_id, fullname, phone, username, status, now))
-        conn.commit()
+        if USE_POSTGRES:
+            cur.execute("""
+            INSERT INTO users (tg_id, fullname, phone, username, status, registered_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (tg_id) DO UPDATE SET
+                fullname = EXCLUDED.fullname,
+                phone = EXCLUDED.phone,
+                username = EXCLUDED.username,
+                status = CASE WHEN users.status = 'blocked' THEN 'blocked' ELSE EXCLUDED.status END
+            """, (tg_id, fullname, phone, username, status, now))
+        else:
+            cur.execute("""
+            INSERT INTO users (tg_id, fullname, phone, username, status, registered_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(tg_id) DO UPDATE SET
+                fullname=excluded.fullname,
+                phone=excluded.phone,
+                username=excluded.username,
+                status=CASE WHEN users.status = 'blocked' THEN 'blocked' ELSE excluded.status END
+            """, (tg_id, fullname, phone, username, status, now))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error saving user: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE tg_id = ?", (tg_id,))
+    cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()}", (tg_id,))
     row = cur.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def is_user_approved(tg_id: int, admin_id: int = 8039427064) -> bool:
-    """Foydalanuvchiga botdan foydalanish ruxsati borligini tekshirish (admin ruxsati shart emas, ochiq)."""
     user = get_user(tg_id)
     if not user:
         return True
     return user.get("status") != "blocked"
 
+
 def approve_user(tg_id: int) -> bool:
-    """Foydalanuvchiga botdan foydalanish huquqini berish."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE users SET status = 'approved' WHERE tg_id = ?", (tg_id,))
-        conn.commit()
+        cur.execute(f"UPDATE users SET status = 'approved' WHERE tg_id = {_ph()}", (tg_id,))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error approving user: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def reject_user(tg_id: int) -> bool:
-    """Foydalanuvchi so'rovini rad etish."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE users SET status = 'rejected' WHERE tg_id = ?", (tg_id,))
-        conn.commit()
+        cur.execute(f"UPDATE users SET status = 'rejected' WHERE tg_id = {_ph()}", (tg_id,))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error rejecting user: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def set_user_pin(tg_id: int, pin: str) -> bool:
-    """Foydalanuvchi PIN kodini saqlash."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE users SET pin_code = ? WHERE tg_id = ?", (pin, tg_id))
-        conn.commit()
+        cur.execute(f"UPDATE users SET pin_code = {_ph()} WHERE tg_id = {_ph()}", (pin, tg_id))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error setting PIN: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def get_user_pin(tg_id: int) -> Optional[str]:
-    """Foydalanuvchi PIN kodini olish."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT pin_code FROM users WHERE tg_id = ?", (tg_id,))
+        cur.execute(f"SELECT pin_code FROM users WHERE tg_id = {_ph()}", (tg_id,))
         row = cur.fetchone()
-        return row["pin_code"] if row and row["pin_code"] else None
+        conn.close()
+        if row:
+            d = _row_to_dict(row)
+            return d.get("pin_code") if d else None
+        return None
     except Exception as e:
         print(f"Error getting PIN: {e}")
-        return None
-    finally:
         conn.close()
+        return None
+
 
 def block_user(tg_id: int) -> bool:
-    """Foydalanuvchini botdan chiqarib yuborish (bloklash / huquqini bekor qilish)."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE users SET status = 'blocked' WHERE tg_id = ?", (tg_id,))
-        conn.commit()
+        cur.execute(f"UPDATE users SET status = 'blocked' WHERE tg_id = {_ph()}", (tg_id,))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error blocking user: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def delete_user(tg_id: int) -> bool:
-    """Foydalanuvchini butunlay bazadan o'chirish."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM submissions WHERE user_tg_id = ?", (tg_id,))
-        cur.execute("DELETE FROM users WHERE tg_id = ?", (tg_id,))
-        conn.commit()
+        cur.execute(f"DELETE FROM submissions WHERE user_tg_id = {_ph()}", (tg_id,))
+        cur.execute(f"DELETE FROM users WHERE tg_id = {_ph()}", (tg_id,))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error deleting user: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def get_users_count() -> Dict[str, int]:
-    """Foydalanuvchilar soni statistikasini qaytaradi."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) as total FROM users")
-    total = cur.fetchone()["total"]
+    total = (_row_to_dict(cur.fetchone()) or {}).get("total", 0)
     cur.execute("SELECT COUNT(*) as approved FROM users WHERE status = 'approved'")
-    approved = cur.fetchone()["approved"]
+    approved = (_row_to_dict(cur.fetchone()) or {}).get("approved", 0)
     cur.execute("SELECT COUNT(*) as pending FROM users WHERE status = 'pending'")
-    pending = cur.fetchone()["pending"]
+    pending = (_row_to_dict(cur.fetchone()) or {}).get("pending", 0)
     cur.execute("SELECT COUNT(*) as blocked FROM users WHERE status = 'blocked'")
-    blocked = cur.fetchone()["blocked"]
+    blocked = (_row_to_dict(cur.fetchone()) or {}).get("blocked", 0)
     conn.close()
     return {
         "total": total,
@@ -279,7 +391,11 @@ def get_users_count() -> Dict[str, int]:
         "blocked": blocked
     }
 
-# ----------------- TESTS -----------------
+
+# ──────────────────────────────────────────────────────────
+# TESTS
+# ──────────────────────────────────────────────────────────
+
 def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any],
                 pdf_file_id: Optional[str] = None, pdf_file_name: Optional[str] = None,
                 time_limit_min: int = 0, key_access_code: str = "") -> bool:
@@ -287,40 +403,67 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
     cur = conn.cursor()
     now = int(time.time())
     try:
-        cur.execute("""
-        INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name, answers_json, total_questions, time_limit_min, is_active, key_access_code, created_at, results_published)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, 0)
-        ON CONFLICT(test_code) DO UPDATE SET
-            title=excluded.title,
-            subject=excluded.subject,
-            pdf_file_id=COALESCE(excluded.pdf_file_id, tests.pdf_file_id),
-            pdf_file_name=COALESCE(excluded.pdf_file_name, tests.pdf_file_name),
-            answers_json=excluded.answers_json,
-            time_limit_min=excluded.time_limit_min,
-            key_access_code=excluded.key_access_code,
-            is_active=1,
-            results_published=0
-        """, (test_code, title, subject, pdf_file_id, pdf_file_name, json.dumps(answers, ensure_ascii=False), 45, time_limit_min, key_access_code, now))
-        conn.commit()
+        if USE_POSTGRES:
+            cur.execute("""
+            INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name,
+                               answers_json, total_questions, time_limit_min, is_active,
+                               key_access_code, results_published, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s, 0, %s)
+            ON CONFLICT (test_code) DO UPDATE SET
+                title = EXCLUDED.title,
+                subject = EXCLUDED.subject,
+                pdf_file_id = COALESCE(EXCLUDED.pdf_file_id, tests.pdf_file_id),
+                pdf_file_name = COALESCE(EXCLUDED.pdf_file_name, tests.pdf_file_name),
+                answers_json = EXCLUDED.answers_json,
+                time_limit_min = EXCLUDED.time_limit_min,
+                key_access_code = EXCLUDED.key_access_code,
+                is_active = 1,
+                results_published = 0
+            """, (test_code, title, subject, pdf_file_id, pdf_file_name,
+                  json.dumps(answers, ensure_ascii=False), 45, time_limit_min,
+                  key_access_code, now))
+        else:
+            cur.execute("""
+            INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name,
+                               answers_json, total_questions, time_limit_min, is_active,
+                               key_access_code, results_published, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?)
+            ON CONFLICT(test_code) DO UPDATE SET
+                title=excluded.title,
+                subject=excluded.subject,
+                pdf_file_id=COALESCE(excluded.pdf_file_id, tests.pdf_file_id),
+                pdf_file_name=COALESCE(excluded.pdf_file_name, tests.pdf_file_name),
+                answers_json=excluded.answers_json,
+                time_limit_min=excluded.time_limit_min,
+                key_access_code=excluded.key_access_code,
+                is_active=1,
+                results_published=0
+            """, (test_code, title, subject, pdf_file_id, pdf_file_name,
+                  json.dumps(answers, ensure_ascii=False), 45, time_limit_min,
+                  key_access_code, now))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error creating/updating test: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def update_test_pdf(test_id: int, pdf_file_id: str, pdf_file_name: str) -> bool:
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE tests SET pdf_file_id = ?, pdf_file_name = ? WHERE id = ?", (pdf_file_id, pdf_file_name, test_id))
-        conn.commit()
+        cur.execute(
+            f"UPDATE tests SET pdf_file_id = {_ph()}, pdf_file_name = {_ph()} WHERE id = {_ph()}",
+            (pdf_file_id, pdf_file_name, test_id)
+        )
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error updating test pdf: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def get_active_tests() -> List[Dict[str, Any]]:
     conn = get_connection()
@@ -328,25 +471,29 @@ def get_active_tests() -> List[Dict[str, Any]]:
     cur.execute("SELECT * FROM tests WHERE is_active = 1 ORDER BY id DESC")
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r]
+
 
 def get_test_by_code(test_code: str) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM tests WHERE test_code = ?", (test_code,))
+    cur.execute(f"SELECT * FROM tests WHERE test_code = {_ph()}", (test_code,))
     row = cur.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 def get_test_by_id(test_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM tests WHERE id = ?", (test_id,))
+    cur.execute(f"SELECT * FROM tests WHERE id = {_ph()}", (test_id,))
     row = cur.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
+
 
 get_test = get_test_by_id
+
 
 def get_all_tests() -> List[Dict[str, Any]]:
     conn = get_connection()
@@ -354,162 +501,182 @@ def get_all_tests() -> List[Dict[str, Any]]:
     cur.execute("SELECT * FROM tests ORDER BY id DESC")
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r]
+
 
 def toggle_test_status(test_id: int) -> Optional[int]:
-    """Test holatini faol (1) yoki to'xtatilgan (0) ga almashtiradi."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT is_active FROM tests WHERE id = ?", (test_id,))
+        cur.execute(f"SELECT is_active FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
         if not row:
+            conn.close()
             return None
-        new_status = 0 if row["is_active"] == 1 else 1
-        cur.execute("UPDATE tests SET is_active = ? WHERE id = ?", (new_status, test_id))
-        conn.commit()
+        d = _row_to_dict(row)
+        new_status = 0 if d["is_active"] == 1 else 1
+        cur.execute(f"UPDATE tests SET is_active = {_ph()} WHERE id = {_ph()}", (new_status, test_id))
+        _commit_and_close(conn)
         return new_status
     except Exception as e:
         print(f"Error toggling test: {e}")
-        return None
-    finally:
         conn.close()
+        return None
+
 
 def set_test_active_status(test_id: int, status: int) -> bool:
-    """Test holatini faol (1) yoki to'xtatilgan (0) qilib belgilash."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE tests SET is_active = ? WHERE id = ?", (1 if status else 0, test_id))
-        conn.commit()
+        cur.execute(
+            f"UPDATE tests SET is_active = {_ph()} WHERE id = {_ph()}",
+            (1 if status else 0, test_id)
+        )
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error setting test active status: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def update_test_time_limit(test_id: int, time_limit_min: int) -> bool:
-    """Test vaqt chegarasini yangilash (daqiqa). 0 bo'lsa cheksiz."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE tests SET time_limit_min = ? WHERE id = ?", (time_limit_min, test_id))
-        conn.commit()
+        cur.execute(
+            f"UPDATE tests SET time_limit_min = {_ph()} WHERE id = {_ph()}",
+            (time_limit_min, test_id)
+        )
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error updating test time limit: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def set_test_results_published(test_id: int, published: bool = True) -> bool:
-    """Natijalar o'quvchilarga e'lon qilinganligini belgilash (1 yoki 0)."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("UPDATE tests SET results_published = ? WHERE id = ?", (1 if published else 0, test_id))
-        conn.commit()
+        cur.execute(
+            f"UPDATE tests SET results_published = {_ph()} WHERE id = {_ph()}",
+            (1 if published else 0, test_id)
+        )
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error publishing results: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def is_test_results_published(test_id: int) -> bool:
-    """Test natijalari e'lon qilinganmi?"""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT results_published FROM tests WHERE id = ?", (test_id,))
+        cur.execute(f"SELECT results_published FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
+        conn.close()
         if row:
-            try:
-                return bool(row["results_published"])
-            except (IndexError, KeyError):
-                return False
+            d = _row_to_dict(row)
+            return bool(d.get("results_published", 0))
         return False
     except Exception:
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def get_test_submissions_with_users(test_id: int) -> List[Dict[str, Any]]:
-    """Test topshirgan barcha o'quvchilar ro'yxati (natija yuborish uchun)."""
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
     SELECT s.*, t.title as test_title, t.test_code, t.results_published
     FROM submissions s
     JOIN tests t ON s.test_id = t.id
-    WHERE s.test_id = ?
+    WHERE s.test_id = {_ph()}
     ORDER BY s.score DESC, s.submitted_at ASC
     """, (test_id,))
     rows = cur.fetchall()
     conn.close()
     out = []
     for r in rows:
-        d = dict(r)
-        d["grade"] = calculate_grade(d.get("score", 0.0))
-        out.append(d)
+        d = _row_to_dict(r)
+        if d:
+            d["grade"] = calculate_grade(d.get("score", 0.0))
+            out.append(d)
     return out
+
 
 def delete_test(test_id: int) -> bool:
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM submissions WHERE test_id = ?", (test_id,))
-        cur.execute("DELETE FROM tests WHERE id = ?", (test_id,))
-        conn.commit()
+        cur.execute(f"DELETE FROM submissions WHERE test_id = {_ph()}", (test_id,))
+        cur.execute(f"DELETE FROM tests WHERE id = {_ph()}", (test_id,))
+        _commit_and_close(conn)
         return True
     except Exception:
-        return False
-    finally:
         conn.close()
+        return False
 
-# ----------------- ADMINS & USERS -----------------
+
+# ──────────────────────────────────────────────────────────
+# ADMINS
+# ──────────────────────────────────────────────────────────
+
 def is_admin(tg_id: int, super_admin_id: int = 8039427064) -> bool:
     if tg_id == super_admin_id:
         return True
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT tg_id FROM admins WHERE tg_id = ?", (tg_id,))
+    cur.execute(f"SELECT tg_id FROM admins WHERE tg_id = {_ph()}", (tg_id,))
     row = cur.fetchone()
     conn.close()
     return bool(row)
+
 
 def add_admin(tg_id: int, fullname: str = "Admin", username: Optional[str] = None, added_by: int = 0) -> bool:
     conn = get_connection()
     cur = conn.cursor()
     now = int(time.time())
     try:
-        cur.execute("""
-        INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(tg_id) DO UPDATE SET
-            fullname=excluded.fullname,
-            username=excluded.username
-        """, (tg_id, fullname, username, added_by, now))
-        conn.commit()
+        if USE_POSTGRES:
+            cur.execute("""
+            INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (tg_id) DO UPDATE SET
+                fullname = EXCLUDED.fullname,
+                username = EXCLUDED.username
+            """, (tg_id, fullname, username, added_by, now))
+        else:
+            cur.execute("""
+            INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(tg_id) DO UPDATE SET
+                fullname=excluded.fullname,
+                username=excluded.username
+            """, (tg_id, fullname, username, added_by, now))
+        _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error adding admin: {e}")
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def remove_admin(tg_id: int) -> bool:
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("DELETE FROM admins WHERE tg_id = ?", (tg_id,))
-        conn.commit()
+        cur.execute(f"DELETE FROM admins WHERE tg_id = {_ph()}", (tg_id,))
+        _commit_and_close(conn)
         return True
     except Exception:
-        return False
-    finally:
         conn.close()
+        return False
+
 
 def get_all_admins() -> List[Dict[str, Any]]:
     conn = get_connection()
@@ -517,26 +684,29 @@ def get_all_admins() -> List[Dict[str, Any]]:
     cur.execute("SELECT * FROM admins ORDER BY created_at ASC")
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r]
+
 
 def get_all_users() -> List[Dict[str, Any]]:
-    """Barcha ro'yxatdan o'tgan foydalanuvchilar va ularning yechgan testlar soni"""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
     SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
     FROM users u
     LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
-    GROUP BY u.tg_id
+    GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
     ORDER BY u.registered_at DESC
     """)
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r]
 
-# ----------------- SUBMISSIONS / RESULTS -----------------
+
+# ──────────────────────────────────────────────────────────
+# SUBMISSIONS / RESULTS
+# ──────────────────────────────────────────────────────────
+
 def parse_answers_json(raw: Any) -> Dict[str, Any]:
-    """JSON formatidagi javoblarni lug'at (dict) ga o'tkazish."""
     if not raw:
         return {}
     if isinstance(raw, dict):
@@ -547,8 +717,8 @@ def parse_answers_json(raw: Any) -> Dict[str, Any]:
     except Exception:
         return {}
 
+
 def normalize_answer(ans: Any) -> str:
-    """Ochiq va yopiq javoblarni moslashtirish: har qanday belgi, son, ildiz, kasr, daraja va amallarni to'g'ri qabul qiladi."""
     if ans is None:
         return ""
     res = str(ans).strip().lower()
@@ -558,6 +728,7 @@ def normalize_answer(ans: Any) -> str:
     res = res.replace("²", "^2").replace("³", "^3")
     res = res.replace("sqrt", "√")
     return res
+
 
 def parse_numeric_or_fraction(val: str) -> Optional[float]:
     try:
@@ -572,6 +743,7 @@ def parse_numeric_or_fraction(val: str) -> Optional[float]:
     except Exception:
         return None
 
+
 def is_answer_matching(user_ans: Any, correct_ans: Any) -> bool:
     u = normalize_answer(user_ans)
     c = normalize_answer(correct_ans)
@@ -579,26 +751,27 @@ def is_answer_matching(user_ans: Any, correct_ans: Any) -> bool:
         return False
     if u == c:
         return True
-    
     num_u = parse_numeric_or_fraction(u)
     num_c = parse_numeric_or_fraction(c)
     if num_u is not None and num_c is not None:
         if abs(num_u - num_c) < 1e-5:
             return True
-            
     return False
 
+
 def get_user_submission_for_test(test_id: int, user_tg_id: int) -> Optional[Dict[str, Any]]:
-    """Foydalanuvchi ushbu testni avval topshirganligini tekshirish."""
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM submissions WHERE test_id = ? AND user_tg_id = ?", (test_id, user_tg_id))
+    cur.execute(
+        f"SELECT * FROM submissions WHERE test_id = {_ph()} AND user_tg_id = {_ph()}",
+        (test_id, user_tg_id)
+    )
     row = cur.fetchone()
     conn.close()
-    return dict(row) if row else None
+    return _row_to_dict(row)
 
-def get_key_and_score(q_data: Any, default_score: float) -> tuple[str, float]:
-    """Kalit va savolga ajratilgan ballni ajratib oladi."""
+
+def get_key_and_score(q_data: Any, default_score: float) -> tuple:
     if isinstance(q_data, dict):
         ans = str(q_data.get("ans", q_data.get("answer", "")))
         try:
@@ -609,8 +782,8 @@ def get_key_and_score(q_data: Any, default_score: float) -> tuple[str, float]:
     else:
         return str(q_data or ""), default_score
 
+
 def calculate_grade(score: float) -> str:
-    """Test natijasi bali bo'yicha Milliy sertifikat darajasini aniqlash."""
     if score >= 70.0:
         return "A+"
     elif score >= 65.0:
@@ -626,20 +799,21 @@ def calculate_grade(score: float) -> str:
     else:
         return "— (Yetarli emas)"
 
+
 def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[str, str]) -> Dict[str, Any]:
     test = get_test_by_id(test_id)
     if not test:
         raise ValueError("Test topilmadi!")
 
-    # Qayta ishlash huquqini cheklash (Oddiy o'quvchilar uchun 1 marta, adminlar uchun erkin sinov)
     if user_tg_id:
         existing = get_user_submission_for_test(test_id, user_tg_id)
         if existing:
             if is_admin(user_tg_id, ADMIN_ID):
                 conn_del = get_connection()
-                conn_del.execute("DELETE FROM submissions WHERE id = ?", (existing["id"],))
-                conn_del.commit()
-                conn_del.close()
+                conn_del.cursor().execute(
+                    f"DELETE FROM submissions WHERE id = {_ph()}", (existing["id"],)
+                )
+                _commit_and_close(conn_del)
             else:
                 raise ValueError("Siz ushbu testni allaqachon topshirgansiz! Qayta topshirish mumkin emas.")
 
@@ -648,25 +822,22 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
     phone = user["phone"] if user else "-"
 
     correct_answers_raw = json.loads(test["answers_json"])
-    
+
     total_questions = 55
     correct_count = 0
     incorrect_count = 0
     unanswered_count = 0
-    
     details = {}
     earned_score = 0.0
     total_possible_score = 0.0
-    
-    # 1. 1-32 savollar (4 ta variant: A, B, C, D — default 2.0 ball)
+
+    # 1-32 savollar (4 variant, default 2.0 ball)
     for q in range(1, 33):
         key = str(q)
         q_raw = correct_answers_raw.get(key, "A")
         correct_ans, q_score = get_key_and_score(q_raw, default_score=2.0)
         total_possible_score += q_score
-
         user_val = user_answers.get(key, "")
-        
         is_corr = False
         if not user_val or not str(user_val).strip():
             status = "unanswered"
@@ -679,26 +850,21 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
         else:
             status = "incorrect"
             incorrect_count += 1
-            
         details[key] = {
-            "num": f"{q}-savol",
-            "type": "choice_4",
-            "user": user_val,
-            "correct": correct_ans,
+            "num": f"{q}-savol", "type": "choice_4",
+            "user": user_val, "correct": correct_ans,
             "status": status,
             "score": q_score if is_corr else 0.0,
             "max_score": q_score
         }
 
-    # 2. 33, 34, 35 savollar (6 ta variant: A, B, C, D, E, F — default 2.0 ball)
+    # 33, 34, 35 savollar (6 variant, default 2.0 ball)
     for q in [33, 34, 35]:
         key = str(q)
         q_raw = correct_answers_raw.get(key, "A")
         correct_ans, q_score = get_key_and_score(q_raw, default_score=2.0)
         total_possible_score += q_score
-
         user_val = user_answers.get(key, "")
-        
         is_corr = False
         if not user_val or not str(user_val).strip():
             status = "unanswered"
@@ -711,27 +877,22 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
         else:
             status = "incorrect"
             incorrect_count += 1
-            
         details[key] = {
-            "num": f"{q}-savol",
-            "type": "choice_6",
-            "user": user_val,
-            "correct": correct_ans,
+            "num": f"{q}-savol", "type": "choice_6",
+            "user": user_val, "correct": correct_ans,
             "status": status,
             "score": q_score if is_corr else 0.0,
             "max_score": q_score
         }
 
-    # 3. 36a dan 45b gacha ochiq/yopiq savollar (20 ta savol — default 1.5 ball)
+    # 36a–45b ochiq savollar (default 1.5 ball)
     for q in range(36, 46):
         for sub in ["a", "b"]:
             key = f"{q}{sub}"
             q_raw = correct_answers_raw.get(key, "1")
             correct_ans, q_score = get_key_and_score(q_raw, default_score=1.5)
             total_possible_score += q_score
-
             user_val = user_answers.get(key, "")
-            
             is_corr = False
             if not user_val or not str(user_val).strip():
                 status = "unanswered"
@@ -744,12 +905,9 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
             else:
                 status = "incorrect"
                 incorrect_count += 1
-                
             details[key] = {
-                "num": f"{key}-savol",
-                "type": "open",
-                "user": user_val,
-                "correct": correct_ans,
+                "num": f"{key}-savol", "type": "open",
+                "user": user_val, "correct": correct_ans,
                 "status": status,
                 "score": q_score if is_corr else 0.0,
                 "max_score": q_score
@@ -764,22 +922,40 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
     now = int(time.time())
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-    INSERT INTO submissions (
-        test_id, test_code, user_tg_id, fullname, phone,
-        answers_json, score, max_score, correct_count, total_count,
-        details_json, submitted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        test["id"], test["test_code"], user_tg_id, fullname, phone,
-        json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
-        correct_count, 55,
-        json.dumps(details, ensure_ascii=False), now
-    ))
-    submission_id = cur.lastrowid
-    conn.commit()
-    conn.close()
-    # Eslatma: To'liq Rasch JMLE kalibratsiyasi admin testni yakunlab, natijalarni e'lon qilganda bir marta amalga oshiriladi
+
+    if USE_POSTGRES:
+        cur.execute("""
+        INSERT INTO submissions (
+            test_id, test_code, user_tg_id, fullname, phone,
+            answers_json, score, max_score, correct_count, total_count,
+            details_json, submitted_at
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
+        """, (
+            test["id"], test["test_code"], user_tg_id, fullname, phone,
+            json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
+            correct_count, 55,
+            json.dumps(details, ensure_ascii=False), now
+        ))
+        submission_id = cur.fetchone()
+        submission_id = _row_to_dict(submission_id).get("id") if submission_id else None
+    else:
+        cur.execute("""
+        INSERT INTO submissions (
+            test_id, test_code, user_tg_id, fullname, phone,
+            answers_json, score, max_score, correct_count, total_count,
+            details_json, submitted_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            test["id"], test["test_code"], user_tg_id, fullname, phone,
+            json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
+            correct_count, 55,
+            json.dumps(details, ensure_ascii=False), now
+        ))
+        submission_id = cur.lastrowid
+
+    _commit_and_close(conn)
+
     return {
         "submission_id": submission_id,
         "test_title": test["title"],
@@ -797,20 +973,23 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
         "submitted_at": now
     }
 
+
 def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
-    SELECT s.*, t.title as test_title, t.results_published, t.is_active 
+    cur.execute(f"""
+    SELECT s.*, t.title as test_title, t.results_published, t.is_active
     FROM submissions s
     JOIN tests t ON s.test_id = t.id
-    WHERE s.user_tg_id = ? ORDER BY s.id DESC
+    WHERE s.user_tg_id = {_ph()} ORDER BY s.id DESC
     """, (user_tg_id,))
     rows = cur.fetchall()
     conn.close()
     results = []
     for r in rows:
-        d = dict(r)
+        d = _row_to_dict(r)
+        if not d:
+            continue
         is_pub = bool(d.get("results_published", 0))
         d["results_published"] = is_pub
         if is_pub:
@@ -824,73 +1003,79 @@ def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
         results.append(d)
     return results
 
+
 def get_test_results_leaderboard(test_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
     SELECT fullname, phone, score, correct_count, submitted_at
-    FROM submissions WHERE test_id = ? ORDER BY score DESC, submitted_at ASC
+    FROM submissions WHERE test_id = {_ph()} ORDER BY score DESC, submitted_at ASC
     """, (test_id,))
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r]
+
 
 def get_tests_with_stats() -> List[Dict[str, Any]]:
-    """Admin uchun barcha testlar va ularni necha kishi ishlagani statistikasi."""
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-    SELECT t.*, COUNT(s.id) as submissions_count, COALESCE(AVG(s.score), 0) as avg_score, COALESCE(MAX(s.score), 0) as max_score_achieved
+    SELECT t.*, COUNT(s.id) as submissions_count,
+           COALESCE(AVG(s.score), 0) as avg_score,
+           COALESCE(MAX(s.score), 0) as max_score_achieved
     FROM tests t
     LEFT JOIN submissions s ON t.id = s.test_id
-    GROUP BY t.id
+    GROUP BY t.id, t.test_code, t.title, t.subject, t.pdf_file_id, t.pdf_file_name,
+             t.answers_json, t.total_questions, t.time_limit_min, t.is_active,
+             t.key_access_code, t.results_published, t.created_at
     ORDER BY t.id DESC
     """)
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r]
 
 
-# ----------------- RASCH MODEL INTEGRATION -----------------
+# ──────────────────────────────────────────────────────────
+# RASCH MODEL INTEGRATION
+# ──────────────────────────────────────────────────────────
+
 def get_test_submissions_for_rasch(test_id: int) -> List[Dict[str, Any]]:
-    """
-    Rasch baholash uchun test submissions ni qaytaradi.
-    Faqat details_json mavjud bo'lgan yozuvlar qaytariladi.
-    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(f"""
     SELECT user_tg_id, fullname, details_json, score, correct_count, submitted_at
     FROM submissions
-    WHERE test_id = ? AND details_json IS NOT NULL AND details_json != ''
+    WHERE test_id = {_ph()} AND details_json IS NOT NULL AND details_json != ''
     ORDER BY submitted_at ASC
     """, (test_id,))
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows if r]
 
 
 def evaluate_test_rasch(test_id: int, auto_update_db: bool = False) -> Optional[Dict[str, Any]]:
-    """
-    Berilgan test uchun Rasch JMLE baholashni o'tkazadi (tahlil va statistika uchun).
-    """
     try:
         from rasch_engine import evaluate_single_test
         res = evaluate_single_test(test_id, get_test_submissions_for_rasch)
         if res and auto_update_db and res.get("students"):
-            item_score_map = {it["item_label"].replace("Q", ""): it.get("item_score", 1.0) for it in res.get("items", [])}
+            item_score_map = {
+                it["item_label"].replace("Q", ""): it.get("item_score", 1.0)
+                for it in res.get("items", [])
+            }
             conn = get_connection()
             cur = conn.cursor()
             for s in res["students"]:
                 student_id = s.get("student_id")
                 final_score = s.get("final_score", 0.0)
-                cur.execute("""
-                    SELECT id, details_json FROM submissions 
-                    WHERE test_id = ? AND (user_tg_id = ? OR id = ?)
+                cur.execute(f"""
+                    SELECT id, details_json FROM submissions
+                    WHERE test_id = {_ph()} AND (user_tg_id = {_ph()} OR id = {_ph()})
                 """, (test_id, student_id, student_id))
                 row = cur.fetchone()
                 if row:
-                    sub_id, det_raw = row[0], row[1]
+                    d = _row_to_dict(row)
+                    sub_id = d["id"]
+                    det_raw = d["details_json"]
                     try:
                         det = json.loads(det_raw) if det_raw else {}
                         for k, v in det.items():
@@ -900,19 +1085,17 @@ def evaluate_test_rasch(test_id: int, auto_update_db: bool = False) -> Optional[
                                 v["score"] = sc if is_c else 0.0
                                 v["max_score"] = sc
                         new_det = json.dumps(det, ensure_ascii=False)
-                        cur.execute("""
-                            UPDATE submissions 
-                            SET score = ?, details_json = ? 
-                            WHERE id = ?
+                        cur.execute(f"""
+                            UPDATE submissions
+                            SET score = {_ph()}, details_json = {_ph()}
+                            WHERE id = {_ph()}
                         """, (final_score, new_det, sub_id))
                     except Exception:
-                        cur.execute("""
-                            UPDATE submissions 
-                            SET score = ? 
-                            WHERE id = ?
-                        """, (final_score, sub_id))
-            conn.commit()
-            conn.close()
+                        cur.execute(
+                            f"UPDATE submissions SET score = {_ph()} WHERE id = {_ph()}",
+                            (final_score, sub_id)
+                        )
+            _commit_and_close(conn)
         return res
     except ImportError:
         print("[rasch] rasch_engine.py topilmadi — Rasch baholash o'tkazib yuborildi.")
@@ -921,6 +1104,10 @@ def evaluate_test_rasch(test_id: int, auto_update_db: bool = False) -> Optional[
         print(f"[rasch] Xatolik: {e}")
         return None
 
+
+# ──────────────────────────────────────────────────────────
+# PDF GENERATION HELPERS
+# ──────────────────────────────────────────────────────────
 
 CYRILLIC_TO_LATIN = {
     'А': 'A', 'а': 'a', 'Б': 'B', 'б': 'b', 'В': 'V', 'в': 'v',
@@ -934,35 +1121,31 @@ CYRILLIC_TO_LATIN = {
     'Ч': 'Ch', 'ч': 'ch', 'Ш': 'Sh', 'ш': 'sh', 'Щ': 'Sh', 'щ': 'sh',
     'Ъ': "'", 'ъ': "'", 'Ь': '', 'ь': '', 'Э': 'E', 'э': 'e',
     'Ю': 'Yu', 'ю': 'yu', 'Я': 'Ya', 'я': 'ya',
-    'Ў': "O'", 'ў': "o'", 'Қ': 'Q', 'қ': 'q', 'Ғ': "G'", 'ғ': "g'", 'Ҳ': 'H', 'ҳ': 'h'
+    'Ў': "O'", 'ў': "o'", 'Қ': 'Q', 'қ': 'q', 'Ғ': "G'", 'ғ': "g'",
+    'Ҳ': 'H', 'ҳ': 'h'
 }
 
+
 def transliterate_cyrillic(text: str) -> str:
-    """Kirill harflarini lotin yozuviga xavfsiz o'girish."""
     if not text:
         return ""
-    res = []
-    for ch in text:
-        res.append(CYRILLIC_TO_LATIN.get(ch, ch))
-    return "".join(res)
+    return "".join(CYRILLIC_TO_LATIN.get(ch, ch) for ch in text)
+
 
 def _clean_pdf_text(text: Any) -> str:
-    """PDF uchun matnni xavfsiz tozalash (emojilar, maxsus belgilar, tutuq belgilari)."""
     if text is None:
         return ""
     s = str(text).strip()
-    # 1. Emojilar va 4-baytli belgilarni tozalash (PDF da qora to'rtburchak bo'lib qolmasligi uchun)
     s = re.sub(r'[\U00010000-\U0010ffff]', '', s)
     s = re.sub(r'[\u200B-\u200D\uFEFF]', '', s)
-    # 2. Tutuq belgilari va tirelarni standartlashtirish
     s = s.replace("—", "-").replace("–", "-").replace("−", "-")
-    for ch in ["ʻ", "ʼ", "‘", "’", "′", "`", "´", "ʹ", "ʽ"]:
+    for ch in ["ʻ", "ʼ", "'", "'", "′", "`", "´", "ʹ", "ʽ"]:
         s = s.replace(ch, "'")
-    for q in ["“", "”", "„", "«", "»"]:
+    for q in [""", """, "„", "«", "»"]:
         s = s.replace(q, '"')
-    # 3. HTML entity
     s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     return s.strip()
+
 
 def generate_test_results_pdf(test_id: int) -> Optional[str]:
     """Test natijalari bo'yicha rasmiy PDF reyting jadvali generatsiya qiladi."""
@@ -973,30 +1156,26 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         from reportlab.lib import colors
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
-        import os
 
         test = get_test_by_id(test_id)
         if not test:
             return None
 
         results = get_test_results_leaderboard(test_id)
-        
+
         pdf_filename = f"test_result_{test_id}_{int(time.time())}.pdf"
         pdf_path = os.path.join(os.path.dirname(__file__), pdf_filename)
 
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=A4,
-            leftMargin=30,
-            rightMargin=30,
-            topMargin=30,
-            bottomMargin=30
+            leftMargin=30, rightMargin=30,
+            topMargin=30, bottomMargin=30
         )
 
-        # ── Shriftlarni ro'yxatdan o'tkazish (Kirill va Lotin harflari uchun) ──
         font_name = 'Helvetica'
         font_bold = 'Helvetica-Bold'
-        
+
         font_dir = os.path.join(os.path.dirname(__file__), 'fonts')
         possible_regular = [
             os.path.join(font_dir, 'Arial.ttf'),
@@ -1033,68 +1212,27 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
             font_bold = 'UnicodeSans'
 
         styles = getSampleStyleSheet()
-        
-        title_style = ParagraphStyle(
-            'TitleStyle',
-            parent=styles['Normal'],
-            fontName=font_bold,
-            fontSize=15,
-            leading=19,
-            textColor=colors.HexColor("#1E3A8A"),
-            alignment=1
-        )
-        
-        subtitle_style = ParagraphStyle(
-            'SubTitleStyle',
-            parent=styles['Normal'],
-            fontName=font_name,
-            fontSize=10,
-            leading=14,
-            textColor=colors.HexColor("#475569"),
-            alignment=1
-        )
 
-        header_cell_style = ParagraphStyle(
-            'HeaderCellStyle',
-            parent=styles['Normal'],
-            fontName=font_bold,
-            fontSize=9,
-            leading=12,
-            textColor=colors.HexColor("#1E3A8A"),
-            alignment=1
-        )
-
-        cell_style = ParagraphStyle(
-            'CellStyle',
-            parent=styles['Normal'],
-            fontName=font_name,
-            fontSize=9,
-            leading=12,
-            alignment=1
-        )
-
-        cell_name_style = ParagraphStyle(
-            'CellNameStyle',
-            parent=styles['Normal'],
-            fontName=font_name,
-            fontSize=9,
-            leading=12,
-            alignment=0
-        )
-
-        cell_bold = ParagraphStyle(
-            'CellBold',
-            parent=styles['Normal'],
-            fontName=font_bold,
-            fontSize=9,
-            leading=12,
-            alignment=1
-        )
+        title_style = ParagraphStyle('TitleStyle', parent=styles['Normal'],
+                                     fontName=font_bold, fontSize=15, leading=19,
+                                     textColor=colors.HexColor("#1E3A8A"), alignment=1)
+        subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Normal'],
+                                        fontName=font_name, fontSize=10, leading=14,
+                                        textColor=colors.HexColor("#475569"), alignment=1)
+        header_cell_style = ParagraphStyle('HeaderCellStyle', parent=styles['Normal'],
+                                           fontName=font_bold, fontSize=9, leading=12,
+                                           textColor=colors.HexColor("#1E3A8A"), alignment=1)
+        cell_style = ParagraphStyle('CellStyle', parent=styles['Normal'],
+                                    fontName=font_name, fontSize=9, leading=12, alignment=1)
+        cell_name_style = ParagraphStyle('CellNameStyle', parent=styles['Normal'],
+                                         fontName=font_name, fontSize=9, leading=12, alignment=0)
+        cell_bold = ParagraphStyle('CellBold', parent=styles['Normal'],
+                                   fontName=font_bold, fontSize=9, leading=12, alignment=1)
 
         elements = []
         elements.append(Paragraph("BUXORIYLAR MAKTABI - BM RASH TEST", title_style))
         elements.append(Spacer(1, 6))
-        
+
         test_title_clean = _clean_pdf_text(test['title'])
         test_subject_clean = _clean_pdf_text(test.get('subject', 'Matematika'))
         if font_name == 'Helvetica':
@@ -1105,17 +1243,14 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         elements.append(Paragraph(f"Jami ishtirokchilar soni: <b>{len(results)} nafar</b> | Sana: {format_uzb_time()}", subtitle_style))
         elements.append(Spacer(1, 14))
 
-        # Jadval ma'lumotlari (Telefon ustuni olib tashlandi!)
-        table_data = [
-            [
-                Paragraph("<b>O'rin</b>", header_cell_style),
-                Paragraph("<b>Ism va Familiya</b>", header_cell_style),
-                Paragraph("<b>To'plangan Ball</b>", header_cell_style),
-                Paragraph("<b>Daraja</b>", header_cell_style),
-                Paragraph("<b>To'g'ri</b>", header_cell_style),
-                Paragraph("<b>Topshirilgan Vaqt</b>", header_cell_style)
-            ]
-        ]
+        table_data = [[
+            Paragraph("<b>O'rin</b>", header_cell_style),
+            Paragraph("<b>Ism va Familiya</b>", header_cell_style),
+            Paragraph("<b>To'plangan Ball</b>", header_cell_style),
+            Paragraph("<b>Daraja</b>", header_cell_style),
+            Paragraph("<b>To'g'ri</b>", header_cell_style),
+            Paragraph("<b>Topshirilgan Vaqt</b>", header_cell_style)
+        ]]
 
         for rank, r in enumerate(results, 1):
             dt = format_uzb_time(r["submitted_at"], "%d.%m %H:%M")
@@ -1134,7 +1269,6 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
                 Paragraph(dt, cell_style)
             ])
 
-        # Kengliklar (Jami: 535 pt) - Ism-familiyaga keng joy berildi
         col_widths = [45, 215, 80, 70, 55, 70]
         t = Table(table_data, colWidths=col_widths, repeatRows=1)
         t.setStyle(TableStyle([
@@ -1156,6 +1290,7 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         print(f"PDF Generation Error: {e}")
         traceback.print_exc()
         return None
+
 
 # Baza inicializatsiyasi
 init_db()

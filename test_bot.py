@@ -2,8 +2,8 @@
 STREET TEST — Test Tekshirish Telegram Boti va Mini App Serveri
 Aiogram 3.x + aiohttp WebApp Server
 ============================================================
-Bot Token: 8892124781:AAGapn_ddQobmFpotMp8yaWqfnkahuaY_mg
-Admin ID: 8039427064
+Barcha muhim sozlamalar environment variable orqali o'rnatiladi.
+Tokenlar va ID lar bu yerda saqlanmaydi — faqat os.getenv() ishlatiladi.
 """
 
 import asyncio
@@ -41,9 +41,40 @@ def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%
         dt = datetime.fromtimestamp(timestamp, tz=UZB_TZ)
     return dt.strftime(fmt)
 
+# ── TUN REJIMI: 23:00 – 07:00 ────────────────────────────
+WORK_START_HOUR = 7   # 07:00 Toshkent
+WORK_END_HOUR   = 23  # 23:00 Toshkent
+
+def is_working_hours() -> bool:
+    """Hozir ish vaqti (07:00–23:00 Toshkent)mi?"""
+    now_hour = datetime.now(UZB_TZ).hour
+    return WORK_START_HOUR <= now_hour < WORK_END_HOUR
+
+def get_night_message() -> str:
+    """Tun rejimi xabari."""
+    now = datetime.now(UZB_TZ)
+    if now.hour < WORK_START_HOUR:
+        wait_h = WORK_START_HOUR - now.hour
+        wait_text = f"{wait_h} soatdan so'ng (07:00 da)"
+    else:
+        wait_text = "ertaga ertalab 07:00 da"
+    return (
+        f"🌙 <b>Tun rejimi — Bot hozir dam olmoqda</b>\n\n"
+        f"⏰ <b>Ish vaqti:</b> har kuni 07:00 – 23:00 (Toshkent)\n"
+        f"🕐 <b>Hozir:</b> {now.strftime('%H:%M')}\n\n"
+        f"✅ Bot <b>{wait_text}</b> yana faol bo'ladi.\n\n"
+        f"<i>Iltimos, ish vaqtida qayta murojaat qiling!</i> 🙏\n\n"
+        f"⛔️ <b>Iltimos, qayta /start yoki boshqa tugmalarni bosmang</b> — "
+        f"har bir xabar serverni keraksiz uyg'otadi va bot tezroq o'chib qolishi mumkin."
+    )
+
 # ── SOZLAMALAR ────────────────────────────────────────
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8892124781:AAGapn_ddQobmFpotMp8yaWqfnkahuaY_mg")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN muhit o'zgaruvchisi o'rnatilmagan! .env faylini yoki Render env varsni tekshiring.")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+if not ADMIN_ID:
+    raise RuntimeError("ADMIN_ID muhit o'zgaruvchisi o'rnatilmagan!")
 PORT = int(os.getenv("PORT", "8080"))
 _raw_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "")
 if _raw_url:
@@ -273,6 +304,10 @@ async def check_access(message: Message) -> bool:
     uid = message.from_user.id
     if test_db.is_admin(uid, ADMIN_ID):
         return True
+    # Tun rejimi tekshiruvi (23:00 – 07:00)
+    if not is_working_hours():
+        await message.answer(get_night_message())
+        return False
     u = test_db.get_user(uid)
     if not u:
         await message.answer("⚠️ Iltimos, avval /start buyrug'i orqali ro'yxatdan o'ting.")
@@ -299,6 +334,12 @@ async def check_access(message: Message) -> bool:
 @router.message(CommandStart())
 async def start_handler(message: Message, state: FSMContext):
     user_tg_id = message.from_user.id
+
+    # Admin uchun tun rejimi qo'llanilmaydi
+    if not test_db.is_admin(user_tg_id, ADMIN_ID) and not is_working_hours():
+        await message.answer(get_night_message())
+        return
+
     user = test_db.get_user(user_tg_id)
 
     if not user:
@@ -841,15 +882,53 @@ async def user_quick_approve_cb(call: CallbackQuery):
         await call.answer("Siz admin emassiz!", show_alert=True)
         return
     uid = int(call.data.split("_")[3])
-    test_db.approve_user(uid)
     u = test_db.get_user(uid)
+
+    # Agar allaqachon hal qilingan bo'lsa — xabar chiqar, qayta ishlamasin
+    if u and u.get("status") in ["approved", "rejected", "blocked"]:
+        status_map = {
+            "approved": "✅ Bu foydalanuvchi allaqachon boshqa admin tomonidan RUXSAT BERILGAN!",
+            "rejected": "❌ Bu foydalanuvchi allaqachon RAD ETILGAN!",
+            "blocked": "⛔️ Bu foydalanuvchi BLOKLANGAN!"
+        }
+        await call.answer(status_map.get(u["status"], "Allaqachon hal qilingan!"), show_alert=True)
+        # Ushbu admindagi tugmalarni ham o'chirib qo'y
+        try:
+            await call.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return
+
     uname = u["fullname"] if u else f"ID: {uid}"
     admin_name = call.from_user.full_name or "Admin"
 
-    await call.message.edit_text(
-        f"{call.message.text}\n\n✅ <b>RUXSAT BERILDI!</b>\nTasdiqladi: <b>{admin_name}</b>",
-        reply_markup=None
+    test_db.approve_user(uid)
+
+    # Ushbu admindagi xabarni yangilash
+    try:
+        await call.message.edit_text(
+            f"{call.message.text}\n\n✅ <b>RUXSAT BERILDI!</b>\nTasdiqladi: <b>{admin_name}</b>",
+            reply_markup=None
+        )
+    except Exception:
+        pass
+
+    # Boshqa BARCHA adminlarga xabar yuborish (tugmalarsiz)
+    done_text = (
+        f"✅ <b>ARIZA HAL QILINDI</b>\n\n"
+        f"👤 <b>{uname}</b> foydalanuvchisiga\n"
+        f"<b>{admin_name}</b> tomonidan ruxsat berildi.\n\n"
+        f"<i>Siz hech narsa qilishingiz shart emas.</i>"
     )
+    for adm_id in get_all_admin_ids():
+        if adm_id == call.from_user.id:
+            continue  # O'ziga yubormasin
+        try:
+            await bot.send_message(chat_id=adm_id, text=done_text)
+        except Exception:
+            pass
+
+    # Foydalanuvchiga xabar
     try:
         await bot.send_message(
             chat_id=uid,
@@ -870,13 +949,52 @@ async def user_quick_reject_cb(call: CallbackQuery):
         await call.answer("Siz admin emassiz!", show_alert=True)
         return
     uid = int(call.data.split("_")[3])
-    test_db.reject_user(uid)
+    u = test_db.get_user(uid)
+
+    # Agar allaqachon hal qilingan bo'lsa
+    if u and u.get("status") in ["approved", "rejected", "blocked"]:
+        status_map = {
+            "approved": "✅ Bu foydalanuvchi allaqachon RUXSAT BERILGAN!",
+            "rejected": "❌ Bu foydalanuvchi allaqachon RAD ETILGAN!",
+            "blocked": "⛔️ Bu foydalanuvchi BLOKLANGAN!"
+        }
+        await call.answer(status_map.get(u["status"], "Allaqachon hal qilingan!"), show_alert=True)
+        try:
+            await call.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        return
+
+    uname = u["fullname"] if u else f"ID: {uid}"
     admin_name = call.from_user.full_name or "Admin"
 
-    await call.message.edit_text(
-        f"{call.message.text}\n\n❌ <b>RAD ETILDI!</b>\nRad etdi: <b>{admin_name}</b>",
-        reply_markup=None
+    test_db.reject_user(uid)
+
+    # Ushbu admindagi xabarni yangilash
+    try:
+        await call.message.edit_text(
+            f"{call.message.text}\n\n❌ <b>RAD ETILDI!</b>\nRad etdi: <b>{admin_name}</b>",
+            reply_markup=None
+        )
+    except Exception:
+        pass
+
+    # Boshqa BARCHA adminlarga xabar yuborish (tugmalarsiz)
+    done_text = (
+        f"❌ <b>ARIZA HAL QILINDI</b>\n\n"
+        f"👤 <b>{uname}</b> foydalanuvchisining arizasi\n"
+        f"<b>{admin_name}</b> tomonidan rad etildi.\n\n"
+        f"<i>Siz hech narsa qilishingiz shart emas.</i>"
     )
+    for adm_id in get_all_admin_ids():
+        if adm_id == call.from_user.id:
+            continue
+        try:
+            await bot.send_message(chat_id=adm_id, text=done_text)
+        except Exception:
+            pass
+
+    # Foydalanuvchiga xabar
     try:
         await bot.send_message(
             chat_id=uid,
@@ -885,6 +1003,7 @@ async def user_quick_reject_cb(call: CallbackQuery):
     except Exception:
         pass
     await call.answer("❌ Ariza rad etildi!", show_alert=True)
+
 
 @router.callback_query(F.data.startswith("user_req_access_"))
 async def user_req_access_cb(call: CallbackQuery):
@@ -2199,20 +2318,9 @@ async def create_web_app():
 
     return app
 
-async def keep_alive_pinger(url: str):
-    """Render.com bepul tarifi uxlamasligi uchun har 5 daqiqada avtomatik so'rov yuborish (24/7 Keep-Alive)."""
-    import aiohttp
-    log.info(f"🔄 24/7 Keep-Alive xizmati faollashtirildi: {url}")
-    await asyncio.sleep(45) # Ilk urinish 45 soniyadan so'ng
-    while True:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{url}/healthz", timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                    if resp.status == 200:
-                        log.info("💓 Keep-Alive ping muvaffaqiyatli (Render server faol).")
-        except Exception as e:
-            log.warning(f"Keep-Alive ping xatosi: {e}")
-        await asyncio.sleep(300) # Har 5 daqiqada (300s) qaytariladi
+# keep_alive_pinger o'chirildi — Render.com bepul 750 soatlik limitni tejash uchun.
+# Tashqi Cron-job (UptimeRobot, cron-job.org) orqali /healthz yoki /ping endpointiga
+# ertalab 07:00 dan 23:00 gacha so'rov yuboring. Bu bot o'z-o'zini ping qilmaydi.
 
 # ── AVTOMATIK HTTPS TUNNEL (OGOHLANTIRISHLARSIZ / TO'G'RIDAN-TO'G'RI OCHILUVCHI) ──
 async def maintain_tunnel(local_port: int):
@@ -2236,8 +2344,6 @@ async def maintain_tunnel(local_port: int):
             log.info("✅ Bot menyu tugmasi Render.com doimiy URL ga ulandi!")
         except Exception as e:
             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
-        # 24/7 Keep-Alive taskini ishga tushirish (Render uxlamasligi uchun)
-        asyncio.create_task(keep_alive_pinger(WEBAPP_URL))
         return
 
     railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN") or os.getenv("RAILWAY_STATIC_URL")
