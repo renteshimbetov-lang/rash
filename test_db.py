@@ -158,6 +158,13 @@ def init_db():
         )
         """)
 
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """)
+
         # Bosh adminni qo'shish (ON CONFLICT — PostgreSQL)
         cur.execute("""
         INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
@@ -228,11 +235,74 @@ def init_db():
         """)
 
         cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """)
+
+        cur.execute("""
         INSERT OR IGNORE INTO admins (tg_id, fullname, username, added_by, created_at)
         VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
         """)
 
     _commit_and_close(conn)
+
+
+# ──────────────────────────────────────────────────────────
+# TIZIM SOZLAMALARI VA TEXNIK REJIM (MAINTENANCE MODE)
+# ──────────────────────────────────────────────────────────
+
+def get_setting(key: str, default: str = "") -> str:
+    """Tizim sozlamasini olish."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(f"SELECT value FROM system_settings WHERE key = {_ph()}", (key,))
+    row = cur.fetchone()
+    conn.close()
+    if row:
+        val = row["value"] if isinstance(row, dict) else row[0]
+        return str(val)
+    return default
+
+
+def set_setting(key: str, value: str):
+    """Tizim sozlamasini saqlash yoki yangilash."""
+    conn = get_connection()
+    cur = conn.cursor()
+    if USE_POSTGRES:
+        cur.execute("""
+        INSERT INTO system_settings (key, value)
+        VALUES (%s, %s)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """, (key, str(value)))
+    else:
+        cur.execute("""
+        INSERT INTO system_settings (key, value)
+        VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """, (key, str(value)))
+    _commit_and_close(conn)
+
+
+def is_maintenance_mode() -> bool:
+    """Texnik profilaktika rejimi yoqilganmi?"""
+    return get_setting("maintenance_mode", "0") == "1"
+
+
+def set_maintenance_mode(enabled: bool):
+    """Texnik profilaktika rejimini yoqish yoki o'chirish."""
+    set_setting("maintenance_mode", "1" if enabled else "0")
+
+
+def get_broadcast_users() -> List[Dict[str, Any]]:
+    """Xabar tarqatish uchun faol foydalanuvchilar ro'yxati (bloklanmaganlar)."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT tg_id, fullname, status FROM users WHERE status NOT IN ('blocked', 'rejected')")
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows if r]
 
 
 # ──────────────────────────────────────────────────────────

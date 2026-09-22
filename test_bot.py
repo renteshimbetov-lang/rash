@@ -15,7 +15,7 @@ import time
 import urllib.parse
 from typing import Optional, Dict, Any
 
-from aiogram import Bot, Dispatcher, F, Router
+from aiogram import Bot, Dispatcher, F, Router, BaseMiddleware
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
@@ -68,13 +68,26 @@ def get_night_message() -> str:
         f"har bir xabar serverni keraksiz uyg'otadi va bot tezroq o'chib qolishi mumkin."
     )
 
+# ── TEXNIK PROFILAKTIKA REJIMI XABARI VA MIDDLEWARE ──────
+def get_maintenance_message() -> str:
+    """Texnik profilaktika rejimi xabari."""
+    now = datetime.now(UZB_TZ)
+    return (
+        "🛠 <b>Hozirda botda texnik profilaktika ishlari olib borilmoqda!</b>\n\n"
+        "Hurmatli foydalanuvchi, tizim barqarorligini oshirish, yangi imkoniyatlarni sozlash "
+        "va ma'lumotlar xavfsizligini ta'minlash maqsadida bot vaqtincha to'xtatildi.\n\n"
+        f"🕐 <b>Vaqt:</b> {now.strftime('%H:%M')} (Toshkent)\n"
+        "⏱ <b>Holat:</b> Rejali texnik tanaffus\n"
+        "👨‍💻 <b>Bajarilmoqda:</b> Tizim yangilanishi va optimallashtirish\n\n"
+        "✅ <i>Tez orada barcha xizmatlar to'liq va odatdagidek qayta tiklanadi.</i>\n\n"
+        "🙏 <b>Keltirilgan vaqtinchalik noqulayliklar uchun uzr so'raymiz!</b>"
+    )
+
 # ── SOZLAMALAR ────────────────────────────────────────
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN muhit o'zgaruvchisi o'rnatilmagan! .env faylini yoki Render env varsni tekshiring.")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-if not ADMIN_ID:
-    raise RuntimeError("ADMIN_ID muhit o'zgaruvchisi o'rnatilmagan!")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
 PORT = int(os.getenv("PORT", "8080"))
 _raw_url = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("WEBAPP_URL", "")
 if _raw_url:
@@ -90,8 +103,29 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
+class MaintenanceMiddleware(BaseMiddleware):
+    """Texnik profilaktika vaqtida FAQAT Bosh Admin (ADMIN_ID) o'ta oladi. Boshqalar to'xtatiladi."""
+    async def __call__(self, handler, event, data):
+        user = data.get("event_from_user")
+        if user and test_db.is_maintenance_mode():
+            if user.id != ADMIN_ID:
+                if isinstance(event, Message):
+                    await event.answer(get_maintenance_message())
+                    return
+                elif isinstance(event, CallbackQuery):
+                    await event.answer("⚠️ Botda texnik profilaktika ketmoqda!", show_alert=True)
+                    try:
+                        await event.message.answer(get_maintenance_message())
+                    except Exception:
+                        pass
+                    return
+        return await handler(event, data)
+
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
+dp.message.outer_middleware(MaintenanceMiddleware())
+dp.callback_query.outer_middleware(MaintenanceMiddleware())
+
 router = Router()
 dp.include_router(router)
 
@@ -112,6 +146,10 @@ class AddAdminState(StatesGroup):
 class SetTimeLimitState(StatesGroup):
     test_id = State()
     time_limit = State()
+
+class BroadcastState(StatesGroup):
+    waiting_for_message = State()
+    confirm_send = State()
 
 # ── KEYBOARDS (TUGMALAR) ──────────────────────────────
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
@@ -177,8 +215,7 @@ def contact_share_kb() -> ReplyKeyboardMarkup:
 
 def admin_menu_kb() -> InlineKeyboardMarkup:
     """
-    Admin Panel inline menyusi — asosiy menyuda mavjud bo'lgan narsalar (test yaratish,
-    reyting, testlarni boshqarish) olib tashlangan, faqat foydalanuvchilar va adminlar boshqaruvi qoldirilgan.
+    Admin Panel inline menyusi — foydalanuvchilar, xabarlar, texnik rejim va adminlar boshqaruvi.
     """
     try:
         counts = test_db.get_users_count()
@@ -190,7 +227,14 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
     except Exception:
         btn_text = "👥 Barcha foydalanuvchilar ro'yxati"
 
+    maint_on = test_db.is_maintenance_mode()
+    maint_icon = "🔴" if maint_on else "🟢"
+    maint_status = "YOQILGAN" if maint_on else "O'CHIQ"
+    maint_btn_text = f"🛠 Texnik rejim: {maint_status} {maint_icon}"
+
     buttons = [
+        [InlineKeyboardButton(text="📢 O'quvchilarga xabar yuborish", callback_data="admin_broadcast_menu")],
+        [InlineKeyboardButton(text=maint_btn_text, callback_data="admin_toggle_maint_prompt")],
         [InlineKeyboardButton(text=btn_text, callback_data="admin_view_users")],
         [InlineKeyboardButton(text="🔒 Barchani cheklash (qayta so'rov)", callback_data="admin_restrict_all_confirm")],
         [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")]
@@ -1396,6 +1440,331 @@ async def admin_save_new_admin(message: Message, state: FSMContext):
         )
     except ValueError:
         await message.answer("⚠️ Iltimos, to'g'ri Telegram ID (raqam) kiriting:")
+
+# ── TEXNIK PROFILAKTIKA VA BROADCAST (XABAR YUBORISH) BOSHQARUVI ──
+
+MAINT_START_TEXT = (
+    "⚠️ <b>DIQQAT: REJALI TEXNIK PROFILAKTIKA BOSHLANDI!</b>\n\n"
+    "Hurmatli o'quvchilar va foydalanuvchilar!\n"
+    "Hozirda bot tizimida rejali texnik profilaktika, yangilash va optimallashtirish ishlari olib borilmoqda.\n\n"
+    "⏱ <b>Holat:</b> Bot vaqtincha to'xtatildi\n"
+    "👨‍💻 <b>Maqsad:</b> Tizim barqarorligi va yangi imkoniyatlarni ishga tushirish\n\n"
+    "✅ <i>Texnik jarayon yakunlangach, bot yana avtomatik tarzda to'liq ishga tushadi va bu haqda qo'shimcha xabar beriladi.</i>\n\n"
+    "🙏 <b>Keltirilgan vaqtinchalik noqulayliklar uchun uzr so'raymiz!</b>"
+)
+
+MAINT_END_TEXT = (
+    "✅ <b>XUSHXABAR: TEXNIK ISHLAR YAKUNLANDI!</b>\n\n"
+    "Hurmatli o'quvchilar va foydalanuvchilar!\n"
+    "Botdagi barcha texnik profilaktika va yangilash ishlari muvaffaqiyatli yakunlandi.\n\n"
+    "🎉 <b>Tizim to'liq ishchi holatda!</b>\n"
+    "Endi bemalol test topshirishingiz, natijalaringizni ko'rishingiz va botdan foydalanishingiz mumkin.\n\n"
+    "🌟 <i>Barchangizga bilim olishda va testlarda ulkan zafarlar tilaymiz!</i>"
+)
+
+async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", caption: str = "") -> tuple[int, int]:
+    """Barcha faol (bloklanmagan) o'quvchilarga xabar tarqatish."""
+    users = test_db.get_broadcast_users()
+    sent_count = 0
+    fail_count = 0
+    for u in users:
+        uid = u.get("tg_id")
+        if not uid:
+            continue
+        try:
+            if photo_id:
+                await bot.send_photo(chat_id=uid, photo=photo_id, caption=caption or message_text)
+            else:
+                await bot.send_message(chat_id=uid, text=message_text)
+            sent_count += 1
+            await asyncio.sleep(0.04)
+        except Exception as e:
+            fail_count += 1
+            log.warning(f"Broadcast xatosi user {uid}: {e}")
+    return sent_count, fail_count
+
+# 1. Texnik rejimni yoqish / o'chirish so'rovi
+@router.callback_query(F.data == "admin_toggle_maint_prompt")
+async def admin_toggle_maint_prompt_cb(call: CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        await call.answer("⛔️ Faqat Bosh Admin texnik profilaktika rejimini boshqarishi mumkin!", show_alert=True)
+        return
+
+    is_maint = test_db.is_maintenance_mode()
+    if not is_maint:
+        text = (
+            "🛠 <b>TEXNIK PROFILAKTIKA REJIMINI YOQISH</b>\n\n"
+            "⚠️ <b>Eslatma:</b>\n"
+            "• Ushbu rejim yoqilganda sizdan (Bosh Admin) tashqari <b>hech kim</b> — "
+            "na oddiy o'quvchilar va na tayinlangan adminlar botdan foydalana olmaydi.\n"
+            "• Botga yozgan har qanday foydalanuvchiga: <i>«Hozirda botda texnik profilaktika ketmoqda...»</i> xabari chiqadi.\n\n"
+            "Quyidagi amallardan birini tanlang 👇"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 Yoqish va o'quvchilarga ogohlantirish yuborish", callback_data="adm_maint_set_on_notify")],
+            [InlineKeyboardButton(text="🤫 Faqat Yoqish (xabarsiz)", callback_data="adm_maint_set_on_silent")],
+            [InlineKeyboardButton(text="⬅️ Bekor qilish / Orqaga", callback_data="admin_back_to_menu")]
+        ])
+    else:
+        text = (
+            "✅ <b>TEXNIK PROFILAKTIKA REJIMINI O'CHIRISH</b>\n\n"
+            "Tizim yana barcha o'quvchilar va adminlar uchun to'liq ochiladi va odatdagidek ishlay boshlaydi.\n\n"
+            "Quyidagi amallardan birini tanlang 👇"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📢 O'chirish va barchaga xushxabar berish", callback_data="adm_maint_set_off_notify")],
+            [InlineKeyboardButton(text="🤫 Faqat O'chirish (xabarsiz)", callback_data="adm_maint_set_off_silent")],
+            [InlineKeyboardButton(text="⬅️ Bekor qilish / Orqaga", callback_data="admin_back_to_menu")]
+        ])
+
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data.in_(["adm_maint_set_on_silent", "adm_maint_set_on_notify"]))
+async def adm_maint_set_on_cb(call: CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        await call.answer("Faqat Bosh Admin!", show_alert=True)
+        return
+    test_db.set_maintenance_mode(True)
+    if call.data == "adm_maint_set_on_notify":
+        await call.answer("⏳ Xabar tarqatilmoqda...")
+        status_msg = await call.message.answer("⏳ O'quvchilarga texnik profilaktika boshlanganligi haqida xabar yuborilmoqda...")
+        sent, fail = await send_broadcast_to_users(message_text=MAINT_START_TEXT)
+        await status_msg.edit_text(
+            f"🛠 <b>Texnik rejim YOQILDI va xabar tarqatildi!</b>\n\n"
+            f"📨 <b>Yetkazildi:</b> {sent} ta\n"
+            f"⚠️ <b>Yetkazilmadi:</b> {fail} ta\n\n"
+            f"<i>Endi botdan faqat siz (Bosh Admin) foydalana olasiz.</i>",
+            reply_markup=admin_menu_kb()
+        )
+    else:
+        await call.answer("🛠 Texnik rejim yoqildi (xabarsiz)!", show_alert=True)
+        await call.message.edit_text(
+            "⚙️ <b>ADMIN BOSHQARUV PANELI</b>\n\n"
+            "🔴 <b>Texnik profilaktika rejimi YOQILGAN.</b> Faqat siz (Bosh Admin) foydalana olasiz.\n\n"
+            "Quyidagi bo'limlardan birini tanlang 👇",
+            reply_markup=admin_menu_kb()
+        )
+
+@router.callback_query(F.data.in_(["adm_maint_set_off_silent", "adm_maint_set_off_notify"]))
+async def adm_maint_set_off_cb(call: CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        await call.answer("Faqat Bosh Admin!", show_alert=True)
+        return
+    test_db.set_maintenance_mode(False)
+    if call.data == "adm_maint_set_off_notify":
+        await call.answer("⏳ Xabar tarqatilmoqda...")
+        status_msg = await call.message.answer("⏳ O'quvchilarga texnik ishlar yakunlanganligi haqida xabar yuborilmoqda...")
+        sent, fail = await send_broadcast_to_users(message_text=MAINT_END_TEXT)
+        await status_msg.edit_text(
+            f"✅ <b>Texnik rejim O'CHIRILDI va xushxabar tarqatildi!</b>\n\n"
+            f"📨 <b>Yetkazildi:</b> {sent} ta\n"
+            f"⚠️ <b>Yetkazilmadi:</b> {fail} ta\n\n"
+            f"<i>Bot barcha o'quvchilar va adminlar uchun yana to'liq faol.</i>",
+            reply_markup=admin_menu_kb()
+        )
+    else:
+        await call.answer("✅ Texnik rejim o'chirildi (xabarsiz)!", show_alert=True)
+        await call.message.edit_text(
+            "⚙️ <b>ADMIN BOSHQARUV PANELI</b>\n\n"
+            "🟢 <b>Texnik profilaktika rejimi O'CHIRILGAN.</b> Bot barcha uchun ochiq.\n\n"
+            "Quyidagi bo'limlardan birini tanlang 👇",
+            reply_markup=admin_menu_kb()
+        )
+
+# 2. O'quvchilarga xabar yuborish menyusi
+@router.callback_query(F.data == "admin_broadcast_menu")
+async def admin_broadcast_menu_cb(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        await call.answer("Siz admin emassiz!", show_alert=True)
+        return
+    await state.clear()
+    users_count = len(test_db.get_broadcast_users())
+    text = (
+        f"📢 <b>O'QUVCHILARGA XABAR YUBORISH BO'LIMI</b>\n\n"
+        f"👥 <b>Qabul qiluvchilar:</b> {users_count} nafar faol foydalanuvchi\n\n"
+        f"Quyidagi tezkor tayyor xabarlardan birini tanlashingiz yoki o'zingiz erkin xabar yozishingiz mumkin:\n\n"
+        f"1️⃣ <b>🛠 Texnik profilaktika xabari:</b>\n"
+        f"<i>«Botda texnik ishlar ketayotgani va vaqtincha to'xtatilgani haqida ogohlantirish»</i>\n\n"
+        f"2️⃣ <b>✅ Texnik ishlar yakunlandi:</b>\n"
+        f"<i>«Bot yana o'z faoliyatini boshlagani haqida xushxabar e'loni»</i>\n\n"
+        f"3️⃣ <b>✍️ Erkin xabar yozish:</b>\n"
+        f"<i>«Admin o'zi xohlagan matn, e'lon yoki rasmli postni barchaga yuborishi mumkin»</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🛠 1. Texnik ishlar boshlandi (Tezkor)", callback_data="adm_bc_preview_start")],
+        [InlineKeyboardButton(text="✅ 2. Texnik ishlar yakunlandi (Tezkor)", callback_data="adm_bc_preview_end")],
+        [InlineKeyboardButton(text="✍️ 3. O'zingiz erkin xabar yozish", callback_data="adm_bc_custom_input")],
+        [InlineKeyboardButton(text="⬅️ Admin panelga qaytish", callback_data="admin_back_to_menu")]
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data == "adm_bc_preview_start")
+async def adm_bc_preview_start_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    text = (
+        f"📋 <b>XABAR KO'RINISHI (PREVIEW):</b>\n\n"
+        f"────────────────────\n"
+        f"{MAINT_START_TEXT}\n"
+        f"────────────────────\n\n"
+        f"<b>Ushbu xabarni barcha o'quvchilarga yuborishni tasdiqlaysizmi?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Barchaga yuborish", callback_data="adm_bc_send_start")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_broadcast_menu")]
+    ])
+    await call.message.edit_text(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data == "adm_bc_preview_end")
+async def adm_bc_preview_end_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    text = (
+        f"📋 <b>XABAR KO'RINISHI (PREVIEW):</b>\n\n"
+        f"────────────────────\n"
+        f"{MAINT_END_TEXT}\n"
+        f"────────────────────\n\n"
+        f"<b>Ushbu xabarni barcha o'quvchilarga yuborishni tasdiqlaysizmi?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Barchaga yuborish", callback_data="adm_bc_send_end")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_broadcast_menu")]
+    ])
+    await call.message.edit_text(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data == "adm_bc_send_start")
+async def adm_bc_send_start_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    await call.answer("⏳ Xabar tarqatilmoqda...")
+    status_msg = await call.message.answer("⏳ Barcha o'quvchilarga xabar yuborilmoqda...")
+    sent, fail = await send_broadcast_to_users(message_text=MAINT_START_TEXT)
+    await status_msg.edit_text(
+        f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
+        f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
+            [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+        ])
+    )
+
+@router.callback_query(F.data == "adm_bc_send_end")
+async def adm_bc_send_end_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    await call.answer("⏳ Xabar tarqatilmoqda...")
+    status_msg = await call.message.answer("⏳ Barcha o'quvchilarga xabar yuborilmoqda...")
+    sent, fail = await send_broadcast_to_users(message_text=MAINT_END_TEXT)
+    await status_msg.edit_text(
+        f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
+        f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
+            [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+        ])
+    )
+
+@router.callback_query(F.data == "adm_bc_custom_input")
+async def adm_bc_custom_input_cb(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    await state.set_state(BroadcastState.waiting_for_message)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_broadcast_menu")]
+    ])
+    text = (
+        "✍️ <b>O'quvchilarga yubormoqchi bo'lgan xabaringizni kiriting:</b>\n\n"
+        "Oddiy matn yoki rasmli post yuborishingiz mumkin. Barcha HTML formatlar (qalin, kursiv, ssilka) qo'llab-quvvatlanadi.\n\n"
+        "<i>Bekor qilish uchun pastdagi tugmani bosing yoki /cancel deb yozing.</i>"
+    )
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+@router.message(BroadcastState.waiting_for_message)
+async def adm_bc_receive_custom_msg(message: Message, state: FSMContext):
+    if message.text and message.text.strip() == "/cancel":
+        await state.clear()
+        await message.answer("❌ Xabar yuborish bekor qilindi.", reply_markup=admin_menu_kb())
+        return
+
+    photo_id = ""
+    caption = ""
+    msg_text = ""
+
+    if message.photo:
+        photo_id = message.photo[-1].file_id
+        caption = message.caption or ""
+    elif message.text:
+        msg_text = message.text
+    else:
+        await message.answer("⚠️ Iltimos, matn yoki rasm yuboring (yoki bekor qilish uchun /cancel yozing):")
+        return
+
+    await state.update_data(photo_id=photo_id, caption=caption, msg_text=msg_text)
+    await state.set_state(BroadcastState.confirm_send)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Tasdiqlash va Yuborish", callback_data="adm_bc_custom_confirm")],
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_broadcast_menu")]
+    ])
+
+    if photo_id:
+        cap_preview = f"{caption}\n\n" if caption else ""
+        await message.answer_photo(
+            photo=photo_id,
+            caption=f"📢 <b>Yuboriladigan rasm va matn ko'rinishi:</b>\n\n{cap_preview}<b>Ushbu xabarni barcha o'quvchilarga yuborishni tasdiqlaysizmi?</b>",
+            reply_markup=kb
+        )
+    else:
+        await message.answer(
+            f"📢 <b>Yuboriladigan xabar ko'rinishi:</b>\n\n"
+            f"────────────────────\n"
+            f"{msg_text}\n"
+            f"────────────────────\n\n"
+            f"<b>Ushbu xabarni barcha o'quvchilarga yuborishni tasdiqlaysizmi?</b>",
+            reply_markup=kb
+        )
+
+@router.callback_query(F.data == "adm_bc_custom_confirm", BroadcastState.confirm_send)
+async def adm_bc_custom_confirm_cb(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+
+    data = await state.get_data()
+    await state.clear()
+
+    photo_id = data.get("photo_id", "")
+    caption = data.get("caption", "")
+    msg_text = data.get("msg_text", "")
+
+    await call.answer("⏳ Xabar tarqatilmoqda...")
+    status_msg = await call.message.answer("⏳ Barcha o'quvchilarga xabar yuborilmoqda...")
+    sent, fail = await send_broadcast_to_users(message_text=msg_text, photo_id=photo_id, caption=caption)
+
+    await status_msg.edit_text(
+        f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
+        f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
+            [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+        ])
+    )
 
 # 5. Natijalar va hisobotlar boshqaruvi
 @router.callback_query(F.data == "admin_leaderboard")
