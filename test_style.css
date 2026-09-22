@@ -292,7 +292,7 @@ body {
 .test-container {
   width: 100%;
   max-width: 520px;
-  padding-bottom: 120px;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
   position: relative;
 }
 

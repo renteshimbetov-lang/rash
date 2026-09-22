@@ -293,8 +293,7 @@ async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_
         "test_id": test["id"],
         "test_code": test["test_code"],
         "title": test["title"],
-        "subject": test.get("subject", "Matematika"),
-        "user_id": user_tg_id
+        "subject": test.get("subject", "Matematika")
     }
     encoded_url = f"{WEBAPP_URL}?{urllib.parse.urlencode(params)}"
 
@@ -584,8 +583,7 @@ async def solve_test_cb(call: CallbackQuery):
         "test_id": t["id"],
         "test_code": t["test_code"],
         "title": t["title"],
-        "subject": t.get("subject", "Matematika"),
-        "user_id": call.from_user.id
+        "subject": t.get("subject", "Matematika")
     }
     encoded_url = f"{WEBAPP_URL}?{urllib.parse.urlencode(params)}"
     reply_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -2524,8 +2522,23 @@ async def handle_app_profile(request):
     """Foydalanuvchi profili va statistikasi (Asosiy Mini App uchun)."""
     try:
         tg_id = int(request.rel_url.query.get('tg_id', 0))
-        if not tg_id:
-            return web.json_response({"success": False, "message": "tg_id required"}, status=400)
+        if not tg_id or tg_id == 0:
+            return web.json_response({
+                "success": True,
+                "user": {
+                    "tg_id": 0,
+                    "fullname": "Mehmon",
+                    "phone": "—",
+                    "status": "guest",
+                    "registered_at": int(time.time()),
+                    "tests_count": 0,
+                    "avg_score": 0,
+                    "max_score": 0,
+                    "has_pin": False
+                },
+                "is_admin": False,
+                "pending_users": 0
+            })
 
         user = test_db.get_user(tg_id)
         is_admin = test_db.is_admin(tg_id, ADMIN_ID)

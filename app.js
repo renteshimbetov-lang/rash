@@ -111,16 +111,15 @@ function initApp() {
 
   try {
     var tg = window.Telegram && window.Telegram.WebApp;
-    if (tg) { tg.ready(); tg.expand(); }
+    if (tg) {
+      try { tg.ready(); tg.expand(); } catch (e) {}
+    }
     var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-    var urlParams = new URLSearchParams(window.location.search);
-    var urlUserId = parseInt(urlParams.get('user_id') || '0');
     if (tgU && tgU.id) {
       state.tgUser = tgU;
-    } else if (urlUserId) {
-      state.tgUser = { id: urlUserId, first_name: 'Foydalanuvchi', last_name: '', username: '' };
     } else {
-      state.tgUser = { id: 0, first_name: 'Foydalanuvchi', last_name: '', username: '' };
+      // Telegramdan tashqarida xavfsiz mehmon rejimi (hech qanday admin yoki boshqa akkaunt huquqlari berilmaydi)
+      state.tgUser = { id: 0, first_name: 'Mehmon', last_name: '', username: '' };
     }
     try {
       var saved = localStorage.getItem(LS_USER);
@@ -258,13 +257,12 @@ async function processPin() {
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.CloudStorage) {
         try { window.Telegram.WebApp.CloudStorage.setItem(LS_PIN, btoa(pin)); } catch(e) {}
       }
-      // 3. Server bazasida saqlash
       if (tgId) {
         try {
           fetch('/api/app/set-pin', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tg_id: tgId, pin: pin })
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ tg_id: tgId, pin: pin, init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '' })
           });
         } catch(e) {}
       }
@@ -288,13 +286,12 @@ async function processPin() {
     
     var isValid = (stored && pin === stored);
 
-    // Agar localda mos kelmasa yoki yo'q bo'lsa, serverdan tekshirish
     if (!isValid && tgId) {
       try {
         var res = await fetch('/api/app/verify-pin', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tg_id: tgId, pin: pin })
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ tg_id: tgId, pin: pin, init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '' })
         });
         var data = await res.json();
         if (data.valid) {
@@ -387,9 +384,26 @@ async function checkBotServerStatus() {
   }
 }
 
-// ── API ─────────────────────────────────────────
+// ── API & AUTENTIFIKATSIYA ─────────────────────────
+function getAuthHeaders(customHeaders) {
+  var headers = Object.assign({}, customHeaders || {});
+  var initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+  if (initData) {
+    headers['X-Telegram-Init-Data'] = initData;
+  }
+  return headers;
+}
+
 async function apiGet(path) {
-  var res = await fetch(API_BASE + path);
+  var initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+  var fullUrl = API_BASE + path;
+  if (initData && fullUrl.indexOf('init_data=') === -1) {
+    var sep = fullUrl.indexOf('?') === -1 ? '?' : '&';
+    fullUrl += sep + 'init_data=' + encodeURIComponent(initData);
+  }
+  var res = await fetch(fullUrl, {
+    headers: getAuthHeaders()
+  });
   if (!res.ok) throw new Error('API ' + res.status);
   return res.json();
 }
@@ -755,8 +769,13 @@ async function updateUserStatusFromModal(targetUid, newStatus) {
   try {
     var res = await fetch('/api/app/update-user-status', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_id: adminId, target_uid: targetUid, status: newStatus })
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        admin_id: adminId,
+        target_uid: targetUid,
+        status: newStatus,
+        init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
+      })
     });
     var data = await res.json();
     if (data.success) {
@@ -931,8 +950,13 @@ async function submitCompareKeys(testId) {
   try {
     const res = await fetch('/api/app/compare-keys', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tg_id: tgId, test_id: testId, code: code })
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        tg_id: tgId,
+        test_id: testId,
+        code: code,
+        init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
+      })
     });
     const data = await res.json();
     
@@ -950,51 +974,116 @@ async function submitCompareKeys(testId) {
 }
 
 function renderKeyComparison(correct, user, container) {
+  if (!container) return;
   container.style.display = 'block';
-  var html = '<h4 style="margin:0 0 8px;font-size:14px;">Kalitlar solishtiruvi</h4>';
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(60px, 1fr));gap:6px;">';
-  
+
   function getAnswerVal(val) {
     if (val === undefined || val === null) return '-';
     if (typeof val === 'object') {
-      if (val.ans !== undefined) return val.ans;
-      if (val.answer !== undefined) return val.answer;
+      if (val.ans !== undefined && val.ans !== null) return String(val.ans).trim() || '-';
+      if (val.answer !== undefined && val.answer !== null) return String(val.answer).trim() || '-';
       return '-';
     }
     var s = String(val).trim();
     return s.length > 0 ? s : '-';
   }
 
-  for (var i = 1; i <= 45; i++) {
-    // Handling open questions like 36a, 36b
-    var isMultiple = (i >= 36);
-    if (isMultiple) {
-      ['a', 'b'].forEach(function(sub) {
-        var key = i + sub;
-        var cVal = getAnswerVal(correct ? correct[key] : null);
-        var uVal = getAnswerVal(user ? user[key] : null);
-        var isOk = (cVal !== '-' && uVal !== '-' && String(cVal).trim().toLowerCase() === String(uVal).trim().toLowerCase());
-        var bg = isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-        var col = isOk ? '#10B981' : '#EF4444';
-        
-        html += '<div style="background:'+bg+';color:'+col+';border:1px solid '+col+';border-radius:6px;padding:4px;text-align:center;font-size:11px;">';
-        html += '<b>' + key + '</b><br>' + uVal + ' / ' + cVal;
-        html += '</div>';
-      });
-    } else {
-      var key = String(i);
+  function normalizeAnswer(str) {
+    if (!str || str === '-') return '';
+    return String(str).trim().toLowerCase().replace(/\s+/g, '').replace(/,/g, '.');
+  }
+
+  var closedItems = [];
+  var totalCorrectClosed = 0;
+
+  // 1-bosqich: 1 dan 35 gacha bo'lgan yopiq savollar
+  // (1–32: 4 ta variant A, B, C, D; 33–35: 6 ta variant A, B, C, D, E, F)
+  for (var i = 1; i <= 35; i++) {
+    var key = String(i);
+    var cVal = getAnswerVal(correct ? (correct[key] !== undefined ? correct[key] : correct[i]) : null);
+    var uVal = getAnswerVal(user ? (user[key] !== undefined ? user[key] : user[i]) : null);
+    var nC = normalizeAnswer(cVal);
+    var nU = normalizeAnswer(uVal);
+    var isOk = (nC !== '' && nU !== '' && nC === nU);
+    if (isOk) totalCorrectClosed++;
+    closedItems.push({
+      key: key,
+      cVal: cVal,
+      uVal: uVal,
+      isOk: isOk,
+      typeNote: i <= 32 ? '4-talik' : '6-talik'
+    });
+  }
+
+  // 2-bosqich: 36 dan 45 gacha bo'lgan ochiq savollar (36a–45b, jami 20 ta ochiq band)
+  var openItems = [];
+  var totalCorrectOpen = 0;
+  for (var q = 36; q <= 45; q++) {
+    ['a', 'b'].forEach(function(sub) {
+      var key = q + sub;
       var cVal = getAnswerVal(correct ? correct[key] : null);
       var uVal = getAnswerVal(user ? user[key] : null);
-      var isOk = (cVal !== '-' && uVal !== '-' && String(cVal).trim().toLowerCase() === String(uVal).trim().toLowerCase());
-      var bg = isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-      var col = isOk ? '#10B981' : '#EF4444';
-      
-      html += '<div style="background:'+bg+';color:'+col+';border:1px solid '+col+';border-radius:6px;padding:4px;text-align:center;font-size:11px;">';
-      html += '<b>' + key + '</b><br>' + uVal + ' / ' + cVal;
-      html += '</div>';
-    }
+      var nC = normalizeAnswer(cVal);
+      var nU = normalizeAnswer(uVal);
+      var isOk = (nC !== '' && nU !== '' && nC === nU);
+      if (isOk) totalCorrectOpen++;
+      openItems.push({
+        key: key,
+        cVal: cVal,
+        uVal: uVal,
+        isOk: isOk
+      });
+    });
   }
-  
+
+  var totalCorrect = totalCorrectClosed + totalCorrectOpen;
+
+  var html = '<div class="key-comparison-box" style="margin-top:14px;background:var(--bg-card, #1A1D2D);border:1px solid var(--border, rgba(255,255,255,0.08));border-radius:14px;padding:16px;">';
+
+  // Sarlavha va umumiy ko'rsatkich
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border, rgba(255,255,255,0.08));flex-wrap:wrap;gap:8px;">';
+  html += '<div><h4 style="margin:0;font-size:15px;font-weight:700;color:var(--text, #FFF);">Kalitlar va javoblar tahlili</h4><span style="font-size:12px;color:var(--text-muted, #94A3B8);">Jami 55 ta savol (35 yopiq + 20 ochiq band)</span></div>';
+  html += '<div style="font-size:13px;font-weight:700;padding:4px 12px;border-radius:999px;background:' + (totalCorrect >= 28 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)') + ';color:' + (totalCorrect >= 28 ? '#10B981' : '#EF4444') + ';border:1px solid ' + (totalCorrect >= 28 ? '#10B981' : '#EF4444') + ';">' + totalCorrect + ' / 55 to\'g\'ri</div>';
+  html += '</div>';
+
+  // 1-bosqich: Yopiq testlar (1–35)
+  html += '<div style="margin-bottom:16px;">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  html += '<span style="font-size:13px;font-weight:600;color:var(--primary, #6366F1);">1-bosqich: Yopiq savollar (1–35)</span>';
+  html += '<span style="font-size:11px;font-weight:600;color:var(--text-muted, #94A3B8);">' + totalCorrectClosed + ' / 35 to\'g\'ri</span>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(64px, 1fr));gap:6px;">';
+  closedItems.forEach(function(item) {
+    var bg = item.isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+    var col = item.isOk ? '#10B981' : '#EF4444';
+    var icon = item.isOk ? '✓' : '✗';
+    html += '<div style="background:' + bg + ';color:' + col + ';border:1px solid ' + col + ';border-radius:8px;padding:6px 2px;text-align:center;font-size:11px;line-height:1.2;">';
+    html += '<div style="font-weight:700;font-size:11px;margin-bottom:2px;">#' + item.key + ' ' + icon + '</div>';
+    html += '<div style="font-size:10px;opacity:0.9;">Siz: <b>' + item.uVal + '</b></div>';
+    html += '<div style="font-size:10px;opacity:0.9;">Asl: <b>' + item.cVal + '</b></div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  // 2-bosqich: Ochiq yozma savollar (36a–45b, jami 20 ta ochiq band)
+  html += '<div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  html += '<span style="font-size:13px;font-weight:600;color:var(--primary, #6366F1);">2-bosqich: Ochiq yozma savollar (36a–45b, 20 band)</span>';
+  html += '<span style="font-size:11px;font-weight:600;color:var(--text-muted, #94A3B8);">' + totalCorrectOpen + ' / 20 to\'g\'ri</span>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(78px, 1fr));gap:6px;">';
+  openItems.forEach(function(item) {
+    var bg = item.isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+    var col = item.isOk ? '#10B981' : '#EF4444';
+    var icon = item.isOk ? '✓' : '✗';
+    html += '<div style="background:' + bg + ';color:' + col + ';border:1px solid ' + col + ';border-radius:8px;padding:6px 2px;text-align:center;font-size:11px;line-height:1.2;overflow:hidden;">';
+    html += '<div style="font-weight:700;font-size:11px;margin-bottom:2px;">#' + item.key + ' ' + icon + '</div>';
+    html += '<div style="font-size:10px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="' + item.uVal + '">Siz: <b>' + item.uVal + '</b></div>';
+    html += '<div style="font-size:10px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="' + item.cVal + '">Asl: <b>' + item.cVal + '</b></div>';
+    html += '</div>';
+  });
+  html += '</div></div>';
+
   html += '</div>';
   container.innerHTML = html;
 }

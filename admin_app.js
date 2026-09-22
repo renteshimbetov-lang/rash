@@ -349,10 +349,14 @@ const AdminApp = {
     }
 
     try {
+      const initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
       const response = await fetch('/api/create-test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Init-Data': initData
+        },
+        body: JSON.stringify(Object.assign({}, payload, { init_data: initData }))
       });
 
       const res = await response.json();

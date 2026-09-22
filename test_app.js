@@ -45,8 +45,10 @@ const TestApp = {
     if (params.has('test_id')) this.testId = parseInt(params.get('test_id')) || 1;
     if (params.has('title')) this.testTitle = params.get('title');
     if (params.has('subject')) this.subject = params.get('subject');
-    if (params.has('user_id')) this.userTgId = parseInt(params.get('user_id')) || this.userTgId;
-    if (params.has('name')) this.userFullname = params.get('name');
+    // Xavfsizlik: userTgId faqat Telegram WebApp orqali olinadi, URL dan olinmaydi
+    if (!this.userTgId) {
+      this.userFullname = 'Mehmon';
+    }
 
     // UI ga o'rnatish
     const titleEl = document.getElementById('test-title-display');
@@ -377,10 +379,14 @@ const TestApp = {
     };
 
     try {
+      const initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
       const response = await fetch('/api/submit-test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Init-Data': initData
+        },
+        body: JSON.stringify(Object.assign({}, payload, { init_data: initData }))
       });
 
       const result = await response.json();

@@ -630,7 +630,7 @@ body {
   height: 100%;
   overflow-y: auto;
   padding: 16px;
-  padding-bottom: 100px; /* floating nav height + margin */
+  padding-bottom: calc(105px + env(safe-area-inset-bottom, 0px)); /* floating nav height + safe-area */
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
 }
