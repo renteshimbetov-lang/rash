@@ -1465,6 +1465,7 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
     users = test_db.get_broadcast_users()
     sent_count = 0
     fail_count = 0
+    blocked_users = []  # Botni bloklagan foydalanuvchilar
     for u in users:
         uid = u.get("tg_id")
         if not uid:
@@ -1478,7 +1479,24 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
             await asyncio.sleep(0.04)
         except Exception as e:
             fail_count += 1
+            err_str = str(e).lower()
+            if "blocked" in err_str or "forbidden" in err_str or "deactivated" in err_str:
+                blocked_users.append(u)
             log.warning(f"Broadcast xatosi user {uid}: {e}")
+
+    # Admin ga bloklagan userlar haqida xabar
+    if blocked_users:
+        blocked_text = "🚫 <b>Botni bloklagan foydalanuvchilar:</b>\n\n"
+        for bu in blocked_users:
+            bname = bu.get('fullname', 'Noma\'lum')
+            btid = bu.get('tg_id', '-')
+            blocked_text += f"• <b>{bname}</b> (ID: <code>{btid}</code>)\n"
+        blocked_text += "\n<i>Ular broadcast xabarini olmadi.</i>"
+        try:
+            await bot.send_message(chat_id=ADMIN_ID, text=blocked_text)
+        except Exception:
+            pass
+
     return sent_count, fail_count
 
 # 1. Texnik rejimni yoqish / o'chirish so'rovi
@@ -2133,8 +2151,8 @@ async def admin_test_rasch_eval(call: CallbackQuery):
     text = (
         f"🧮 <b>Rasch Modeli (JMLE) Baholash Natijalari</b>\n\n"
         f"📖 <b>Test:</b> {test['title']} (<code>#{test['test_code']}</code>)\n"
-        f"👥 <b>Talabalar:</b> {meta.get('num_students', len(students))} nafar\n"
-        f"❓ <b>Elementlar:</b> {meta.get('num_items', len(items))} ta (55 ta band)\n"
+        f"👥 <b>Talabalar:</b> {meta.get('n_students', meta.get('num_students', len(students)))} nafar\n"
+        f"❓ <b>Elementlar:</b> {meta.get('n_items', meta.get('num_items', len(items)))} ta (55 ta band)\n"
         f"🔄 <b>Iteratsiyalar:</b> {meta.get('iterations', 0)} (Konvergensiya: {meta.get('converged', True)})\n\n"
         f"{status_note}"
         f"🏆 <b>O'quvchilar darajalari va yakuniy ballari (0-100):</b>\n"
@@ -2673,7 +2691,7 @@ async def handle_app_active_tests(request):
                 td['already_submitted'] = bool(existing)
             else:
                 td['already_submitted'] = False
-            td['is_planned'] = not bool(t.get('is_active', 1))
+            td['is_planned'] = False  # To'xtatilgan testlar 'planned' emas, ular alohida ko'rsatiladi
             result.append(td)
         return web.json_response({"success": True, "tests": result})
     except Exception as e:

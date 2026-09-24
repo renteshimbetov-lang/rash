@@ -98,7 +98,7 @@ const AdminApp = {
         const itemB = this.answers[`${q}b`];
         html += `
           <div class="open-admin-box">
-            <span style="font-size: 13px; font-weight: 800;">${q}-savol (Yopiq yozma)</span>
+            <span style="font-size: 13px; font-weight: 800;">${q}-savol (Ochiq yozma)</span>
             
             <!-- a -->
             <div class="open-admin-sub-row">

@@ -82,7 +82,7 @@ def _compute_fit(X: List[List[int]], theta: List[float], b: List[float]) -> List
             w = p * q
             z = X[n][j] - p
             infit_num += (z ** 2) * w
-            infit_den += w ** 2
+            infit_den += w  # To'g'ri Rasch Infit: Σ(z²·w) / Σ(w)
             if w > 1e-9:
                 outfit_num += (z ** 2) / w
         infit_mnsq = (infit_num / infit_den) if infit_den > 1e-9 else 1.0

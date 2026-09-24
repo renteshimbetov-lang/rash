@@ -429,6 +429,7 @@ async function loadUserProfile() {
 
 async function loadActiveTests() {
   var tab = document.getElementById('tab-home');
+  if (!tab) return;
   tab.innerHTML = '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>';
   try {
     var tgId = (state.tgUser && state.tgUser.id) || 0;
@@ -479,6 +480,7 @@ function switchTab(tabId) {
 // ── HOME TAB (faqat faol testlar, planned YO'Q) ─
 function renderHomeTab(tests) {
   var tab = document.getElementById('tab-home');
+  if (!tab) return;
   var tgId = (state.tgUser && state.tgUser.id) || 0;
 
   // Faqat faol testlar (is_planned=false, is_active=true), va faol bo'lmaganlar
