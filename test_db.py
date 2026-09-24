@@ -82,13 +82,12 @@ def get_connection():
                 conn = pool.getconn()
                 conn.cursor_factory = RealDictCursor
                 conn.autocommit = False
-                conn._from_pool = True
+                _pool_connections.add(id(conn))
                 return conn
             except Exception:
                 pass
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         conn.autocommit = False
-        conn._from_pool = False
         return conn
     else:
         conn = sqlite3.connect(DB_FILE, timeout=20.0, check_same_thread=False)
@@ -96,7 +95,6 @@ def get_connection():
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA busy_timeout=20000;")
         conn.execute("PRAGMA synchronous=NORMAL;")
-        conn._from_pool = False
         return conn
 
 
