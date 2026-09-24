@@ -18,6 +18,33 @@ DATABASE_URL = os.getenv("DATABASE_URL", "")
 # PostgreSQL yoki SQLite ni avtomatik aniqlash
 USE_POSTGRES = bool(DATABASE_URL and ("postgresql" in DATABASE_URL or "postgres" in DATABASE_URL))
 
+# ── PostgreSQL Connection Pool (tezlik uchun) ──────────────
+_pg_pool = None
+
+def _get_pg_pool():
+    """PostgreSQL connection pool — bir marta yaratiladi, qayta ishlatiladi."""
+    global _pg_pool
+    if _pg_pool is None:
+        try:
+            import psycopg2.pool
+            _pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=8, dsn=DATABASE_URL)
+        except Exception as e:
+            print(f"Connection pool xatolik: {e}")
+            _pg_pool = None
+    return _pg_pool
+
+def _close_conn(conn):
+    """Ulanishni pool ga qaytarish yoki yopish."""
+    if USE_POSTGRES and getattr(conn, '_from_pool', False):
+        pool = _get_pg_pool()
+        if pool:
+            try:
+                pool.putconn(conn)
+                return
+            except Exception:
+                pass
+    _close_conn(conn)
+
 if not USE_POSTGRES:
     import sqlite3
     data_dir = os.getenv("DATA_DIR")
@@ -45,12 +72,23 @@ def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%
 # ──────────────────────────────────────────────────────────
 
 def get_connection():
-    """PostgreSQL yoki SQLite ulanishini qaytaradi."""
+    """PostgreSQL yoki SQLite ulanishini qaytaradi (pool orqali)."""
     if USE_POSTGRES:
         import psycopg2
         from psycopg2.extras import RealDictCursor
+        pool = _get_pg_pool()
+        if pool:
+            try:
+                conn = pool.getconn()
+                conn.cursor_factory = RealDictCursor
+                conn.autocommit = False
+                conn._from_pool = True
+                return conn
+            except Exception:
+                pass
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         conn.autocommit = False
+        conn._from_pool = False
         return conn
     else:
         conn = sqlite3.connect(DB_FILE, timeout=20.0, check_same_thread=False)
@@ -58,6 +96,7 @@ def get_connection():
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA busy_timeout=20000;")
         conn.execute("PRAGMA synchronous=NORMAL;")
+        conn._from_pool = False
         return conn
 
 
@@ -69,11 +108,11 @@ def _row_to_dict(row) -> Optional[Dict[str, Any]]:
 
 
 def _commit_and_close(conn):
-    """Commit qilib, ulanishni yopish."""
+    """Commit qilib, ulanishni pool ga qaytarish (yoki yopish)."""
     try:
         conn.commit()
     finally:
-        conn.close()
+        _close_conn(conn)
 
 
 def _placeholder(n: int = 1) -> str:
@@ -259,7 +298,7 @@ def get_setting(key: str, default: str = "") -> str:
     cur = conn.cursor()
     cur.execute(f"SELECT value FROM system_settings WHERE key = {_ph()}", (key,))
     row = cur.fetchone()
-    conn.close()
+    _close_conn(conn)
     if row:
         val = row["value"] if isinstance(row, dict) else row[0]
         return str(val)
@@ -301,7 +340,7 @@ def get_broadcast_users() -> List[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute("SELECT tg_id, fullname, status FROM users WHERE status NOT IN ('blocked', 'rejected')")
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
@@ -339,7 +378,7 @@ def add_or_update_user(tg_id: int, fullname: str, phone: str,
         return True
     except Exception as e:
         print(f"Error saving user: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -348,7 +387,7 @@ def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()}", (tg_id,))
     row = cur.fetchone()
-    conn.close()
+    _close_conn(conn)
     return _row_to_dict(row)
 
 
@@ -368,7 +407,7 @@ def approve_user(tg_id: int) -> bool:
         return True
     except Exception as e:
         print(f"Error approving user: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -381,7 +420,7 @@ def reject_user(tg_id: int) -> bool:
         return True
     except Exception as e:
         print(f"Error rejecting user: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -394,7 +433,7 @@ def set_user_pin(tg_id: int, pin: str) -> bool:
         return True
     except Exception as e:
         print(f"Error setting PIN: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -404,14 +443,14 @@ def get_user_pin(tg_id: int) -> Optional[str]:
     try:
         cur.execute(f"SELECT pin_code FROM users WHERE tg_id = {_ph()}", (tg_id,))
         row = cur.fetchone()
-        conn.close()
+        _close_conn(conn)
         if row:
             d = _row_to_dict(row)
             return d.get("pin_code") if d else None
         return None
     except Exception as e:
         print(f"Error getting PIN: {e}")
-        conn.close()
+        _close_conn(conn)
         return None
 
 
@@ -424,7 +463,7 @@ def block_user(tg_id: int) -> bool:
         return True
     except Exception as e:
         print(f"Error blocking user: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -438,7 +477,7 @@ def set_user_pending(tg_id: int) -> bool:
         return True
     except Exception as e:
         print(f"Error setting user pending: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -479,7 +518,7 @@ def restrict_all_users(super_admin_id: int = 8039427064) -> int:
         return count
     except Exception as e:
         print(f"Error restricting all users: {e}")
-        conn.close()
+        _close_conn(conn)
         return 0
 
 
@@ -493,7 +532,7 @@ def delete_user(tg_id: int) -> bool:
         return True
     except Exception as e:
         print(f"Error deleting user: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -508,7 +547,7 @@ def get_users_count() -> Dict[str, int]:
     pending = (_row_to_dict(cur.fetchone()) or {}).get("pending", 0)
     cur.execute("SELECT COUNT(*) as blocked FROM users WHERE status = 'blocked'")
     blocked = (_row_to_dict(cur.fetchone()) or {}).get("blocked", 0)
-    conn.close()
+    _close_conn(conn)
     return {
         "total": total,
         "approved": approved,
@@ -570,7 +609,7 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
         return True
     except Exception as e:
         print(f"Error creating/updating test: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -586,7 +625,7 @@ def update_test_pdf(test_id: int, pdf_file_id: str, pdf_file_name: str) -> bool:
         return True
     except Exception as e:
         print(f"Error updating test pdf: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -595,7 +634,7 @@ def get_active_tests() -> List[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute("SELECT * FROM tests WHERE is_active = 1 ORDER BY id DESC")
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
@@ -604,7 +643,7 @@ def get_test_by_code(test_code: str) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(f"SELECT * FROM tests WHERE test_code = {_ph()}", (test_code,))
     row = cur.fetchone()
-    conn.close()
+    _close_conn(conn)
     return _row_to_dict(row)
 
 
@@ -613,7 +652,7 @@ def get_test_by_id(test_id: int) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute(f"SELECT * FROM tests WHERE id = {_ph()}", (test_id,))
     row = cur.fetchone()
-    conn.close()
+    _close_conn(conn)
     return _row_to_dict(row)
 
 
@@ -625,7 +664,7 @@ def get_all_tests() -> List[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute("SELECT * FROM tests ORDER BY id DESC")
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
@@ -636,7 +675,7 @@ def toggle_test_status(test_id: int) -> Optional[int]:
         cur.execute(f"SELECT is_active FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
         if not row:
-            conn.close()
+            _close_conn(conn)
             return None
         d = _row_to_dict(row)
         new_status = 0 if d["is_active"] == 1 else 1
@@ -645,7 +684,7 @@ def toggle_test_status(test_id: int) -> Optional[int]:
         return new_status
     except Exception as e:
         print(f"Error toggling test: {e}")
-        conn.close()
+        _close_conn(conn)
         return None
 
 
@@ -661,7 +700,7 @@ def set_test_active_status(test_id: int, status: int) -> bool:
         return True
     except Exception as e:
         print(f"Error setting test active status: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -677,7 +716,7 @@ def update_test_time_limit(test_id: int, time_limit_min: int) -> bool:
         return True
     except Exception as e:
         print(f"Error updating test time limit: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -693,7 +732,7 @@ def set_test_results_published(test_id: int, published: bool = True) -> bool:
         return True
     except Exception as e:
         print(f"Error publishing results: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -703,13 +742,13 @@ def is_test_results_published(test_id: int) -> bool:
     try:
         cur.execute(f"SELECT results_published FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
-        conn.close()
+        _close_conn(conn)
         if row:
             d = _row_to_dict(row)
             return bool(d.get("results_published", 0))
         return False
     except Exception:
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -724,7 +763,7 @@ def get_test_submissions_with_users(test_id: int) -> List[Dict[str, Any]]:
     ORDER BY s.score DESC, s.submitted_at ASC
     """, (test_id,))
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     out = []
     for r in rows:
         d = _row_to_dict(r)
@@ -743,7 +782,7 @@ def delete_test(test_id: int) -> bool:
         _commit_and_close(conn)
         return True
     except Exception:
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -758,7 +797,7 @@ def is_admin(tg_id: int, super_admin_id: int = 8039427064) -> bool:
     cur = conn.cursor()
     cur.execute(f"SELECT tg_id FROM admins WHERE tg_id = {_ph()}", (tg_id,))
     row = cur.fetchone()
-    conn.close()
+    _close_conn(conn)
     return bool(row)
 
 
@@ -787,7 +826,7 @@ def add_admin(tg_id: int, fullname: str = "Admin", username: Optional[str] = Non
         return True
     except Exception as e:
         print(f"Error adding admin: {e}")
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -799,7 +838,7 @@ def remove_admin(tg_id: int) -> bool:
         _commit_and_close(conn)
         return True
     except Exception:
-        conn.close()
+        _close_conn(conn)
         return False
 
 
@@ -808,7 +847,7 @@ def get_all_admins() -> List[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute("SELECT * FROM admins ORDER BY created_at ASC")
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
@@ -823,7 +862,7 @@ def get_all_users() -> List[Dict[str, Any]]:
     ORDER BY u.registered_at DESC
     """)
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
@@ -892,7 +931,7 @@ def get_user_submission_for_test(test_id: int, user_tg_id: int) -> Optional[Dict
         (test_id, user_tg_id)
     )
     row = cur.fetchone()
-    conn.close()
+    _close_conn(conn)
     return _row_to_dict(row)
 
 
@@ -1109,7 +1148,7 @@ def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
     WHERE s.user_tg_id = {_ph()} ORDER BY s.id DESC
     """, (user_tg_id,))
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     results = []
     for r in rows:
         d = _row_to_dict(r)
@@ -1137,7 +1176,7 @@ def get_test_results_leaderboard(test_id: int) -> List[Dict[str, Any]]:
     FROM submissions WHERE test_id = {_ph()} ORDER BY score DESC, submitted_at ASC
     """, (test_id,))
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
@@ -1156,7 +1195,7 @@ def get_tests_with_stats() -> List[Dict[str, Any]]:
     ORDER BY t.id DESC
     """)
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
@@ -1174,7 +1213,7 @@ def get_test_submissions_for_rasch(test_id: int) -> List[Dict[str, Any]]:
     ORDER BY submitted_at ASC
     """, (test_id,))
     rows = cur.fetchall()
-    conn.close()
+    _close_conn(conn)
     return [_row_to_dict(r) for r in rows if r]
 
 
