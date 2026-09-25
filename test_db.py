@@ -171,7 +171,9 @@ def init_db():
             is_active INTEGER DEFAULT 1,
             key_access_code TEXT,
             results_published INTEGER DEFAULT 0,
-            created_at BIGINT NOT NULL
+            created_at BIGINT NOT NULL,
+            created_by BIGINT DEFAULT 0,
+            created_by_name TEXT DEFAULT ''
         )
         """)
 
@@ -246,7 +248,9 @@ def init_db():
             is_active INTEGER DEFAULT 1,
             key_access_code TEXT,
             results_published INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL
+            created_at INTEGER NOT NULL,
+            created_by INTEGER DEFAULT 0,
+            created_by_name TEXT DEFAULT ''
         )
         """)
 
@@ -297,6 +301,8 @@ def init_db():
             ("scheduled_date", "TEXT"),
             ("scheduled_start", "TEXT"),
             ("scheduled_end", "TEXT"),
+            ("created_by", "BIGINT"),
+            ("created_by_name", "TEXT"),
         ]:
             try:
                 cur.execute(f"ALTER TABLE tests ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT NULL")
@@ -304,9 +310,15 @@ def init_db():
             except Exception:
                 conn.rollback()
     else:
-        for col in ["scheduled_date", "scheduled_start", "scheduled_end"]:
+        for col, coltype in [
+            ("scheduled_date", "TEXT"),
+            ("scheduled_start", "TEXT"),
+            ("scheduled_end", "TEXT"),
+            ("created_by", "INTEGER"),
+            ("created_by_name", "TEXT"),
+        ]:
             try:
-                cur.execute(f"ALTER TABLE tests ADD COLUMN {col} TEXT DEFAULT NULL")
+                cur.execute(f"ALTER TABLE tests ADD COLUMN {col} {coltype} DEFAULT NULL")
                 conn.commit()
             except Exception:
                 pass
@@ -641,7 +653,8 @@ def get_users_count() -> Dict[str, int]:
 
 def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any],
                 pdf_file_id: Optional[str] = None, pdf_file_name: Optional[str] = None,
-                time_limit_min: int = 0, key_access_code: str = "") -> bool:
+                time_limit_min: int = 0, key_access_code: str = "",
+                created_by: int = 0, created_by_name: str = "") -> bool:
     conn = get_connection()
     cur = conn.cursor()
     now = int(time.time())
@@ -650,8 +663,8 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
             cur.execute("""
             INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name,
                                answers_json, total_questions, time_limit_min, is_active,
-                               key_access_code, results_published, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s, 0, %s)
+                               key_access_code, results_published, created_at, created_by, created_by_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s, 0, %s, %s, %s)
             ON CONFLICT (test_code) DO UPDATE SET
                 title = EXCLUDED.title,
                 subject = EXCLUDED.subject,
@@ -661,16 +674,18 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
                 time_limit_min = EXCLUDED.time_limit_min,
                 key_access_code = EXCLUDED.key_access_code,
                 is_active = 1,
-                results_published = 0
+                results_published = 0,
+                created_by = COALESCE(EXCLUDED.created_by, tests.created_by),
+                created_by_name = COALESCE(EXCLUDED.created_by_name, tests.created_by_name)
             """, (test_code, title, subject, pdf_file_id, pdf_file_name,
                   json.dumps(answers, ensure_ascii=False), 45, time_limit_min,
-                  key_access_code, now))
+                  key_access_code, now, created_by, created_by_name))
         else:
             cur.execute("""
             INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name,
                                answers_json, total_questions, time_limit_min, is_active,
-                               key_access_code, results_published, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?)
+                               key_access_code, results_published, created_at, created_by, created_by_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?, ?, ?)
             ON CONFLICT(test_code) DO UPDATE SET
                 title=excluded.title,
                 subject=excluded.subject,
@@ -680,10 +695,12 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
                 time_limit_min=excluded.time_limit_min,
                 key_access_code=excluded.key_access_code,
                 is_active=1,
-                results_published=0
+                results_published=0,
+                created_by=COALESCE(excluded.created_by, tests.created_by),
+                created_by_name=COALESCE(excluded.created_by_name, tests.created_by_name)
             """, (test_code, title, subject, pdf_file_id, pdf_file_name,
                   json.dumps(answers, ensure_ascii=False), 45, time_limit_min,
-                  key_access_code, now))
+                  key_access_code, now, created_by, created_by_name))
         _commit_and_close(conn)
         return True
     except Exception as e:
@@ -1332,7 +1349,7 @@ def get_tests_with_stats() -> List[Dict[str, Any]]:
     LEFT JOIN submissions s ON t.id = s.test_id
     GROUP BY t.id, t.test_code, t.title, t.subject, t.pdf_file_id, t.pdf_file_name,
              t.answers_json, t.total_questions, t.time_limit_min, t.is_active,
-             t.key_access_code, t.results_published, t.created_at
+             t.key_access_code, t.results_published, t.created_at, t.created_by, t.created_by_name
     ORDER BY t.id DESC
     """)
     rows = cur.fetchall()

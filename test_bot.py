@@ -719,7 +719,9 @@ async def admin_leaderboard_text_handler(message: Message):
         sub_cnt = t.get("submissions_count", 0)
         btn_text = f"📊 #{t['test_code']} — 👥 {sub_cnt} kishi"
         buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"adm_tstat_{t['id']}")])
-        msg_list += f"<b>{idx}. #{t['test_code']}</b> — {t['title']}: <b>{sub_cnt} kishi</b>\n"
+        creator_name = t.get("created_by_name") or ("Bosh Admin" if t.get("created_by") == ADMIN_ID else "")
+        creator_info = f" (👤 {creator_name})" if creator_name else ""
+        msg_list += f"<b>{idx}. #{t['test_code']}</b> — {t['title']}{creator_info}: <b>{sub_cnt} kishi</b>\n"
 
     buttons.append([InlineKeyboardButton(text="⬅️ Admin Panelga qaytish", callback_data="admin_panel_back")])
     msg_text = (
@@ -788,8 +790,10 @@ async def admin_manage_tests(call: CallbackQuery):
     for idx, t in enumerate(tests, 1):
         status_icon = "🟢" if t["is_active"] == 1 else "🔴"
         time_str = f"{t['time_limit_min']} daqiqa" if t.get("time_limit_min", 0) > 0 else "Cheksiz"
-        text += f"<b>{idx}. #{t['test_code']}</b> — {t['title']} ({status_icon}, ⏱ {time_str})\n"
-        buttons.append([InlineKeyboardButton(text=f"{status_icon} #{t['test_code']} — {t['title'][:25]}", callback_data=f"adm_mng_test_{t['id']}")])
+        creator_name = t.get("created_by_name") or ("Bosh Admin" if t.get("created_by") == ADMIN_ID else "")
+        creator_info = f" (👤 {creator_name})" if creator_name else ""
+        text += f"<b>{idx}. #{t['test_code']}</b> — {t['title']} ({status_icon}, ⏱ {time_str}){creator_info}\n"
+        buttons.append([InlineKeyboardButton(text=f"{status_icon} #{t['test_code']} — {t['title'][:22]}", callback_data=f"adm_mng_test_{t['id']}")])
 
     buttons.append([InlineKeyboardButton(text="🔙 Admin Menyuga qaytish", callback_data="admin_back_to_menu")])
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -816,8 +820,10 @@ async def admin_manage_test_card(call: CallbackQuery):
     has_pdf_str = f"📄 <b>PDF:</b> {t.get('pdf_file_name') or 'Biriktirilgan ✅'}\n" if t.get("pdf_file_id") else "📄 <b>PDF:</b> ❌ Yuklanmagan\n"
     pdf_btn_text = "📄 PDF almashtirish" if t.get("pdf_file_id") else "📥 PDF yuklash"
 
+    creator_str = t.get('created_by_name') or ('Bosh Admin' if t.get('created_by') == ADMIN_ID else 'Admin')
     card_text = (
         f"📖 <b>{t['title']}</b> (<code>#{t['test_code']}</code>)\n"
+        f"👤 <b>Yaratuvchi:</b> {creator_str}\n"
         f"📌 <b>Fan:</b> {t.get('subject', 'Matematika')}\n"
         f"📊 <b>Holati:</b> {status_str}\n"
         f"⏱ <b>Vaqt chegarasi:</b> {time_str}\n"
@@ -1634,10 +1640,12 @@ async def admin_test_stats_detail(call: CallbackQuery):
     else:
         sched_badge = "➖ Belgilanmagan"
 
+    creator_str = test.get('created_by_name') or ('Bosh Admin' if test.get('created_by') == ADMIN_ID else 'Admin')
     text = (
         f"📊 <b>Test natijalari va tahlil bo'limi:</b>\n\n"
         f"📖 <b>Nomi:</b> {test['title']}\n"
         f"🔑 <b>Kodi:</b> <code>#{test['test_code']}</code>\n"
+        f"👤 <b>Yaratuvchi:</b> {creator_str}\n"
         f"📌 <b>Fani:</b> {test.get('subject', 'Matematika')}\n"
         f"🚦 <b>Holati:</b> {status_badge}\n"
         f"📢 <b>Natijalar:</b> {pub_badge}\n\n"
@@ -2204,13 +2212,40 @@ async def handle_create_test_api(request):
         time_limit_min = int(data.get("time_limit_min", 0))
         key_access_code = data.get("key_access_code", "").strip()
 
+        creator_id = int(data.get("creator_tg_id", 0) or data.get("tg_id", 0))
+        if not creator_id:
+            init_data = data.get("init_data", "") or request.headers.get("X-Telegram-Init-Data", "")
+            if init_data:
+                try:
+                    import urllib.parse
+                    parsed = dict(urllib.parse.parse_qsl(init_data))
+                    if 'user' in parsed:
+                        u_dict = json.loads(parsed['user'])
+                        if u_dict and u_dict.get('id'):
+                            creator_id = int(u_dict['id'])
+                except Exception:
+                    pass
+
+        creator_name = ""
+        if creator_id:
+            u_info = test_db.get_user(creator_id)
+            if u_info:
+                creator_name = u_info.get("fullname", "")
+            if not creator_name and creator_id == ADMIN_ID:
+                creator_name = "Bosh Admin"
+
+        if not creator_name:
+            creator_name = "Admin"
+
         success = test_db.create_test(
             test_code=test_code,
             title=title,
             subject=subject,
             answers=answers,
             time_limit_min=time_limit_min,
-            key_access_code=key_access_code
+            key_access_code=key_access_code,
+            created_by=creator_id,
+            created_by_name=creator_name
         )
 
         sched_date = data.get("scheduled_date", "").strip()
