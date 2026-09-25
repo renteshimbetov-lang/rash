@@ -462,6 +462,11 @@ const AdminApp = {
         } else {
           alert(msg);
         }
+      } else if (res.need_api_key) {
+        const userKey = prompt("Google Gemini API kaliti kiritilmagan yoki noto'g'ri.\nIltimos, aistudio.google.com dan olingan Gemini API kalitini kiriting:");
+        if (userKey && userKey.trim()) {
+          await this.saveGeminiKey(userKey.trim());
+        }
       } else {
         alert(res.message || 'Rasmdan kalitlarni ajratib bo\'lmadi. Iltimos, aniqroq rasm yuklang.');
       }
@@ -471,6 +476,31 @@ const AdminApp = {
       if (btn) btn.disabled = false;
       if (btnIcon) btnIcon.textContent = '⚡';
       if (btnText) btnText.textContent = '📷 Rasm yuklash';
+    }
+  },
+
+  async configureGeminiKey() {
+    const userKey = prompt("Google Gemini API kalitini kiriting (yoki yangilang):");
+    if (userKey && userKey.trim()) {
+      await this.saveGeminiKey(userKey.trim());
+    }
+  },
+
+  async saveGeminiKey(key) {
+    try {
+      const resp = await fetch('/api/set-gemini-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key.trim() })
+      });
+      const res = await resp.json();
+      if (res.success) {
+        alert("✅ Gemini API kaliti muvaffaqiyatli saqlandi! Endi rasmni bemalol skanerlashingiz mumkin.");
+      } else {
+        alert("❌ Kalitni saqlashda xatolik: " + res.message);
+      }
+    } catch (e) {
+      alert("❌ Serverga ulanishda xatolik: " + e.message);
     }
   }
 };

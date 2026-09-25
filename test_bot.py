@@ -2255,7 +2255,11 @@ async def handle_create_test_api(request):
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
 def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
-    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    gemini_key = (
+        os.getenv("GEMINI_API_KEY")
+        or os.getenv("GOOGLE_API_KEY")
+        or test_db.get_setting("gemini_api_key", "").strip()
+    )
     if not gemini_key:
         raise ValueError("GEMINI_API_KEY o'rnatilmagan")
 
@@ -2372,7 +2376,26 @@ async def handle_scan_keys_api(request):
 
     except Exception as e:
         log.error(f"Scan keys API Error: {e}", exc_info=True)
-        return web.json_response({"success": False, "message": f"OCR tahlilida xatolik: {str(e)}"}, status=500)
+        is_key_err = "GEMINI_API_KEY" in str(e) or "API_KEY" in str(e) or "API key not valid" in str(e)
+        return web.json_response({
+            "success": False,
+            "need_api_key": is_key_err,
+            "message": f"OCR tahlilida xatolik: {str(e)}"
+        }, status=500)
+
+async def handle_set_gemini_key_api(request):
+    """Admin uchun Gemini API kalitini bazaga saqlash."""
+    try:
+        data = await request.json()
+        key = (data.get("key") or "").strip()
+        if not key:
+            return web.json_response({"success": False, "message": "API kalit kiritilmadi"}, status=400)
+        test_db.set_setting("gemini_api_key", key)
+        return web.json_response({"success": True, "message": "Gemini API kaliti saqlandi!"})
+    except Exception as e:
+        log.error(f"Set Gemini key API error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=500)
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(BASE_DIR, 'test_webapp')
@@ -2822,6 +2845,7 @@ async def create_web_app():
     app.router.add_post('/api/submit-test', handle_submit_test_api)
     app.router.add_post('/api/create-test', handle_create_test_api)
     app.router.add_post('/api/scan-keys', handle_scan_keys_api)
+    app.router.add_post('/api/set-gemini-key', handle_set_gemini_key_api)
     # Asosiy Mini App API
     app.router.add_get('/api/app/profile', handle_app_profile)
     app.router.add_get('/api/app/active-tests', handle_app_active_tests)
