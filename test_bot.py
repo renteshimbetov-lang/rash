@@ -2284,7 +2284,9 @@ def sanitize_math_expression(val: str) -> str:
     # Ortiqcha teskari slesh (\) larni tozalash
     s = s.replace("\\", "")
 
-    # Bo'shliqlarni me'yorga keltirish
+    # Belgilar atrofidagi bo'shliqlarni me'yorga keltirish
+    s = re.sub(r"\s*\+\s*", " + ", s)
+    s = re.sub(r"\s*\-\s*", " - ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
 

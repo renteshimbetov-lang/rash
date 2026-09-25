@@ -113,14 +113,23 @@ const MathKeyboard = {
     const text = targetInput.value || '';
     const charBefore = start > 0 ? text[start - 1] : '';
 
-    // Agar kursordan oldingi belgi harf (x, y, a...), raqam (0-9) yoki yopuvchi qavs bo'lsa:
-    // faqat daraja ko'rsatkichini qo'shamiz (masalan: x⁴, 5⁴, (a+b)⁴)
-    if (/[a-zA-Z0-9\)\_]/.test(charBefore)) {
+    // Agar kursordan oldingi belgi son, harf, qavs yoki π (pi) bo'lsa:
+    // Faqat daraja ko'rsatkichining o'zini biriktir (masalan: π², π³, x², 5³, (a+b)²)
+    if (/[a-zA-Z0-9\)\_π]/.test(charBefore)) {
       this.insert(powerChar);
     } else {
-      // Aks holda mustaqil x ning darajasini qo'shamiz (masalan: x⁴, x³, x²)
+      // Agar oldinda hech narsa bo'lmasa, x ning darajasini qo'yadi:
       this.insert('x' + powerChar);
     }
+  },
+
+  insertPiPower(p) {
+    // To'g'ridan-to'g'ri π², π³ yoki π qo'yish uchun yordamchi funksiya
+    if (!this.activeFieldKey) return;
+    if (p === 1) this.insert('π');
+    else if (p === 2) this.insert('π²');
+    else if (p === 3) this.insert('π³');
+    else this.insert('π^');
   },
 
   insertCustomPower() {
@@ -133,7 +142,7 @@ const MathKeyboard = {
     const text = targetInput.value || '';
     const charBefore = start > 0 ? text[start - 1] : '';
 
-    if (/[a-zA-Z0-9\)\_]/.test(charBefore)) {
+    if (/[a-zA-Z0-9\)\_π]/.test(charBefore)) {
       this.insert('^');
     } else {
       this.insert('x^');

@@ -304,18 +304,20 @@
     </div>
 
     <!-- 3. TUGMALAR TANASI -->
-    <!-- TAB 1: Asosiy Raqam va Kalkulyator (iPhone kalkulyatori uslubida 5 ustunli tekis grid) -->
+    <!-- TAB 1: Asosiy Raqam va Kalkulyator (iPhone kalkulyatori uslubida 5-6 ustunli tekis grid) -->
     <div class="kb-body" id="keyboard-body-math">
       <div class="kb-row">
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('√(')">√</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('√')">√</button>
         <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('²')">x²</button>
         <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('³')">x³</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertCustomPower()">^</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insertPiPower(2)">π²</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insertPiPower(3)">π³</button>
         <button type="button" class="kb-key kb-op" onclick="MathKeyboard.insert('/')">/</button>
       </div>
       <div class="kb-row">
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('(')">(</button>
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert(')')">)</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertCustomPower()">^</button>
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('|')">|x|</button>
         <button type="button" class="kb-key kb-action" onclick="MathKeyboard.clear()">C</button>
         <button type="button" class="kb-key kb-backspace" onclick="MathKeyboard.backspace()">⌫</button>
@@ -353,10 +355,10 @@
     <!-- TAB 2: Ildizlar va Darajalar (Kengaytirilgan) -->
     <div class="kb-body" id="keyboard-body-power" style="display: none;">
       <div class="kb-row">
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('√(')">√</button>
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∛(')">³√</button>
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∜(')">⁴√</button>
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('ⁿ√(')">ⁿ√</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('√')">√</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∛')">³√</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∜')">⁴√</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('ⁿ√')">ⁿ√</button>
         <button type="button" class="kb-key kb-backspace" onclick="MathKeyboard.backspace()">⌫</button>
       </div>
       <div class="kb-row">
@@ -365,6 +367,13 @@
         <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('⁴')">x⁴</button>
         <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('⁵')">x⁵</button>
         <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertCustomPower()">xⁿ (^)</button>
+      </div>
+      <div class="kb-row">
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insertPiPower(1)">π</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insertPiPower(2)">π²</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insertPiPower(3)">π³</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPiPower('^')">πⁿ</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('^')">^</button>
       </div>
       <div class="kb-row">
         <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁰')">⁰</button>

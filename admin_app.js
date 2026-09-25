@@ -444,7 +444,8 @@ const AdminApp = {
           const normKey = String(k).toLowerCase().trim();
           if (this.answers[normKey]) {
             let cleanVal = String(v).trim();
-            if (this.answers[normKey].type === 'open') {
+            // 36a-45b ochiq savollari uchun sanitarizatsiyani majburiy chaqiramiz:
+            if (/[ab]$/.test(normKey) || (parseInt(normKey) >= 36 && parseInt(normKey) <= 45)) {
               cleanVal = this.sanitizeMath(cleanVal);
             }
             this.answers[normKey].ans = cleanVal;
@@ -526,6 +527,8 @@ const AdminApp = {
     }
     s = s.replace(/\{([^}]+)\}/g, '$1');
     s = s.replace(/\\/g, '');
+    s = s.replace(/\s*\+\s*/g, ' + ');
+    s = s.replace(/\s*\-\s*/g, ' - ');
     s = s.replace(/\s+/g, ' ');
     return s.trim();
   }
