@@ -402,6 +402,76 @@ const AdminApp = {
       }
       alert('Server bilan bog\'lanishda xatolik: ' + e.message);
     }
+  },
+
+  triggerScanKeys() {
+    const input = document.getElementById('adm-keys-photo-input');
+    if (input) {
+      input.click();
+    }
+  },
+
+  async handleKeysPhotoSelected(input) {
+    if (!input || !input.files || input.files.length === 0) return;
+    const file = input.files[0];
+    input.value = '';
+
+    const btn = document.getElementById('btn-scan-keys');
+    const btnText = document.getElementById('btn-scan-text');
+    const btnIcon = document.getElementById('btn-scan-icon');
+
+    if (btn) btn.disabled = true;
+    if (btnIcon) btnIcon.textContent = '⏳';
+    if (btnText) btnText.textContent = 'Tahlil qilinmoqda...';
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const resp = await fetch('/api/scan-keys', {
+        method: 'POST',
+        body: formData
+      });
+
+      const res = await resp.json();
+
+      if (res.success && res.data) {
+        let recognizedCount = 0;
+        const keys = res.data;
+
+        // Barcha savol javoblarini AdminApp.answers ga to'ldirish
+        for (const [k, v] of Object.entries(keys)) {
+          const normKey = String(k).toLowerCase().trim();
+          if (this.answers[normKey]) {
+            this.answers[normKey].ans = String(v).trim();
+            recognizedCount++;
+          }
+        }
+
+        // Shaklni qayta chizish va hisobotni yangilash
+        this.renderForm();
+        this.updateUnfilledStats();
+
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
+
+        const msg = `✅ Rasmdan ${recognizedCount} ta savol kaliti muvaffaqiyatli aniqlandi va to'ldirildi!`;
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
+          window.Telegram.WebApp.showAlert(msg);
+        } else {
+          alert(msg);
+        }
+      } else {
+        alert(res.message || 'Rasmdan kalitlarni ajratib bo\'lmadi. Iltimos, aniqroq rasm yuklang.');
+      }
+    } catch (err) {
+      alert('Rasm yuklashda xatolik yuz berdi: ' + err.message);
+    } finally {
+      if (btn) btn.disabled = false;
+      if (btnIcon) btnIcon.textContent = '⚡';
+      if (btnText) btnText.textContent = '📷 Rasm yuklash';
+    }
   }
 };
 

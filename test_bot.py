@@ -2254,6 +2254,126 @@ async def handle_create_test_api(request):
         log.error(f"Create Test API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+    gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not gemini_key:
+        raise ValueError("GEMINI_API_KEY o'rnatilmagan")
+
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=gemini_key)
+
+    prompt = (
+        "Ushbu rasmda test javoblari/kalitlari varaqasi yoki jadvali berilgan.\n"
+        "Iltimos, rasmdagi har bir savol javobini diqqat bilan o'qib, faqat to'g'ri JSON formatida qaytar.\n"
+        "Test strukturasi (55 ta element):\n"
+        "- 1 dan 32 gacha: 4 variantli yopiq savollar (A, B, C, D)\n"
+        "- 33, 34, 35: 6 variantli yopiq savollar (A, B, C, D, E, F)\n"
+        "- 36a dan 45b gacha: ochiq matematik javoblar (masalan: 25, -4, 1/3, √5, ∛8, 2π va h.k.)\n\n"
+        "Qaytadigan javob aynan toza JSON obyekti bo'lsin:\n"
+        "{\n"
+        '  "1": "A",\n'
+        '  "2": "B",\n'
+        '  "33": "C",\n'
+        '  "36a": "12",\n'
+        '  "36b": "√3",\n'
+        '  ...\n'
+        '  "45b": "5"\n'
+        "}\n\n"
+        "DIQQAT: Faqat toza JSON matnini qaytar, hech qanday qo'shimcha so'z, sharh yoki izoh yozma!"
+    )
+
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+
+    models_to_try = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.8-flash",
+        "gemini-flash-latest",
+    ]
+
+    last_err = None
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[image_part, prompt]
+            )
+            raw_text = (response.text or "").strip()
+            match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
+            if match:
+                raw_text = match.group(1).strip()
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, dict) and len(parsed) > 0:
+                cleaned = {}
+                for k, v in parsed.items():
+                    k_clean = str(k).strip().lower().replace("q", "").replace("-savol", "").replace("savol", "").strip()
+                    v_str = str(v).strip()
+                    if k_clean.isdigit() and int(k_clean) <= 35:
+                        v_str = v_str.upper()
+                    cleaned[k_clean] = v_str
+                return cleaned
+        except Exception as ex:
+            log.warning(f"Gemini {model_name} xatosi: {ex}")
+            last_err = ex
+            continue
+
+    if last_err:
+        raise last_err
+    return {}
+
+async def handle_scan_keys_api(request):
+    """Admin panel uchun javoblar varaqasi rasmidan kalitlarni OCR qilish."""
+    try:
+        image_bytes = None
+        mime_type = "image/jpeg"
+
+        if request.content_type.startswith("multipart/"):
+            reader = await request.multipart()
+            while True:
+                part = await reader.next()
+                if part is None:
+                    break
+                if part.name in ["image", "file", "photo"]:
+                    image_bytes = await part.read()
+                    mime_type = part.headers.get("Content-Type", "image/jpeg")
+                    break
+        else:
+            data = await request.json()
+            raw_b64 = data.get("image", "")
+            if "," in raw_b64:
+                header, raw_b64 = raw_b64.split(",", 1)
+                if "image/png" in header:
+                    mime_type = "image/png"
+                elif "image/webp" in header:
+                    mime_type = "image/webp"
+            import base64
+            image_bytes = base64.b64decode(raw_b64)
+
+        if not image_bytes:
+            return web.json_response({"success": False, "message": "Rasm topilmadi yoki yuklanmadi"}, status=400)
+
+        loop = asyncio.get_running_loop()
+        keys_dict = await loop.run_in_executor(None, _sync_extract_keys_gemini, image_bytes, mime_type)
+
+        if not keys_dict:
+            return web.json_response({
+                "success": False,
+                "message": "Rasmdan kalitlarni ajratib bo'lmadi. Iltimos, aniqroq yoki sifatliroq rasm yuklang."
+            }, status=422)
+
+        return web.json_response({
+            "success": True,
+            "data": keys_dict,
+            "count": len(keys_dict),
+            "message": f"Muvaffaqiyatli! {len(keys_dict)} ta kalit aniqlandi."
+        })
+
+    except Exception as e:
+        log.error(f"Scan keys API Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": f"OCR tahlilida xatolik: {str(e)}"}, status=500)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(BASE_DIR, 'test_webapp')
 
@@ -2701,6 +2821,7 @@ async def create_web_app():
     app.router.add_get('/api/rasch/{test_id}', handle_rasch_evaluate_api)
     app.router.add_post('/api/submit-test', handle_submit_test_api)
     app.router.add_post('/api/create-test', handle_create_test_api)
+    app.router.add_post('/api/scan-keys', handle_scan_keys_api)
     # Asosiy Mini App API
     app.router.add_get('/api/app/profile', handle_app_profile)
     app.router.add_get('/api/app/active-tests', handle_app_active_tests)
