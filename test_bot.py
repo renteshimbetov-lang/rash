@@ -12,6 +12,7 @@ import logging
 import os
 import sys
 import time
+import re
 import urllib.parse
 from typing import Optional, Dict, Any
 
@@ -2247,6 +2248,46 @@ async def handle_create_test_api(request):
         log.error(f"Create Test API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+def sanitize_math_expression(val: str) -> str:
+    """LaTeX formatidagi matematik ifodalarni toza Unicode formatiga o'tkazish."""
+    if not isinstance(val, str):
+        val = str(val)
+    s = val.strip()
+
+    # Dollar belgilarini olib tashlash ($...$ yoki $$...$$)
+    s = s.replace("$", "").strip()
+
+    # Standart LaTeX almashtirishlari
+    s = re.sub(r"\\+(?:cdot|times)\b", "*", s)
+    s = re.sub(r"\\+pm\b", "±", s)
+    s = re.sub(r"\\+pi\b", "π", s)
+    s = re.sub(r"\\+(?:degree|\^\s*\\+circ)\b", "°", s)
+    s = re.sub(r"\\+(?:left|right)", "", s)
+    s = re.sub(r"\\+(?:text|mathrm|mathbf)\{([^}]+)\}", r"\1", s)
+
+    # Ildizlar: \sqrt[3]{...} -> ∛...
+    s = re.sub(r"\\+sqrt\[3\]\{([^{}]+)\}", r"∛\1", s)
+    s = re.sub(r"\\+sqrt\[3\]([0-9a-zA-Z]+)", r"∛\1", s)
+
+    # Ildizlar: \sqrt{...} -> √...
+    while "sqrt{" in s:
+        s = re.sub(r"\\+sqrt\{([^{}]+)\}", r"√\1", s)
+    s = re.sub(r"\\+sqrt([0-9a-zA-Z]+)", r"√\1", s)
+
+    # Kasrlar: \frac{a}{b} yoki \dfrac{a}{b} -> a/b
+    while re.search(r"\\+d?frac\{([^{}]+)\}\{([^{}]+)\}", s):
+        s = re.sub(r"\\+d?frac\{([^{}]+)\}\{([^{}]+)\}", r"\1/\2", s)
+
+    # Qavslar va figurali qavslarni tozalash
+    s = re.sub(r"\{([^{}]+)\}", r"\1", s)
+
+    # Ortiqcha teskari slesh (\) larni tozalash
+    s = s.replace("\\", "")
+
+    # Bo'shliqlarni me'yorga keltirish
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
 def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
     import base64
     import re
@@ -2262,18 +2303,26 @@ def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg")
 
     prompt = (
         "Ushbu rasmda test javoblari/kalitlari varaqasi yoki jadvali berilgan.\n"
-        "Iltimos, rasmdagi har bir savol javobini diqqat bilan o'qib, faqat to'g'ri JSON formatida qaytar.\n"
+        "Iltimos, rasmdagi har bir savol javobini diqqat bilan o'qib, faqat to'g'ri JSON formatida qaytar.\n\n"
         "Test strukturasi (55 ta element):\n"
         "- 1 dan 32 gacha: 4 variantli yopiq savollar (A, B, C, D)\n"
         "- 33, 34, 35: 6 variantli yopiq savollar (A, B, C, D, E, F)\n"
-        "- 36a dan 45b gacha: ochiq matematik javoblar (masalan: 25, -4, 1/3, √5, ∛8, 2π va h.k.)\n\n"
+        "- 36a dan 45b gacha: ochiq matematik javoblar (masalan: 25, -4, 25/6, √29, 8√58, ∛8, π/4, 120 + 36π va h.k.)\n\n"
+        "MUHIM VA QAT'IY TALAB:\n"
+        "Matematik ifodalarda HECH QACHON LaTeX (\\frac, \\sqrt, \\pi, \\cdot) ishlatma! Faqat oddiy Unicode belgilaridan foydalan:\n"
+        "- Kasrlar uchun: a/b (masalan, 25/6, 3π/2)\n"
+        "- Ildizlar uchun: √x (masalan, √29, 8√58, ∛8)\n"
+        "- Pi soni uchun: π (masalan, π/4, 120 + 36π)\n"
+        "- Bo'shliqlar va ishoralarni (+, -, *, /) aniq saqla.\n\n"
         "Qaytadigan javob aynan toza JSON obyekti bo'lsin:\n"
         "{\n"
         '  "1": "A",\n'
         '  "2": "B",\n'
         '  "33": "C",\n'
-        '  "36a": "12",\n'
-        '  "36b": "√3",\n'
+        '  "36a": "25/6",\n'
+        '  "36b": "√29",\n'
+        '  "37a": "8√58",\n'
+        '  "37b": "π/4",\n'
         '  ...\n'
         '  "45b": "5"\n'
         "}\n\n"
@@ -2321,6 +2370,8 @@ def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg")
                     v_str = str(v).strip()
                     if k_clean.isdigit() and int(k_clean) <= 35:
                         v_str = v_str.upper()
+                    else:
+                        v_str = sanitize_math_expression(v_str)
                     cleaned[k_clean] = v_str
                 if cleaned:
                     return cleaned

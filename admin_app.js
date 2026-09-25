@@ -443,7 +443,11 @@ const AdminApp = {
         for (const [k, v] of Object.entries(keys)) {
           const normKey = String(k).toLowerCase().trim();
           if (this.answers[normKey]) {
-            this.answers[normKey].ans = String(v).trim();
+            let cleanVal = String(v).trim();
+            if (this.answers[normKey].type === 'open') {
+              cleanVal = this.sanitizeMath(cleanVal);
+            }
+            this.answers[normKey].ans = cleanVal;
             recognizedCount++;
           }
         }
@@ -502,6 +506,28 @@ const AdminApp = {
     } catch (e) {
       alert("❌ Serverga ulanishda xatolik: " + e.message);
     }
+  },
+
+  sanitizeMath(val) {
+    if (!val) return '';
+    let s = String(val).trim();
+    s = s.replace(/\$/g, '');
+    s = s.replace(/\\+(?:cdot|times)\b/g, '*');
+    s = s.replace(/\\+pm\b/g, '±');
+    s = s.replace(/\\+pi\b/g, 'π');
+    s = s.replace(/\\+sqrt\[3\]\{([^}]+)\}/g, '∛$1');
+    s = s.replace(/\\+sqrt\[3\]([0-9a-zA-Z]+)/g, '∛$1');
+    while (s.includes('sqrt{')) {
+      s = s.replace(/\\+sqrt\{([^}]+)\}/g, '√$1');
+    }
+    s = s.replace(/\\+sqrt([0-9a-zA-Z]+)/g, '√$1');
+    while (/\\+d?frac\{([^}]+)\}\{([^}]+)\}/.test(s)) {
+      s = s.replace(/\\+d?frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2');
+    }
+    s = s.replace(/\{([^}]+)\}/g, '$1');
+    s = s.replace(/\\/g, '');
+    s = s.replace(/\s+/g, ' ');
+    return s.trim();
   }
 };
 
