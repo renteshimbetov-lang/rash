@@ -979,7 +979,9 @@ def normalize_answer(ans: Any) -> str:
     # 3. Pi soni: \pi, pi, π
     s = re.sub(r"(^|[^a-zA-Z])\\*pi(?![a-zA-Z])", r"\g<1>π", s)
 
-    # 4. LaTeX residuallari: \frac, \sqrt
+    # 4. LaTeX residuallari: \frac, \sqrt, \sqrt[n]
+    while re.search(r"\\+sqrt\[([^\]]+)\]\{([^{}]+)\}", s):
+        s = re.sub(r"\\+sqrt\[([^\]]+)\]\{([^{}]+)\}", r"\1√\2", s)
     while re.search(r"\\+d?frac\{([^{}]+)\}\{([^{}]+)\}", s):
         s = re.sub(r"\\+d?frac\{([^{}]+)\}\{([^{}]+)\}", r"\1/\2", s)
     while "sqrt{" in s:
@@ -990,20 +992,23 @@ def normalize_answer(ans: Any) -> str:
     # Ildizlar va darajalar:
     s = s.replace("∛", "3√").replace("cbrt", "3√").replace("³√", "3√")
     s = s.replace("∜", "4√").replace("⁴√", "4√")
+    s = s.replace("⁰√", "0√").replace("¹√", "1√").replace("²√", "2√")
+    s = s.replace("⁵√", "5√").replace("⁶√", "6√").replace("⁷√", "7√")
+    s = s.replace("⁸√", "8√").replace("⁹√", "9√").replace("ⁿ√", "n√")
 
-    # 5. Ildiz qavslari: "√(29)" -> "√29", "3√(8)" -> "3√8"
-    while re.search(r"(√|3√|4√|ⁿ√)\(([^()]+)\)", s):
-        s = re.sub(r"(√|3√|4√|ⁿ√)\(([^()]+)\)", r"\1\2", s)
+    # 5. Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32", "3√(8)" -> "3√8"
+    while re.search(r"([0-9a-zA-Z]*√)\(([^()]+)\)", s):
+        s = re.sub(r"([0-9a-zA-Z]*√)\(([^()]+)\)", r"\1\2", s)
 
     # Agar ildiz butunligicha qavs ichida bo'lsa: "(√29)" -> "√29"
-    while re.search(r"\((√|3√|4√|ⁿ√)([^()]+)\)", s):
-        s = re.sub(r"\((√|3√|4√|ⁿ√)([^()]+)\)", r"\1\2", s)
+    while re.search(r"\(([0-9a-zA-Z]*√[^()]+)\)", s):
+        s = re.sub(r"\(([0-9a-zA-Z]*√[^()]+)\)", r"\1", s)
 
     # 6. Ko'paytirish belgisi ko'rinishi: "8*√58" -> "8√58", "36*π" -> "36π"
     # Raqam yoki qavsdan keyin kelgan * belgisini ildiz yoki pi oldidan olib tashlash:
-    s = re.sub(r"(\d|\))\*(√|3√|4√|ⁿ√|π|[a-zA-Z])", r"\1\2", s)
+    s = re.sub(r"(\d|\))\*(√|[0-9a-zA-Z]+√|π|[a-zA-Z])", r"\1\2", s)
     # Raqam va ildiz o'rtasidagi qavsli ko'paytirish: "8(√58)" -> "8√58"
-    s = re.sub(r"(\d)\((√|3√|4√|ⁿ√|π)", r"\1\2", s)
+    s = re.sub(r"(\d)\((√|[0-9a-zA-Z]+√|π)", r"\1\2", s)
     # Pi atrofidagi ko'paytirishni tozalash:
     s = re.sub(r"\*(π)", r"\1", s)
     s = re.sub(r"(π)\*", r"\1", s)

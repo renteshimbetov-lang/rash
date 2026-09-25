@@ -183,7 +183,7 @@
     <div class="kb-top-bar">
       <div class="kb-target-wrap">
         <span class="kb-target-badge" id="keyboard-target-name">36a</span>
-        <input type="text" class="kb-live-input" id="keyboard-live-input" placeholder="Javobni kiriting..." oninput="MathKeyboard.onLiveInput(this.value)">
+        <input type="text" class="kb-live-input" id="keyboard-live-input" readonly inputmode="none" placeholder="Javobni kiriting...">
       </div>
       <button type="button" class="kb-done-btn" onclick="MathKeyboard.close()">Tayyor ✓</button>
     </div>
@@ -251,7 +251,7 @@
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('√')">√</button>
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∛')">³√</button>
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∜')">⁴√</button>
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('ⁿ√')">ⁿ√</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insertNthRoot()">ⁿ√</button>
         <button type="button" class="kb-key kb-backspace" onclick="MathKeyboard.backspace()">⌫</button>
       </div>
       <div class="kb-row">

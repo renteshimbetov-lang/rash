@@ -1208,7 +1208,10 @@ function renderKeyComparison(correct, user, container) {
     // 3. Pi soni: \pi, pi, π
     s = s.replace(/(^|[^a-zA-Z])\\*pi(?![a-zA-Z])/g, '$1π');
 
-    // 4. LaTeX residuallari: \frac, \sqrt
+    // 4. LaTeX residuallari: \frac, \sqrt, \sqrt[n]
+    while (/\\+sqrt\[([^\]]+)\]\{([^}]+)\}/.test(s)) {
+      s = s.replace(/\\+sqrt\[([^\]]+)\]\{([^}]+)\}/g, '$1√$2');
+    }
     while (/\\+d?frac\{([^}]+)\}\{([^}]+)\}/.test(s)) {
       s = s.replace(/\\+d?frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2');
     }
@@ -1221,20 +1224,23 @@ function renderKeyComparison(correct, user, container) {
     // Ildizlar va darajalar:
     s = s.replace(/∛/g, '3√').replace(/cbrt/g, '3√').replace(/³√/g, '3√');
     s = s.replace(/∜/g, '4√').replace(/⁴√/g, '4√');
+    s = s.replace(/⁰√/g, '0√').replace(/¹√/g, '1√').replace(/²√/g, '2√');
+    s = s.replace(/⁵√/g, '5√').replace(/⁶√/g, '6√').replace(/⁷√/g, '7√');
+    s = s.replace(/⁸√/g, '8√').replace(/⁹√/g, '9√').replace(/ⁿ√/g, 'n√');
 
-    // 5. Ildiz qavslari: "√(29)" -> "√29", "3√(8)" -> "3√8"
-    while (/(√|3√|4√|ⁿ√)\(([^()]+)\)/.test(s)) {
-      s = s.replace(/(√|3√|4√|ⁿ√)\(([^()]+)\)/g, '$1$2');
+    // 5. Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32", "3√(8)" -> "3√8"
+    while (/([0-9a-zA-Z]*√)\(([^()]+)\)/.test(s)) {
+      s = s.replace(/([0-9a-zA-Z]*√)\(([^()]+)\)/g, '$1$2');
     }
 
     // Agar ildiz butunligicha qavs ichida bo'lsa: "(√29)" -> "√29"
-    while (/\((√|3√|4√|ⁿ√)([^()]+)\)/.test(s)) {
-      s = s.replace(/\((√|3√|4√|ⁿ√)([^()]+)\)/g, '$1$2');
+    while (/\(([0-9a-zA-Z]*√[^()]+)\)/.test(s)) {
+      s = s.replace(/\(([0-9a-zA-Z]*√[^()]+)\)/g, '$1');
     }
 
     // 6. Ko'paytirish belgisi ko'rinishi: "8*√58" -> "8√58", "36*π" -> "36π"
-    s = s.replace(/(\d|\))\*(√|3√|4√|ⁿ√|π|[a-zA-Z])/g, '$1$2');
-    s = s.replace(/(\d)\((√|3√|4√|ⁿ√|π)/g, '$1$2');
+    s = s.replace(/(\d|\))\*(√|[0-9a-zA-Z]+√|π|[a-zA-Z])/g, '$1$2');
+    s = s.replace(/(\d)\((√|[0-9a-zA-Z]+√|π)/g, '$1$2');
     s = s.replace(/\*(π)/g, '$1');
     s = s.replace(/(π)\*/g, '$1');
 
