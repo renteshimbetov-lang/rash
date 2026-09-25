@@ -1318,14 +1318,19 @@ function computeStatus(testsCount, avgScore) {
 function getGradeFromScore(score, maxScore) {
   var s = parseFloat(score) || 0;
   var max = parseFloat(maxScore) || 100;
+
+  // Agar ball 0 yoki undan kam bo'lsa, darhol daraja berilmasin
+  if (s <= 0) return 'Yetarli emas';
+
   var pct = (max > 0) ? (s / max * 100) : s;
   
-  if (pct >= 86 || s >= 70) return 'A+';
-  if (pct >= 75 || s >= 65) return 'A';
-  if (pct >= 65 || s >= 60) return 'B+';
-  if (pct >= 60 || s >= 55) return 'B';
-  if (pct >= 55 || s >= 50) return 'C+';
-  if (pct >= 46 || s >= 46) return 'C';
+  if (pct >= 86 && s >= 70) return 'A+';
+  if (pct >= 75 && s >= 65) return 'A';
+  if (pct >= 65 && s >= 60) return 'B+';
+  if (pct >= 60 && s >= 55) return 'B';
+  if (pct >= 55 && s >= 50) return 'C+';
+  if (pct >= 46 && s >= 46) return 'C';
+  
   return 'Yetarli emas';
 }
 

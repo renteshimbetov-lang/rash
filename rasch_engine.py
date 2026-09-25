@@ -42,6 +42,8 @@ N_ITEMS = 55
 
 def _assign_grade(score: float, raw_score: Optional[int] = None) -> str:
     """Rasmiy Milliy sertifikat baholash shkalasi."""
+    if (raw_score is not None and raw_score == 0) or score <= 0.0:
+        return "—"
     if score >= 70.0:
         return "A+"
     elif score >= 65.0:
@@ -55,7 +57,7 @@ def _assign_grade(score: float, raw_score: Optional[int] = None) -> str:
     elif score >= 46.0:
         return "C"
     else:
-        return "— (Yetarli emas)"
+        return "—"
 
 
 def _sigmoid(x: float) -> float:
@@ -176,16 +178,42 @@ def evaluate_rasch_scores(
     # Masalan, teng 15 ta to'g'ri topsa ham, qiyin savollarni yechgan o'quvchi yuqori ball oladi.
     students_out = []
     for n in range(N):
-        raw_r = sum(X[n])
-        rw = raw_weighted[n]
-        scaled = 27.5 + 0.824 * rw
-        final_score = round(max(0.0, min(100.0, scaled)), 1)
-        grade = _assign_grade(final_score, raw_score=raw_r)
+        r_n = sum(X[n])
+        rw_n = raw_weighted[n]
+
+        # 0 ta to'g'ri ishlagan holat uchun qat'iy tekshiruv:
+        if r_n == 0:
+            final_score = 0.0
+            grade = "—"
+        else:
+            # 55/55 to'liq ishlagan bo'lsa maksimal 100 ball
+            if r_n == I:  # I = 55
+                final_score = 100.0
+                grade = "A+"
+            else:
+                calculated_score = 27.5 + 0.824 * float(rw_n)
+                final_score = round(min(100.0, max(0.0, calculated_score)), 1)
+                
+                # Darajalar chegarasi:
+                if final_score >= 70.0:
+                    grade = "A+"
+                elif final_score >= 65.0:
+                    grade = "A"
+                elif final_score >= 60.0:
+                    grade = "B+"
+                elif final_score >= 55.0:
+                    grade = "B"
+                elif final_score >= 50.0:
+                    grade = "C+"
+                elif final_score >= 46.0:
+                    grade = "C"
+                else:
+                    grade = "—"
 
         students_out.append({
             "student_id": ids[n],
-            "raw_score": raw_r,
-            "weighted_score": round(rw, 1),
+            "raw_score": r_n,
+            "weighted_score": round(rw_n, 1),
             "theta": round(thetas[n], 4),
             "z_score": round(thetas[n], 4),
             "final_score": final_score,

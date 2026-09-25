@@ -1031,7 +1031,11 @@ def get_key_and_score(q_data: Any, default_score: float) -> tuple:
         return str(q_data or ""), default_score
 
 
-def calculate_grade(score: float) -> str:
+def calculate_grade(score: float, correct_count: Optional[int] = None) -> str:
+    if correct_count is not None and correct_count == 0:
+        return "—"
+    if score <= 0.0:
+        return "—"
     if score >= 70.0:
         return "A+"
     elif score >= 65.0:
@@ -1045,7 +1049,7 @@ def calculate_grade(score: float) -> str:
     elif score >= 46.0:
         return "C"
     else:
-        return "— (Yetarli emas)"
+        return "—"
 
 
 def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[str, str]) -> Dict[str, Any]:
@@ -1162,9 +1166,16 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
             }
 
     earned_score = round(earned_score, 1)
+    if correct_count == 0:
+        earned_score = 0.0
+        grade = "—"
+    elif correct_count == 55:
+        earned_score = 100.0
+        grade = "A+"
+    else:
+        grade = calculate_grade(earned_score, correct_count=correct_count)
     total_possible_score = 100.0
     percentage = round((earned_score / total_possible_score) * 100.0, 1)
-    grade = calculate_grade(earned_score)
     rasch_theta = 0.0
 
     now = int(time.time())
