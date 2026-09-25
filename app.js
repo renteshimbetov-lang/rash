@@ -1191,9 +1191,100 @@ function renderKeyComparison(correct, user, container) {
     return s.length > 0 ? s : '-';
   }
 
-  function normalizeAnswer(str) {
-    if (!str || str === '-') return '';
-    return String(str).trim().toLowerCase().replace(/\s+/g, '').replace(/,/g, '.');
+  function normalizeAnswer(ans) {
+    if (ans === undefined || ans === null || ans === '-') return '';
+    var s = String(ans).trim().toLowerCase();
+
+    // Bo'shliqlar va dollar belgilarini olib tashlash
+    s = s.replace(/[\s\$]/g, '');
+
+    // 1. Vergul va nuqta: "2,5" -> "2.5"
+    s = s.replace(/,/g, '.');
+
+    // 2. Ko'paytirish belgilari: "×", "·" -> "*"
+    s = s.replace(/×/g, '*').replace(/·/g, '*');
+    s = s.replace(/\\+(?:cdot|times)\b/g, '*');
+
+    // 3. Pi soni: \pi, pi, π
+    s = s.replace(/(^|[^a-zA-Z])\\*pi(?![a-zA-Z])/g, '$1π');
+
+    // 4. LaTeX residuallari: \frac, \sqrt
+    while (/\\+d?frac\{([^}]+)\}\{([^}]+)\}/.test(s)) {
+      s = s.replace(/\\+d?frac\{([^}]+)\}\{([^}]+)\}/g, '$1/$2');
+    }
+    while (s.includes('sqrt{')) {
+      s = s.replace(/\\+sqrt\{([^}]+)\}/g, '√$1');
+    }
+    s = s.replace(/\\+sqrt([0-9a-zA-Z]+)/g, '√$1');
+    s = s.replace(/sqrt/g, '√');
+
+    // Ildizlar va darajalar:
+    s = s.replace(/∛/g, '3√').replace(/cbrt/g, '3√').replace(/³√/g, '3√');
+    s = s.replace(/∜/g, '4√').replace(/⁴√/g, '4√');
+
+    // 5. Ildiz qavslari: "√(29)" -> "√29", "3√(8)" -> "3√8"
+    while (/(√|3√|4√|ⁿ√)\(([^()]+)\)/.test(s)) {
+      s = s.replace(/(√|3√|4√|ⁿ√)\(([^()]+)\)/g, '$1$2');
+    }
+
+    // Agar ildiz butunligicha qavs ichida bo'lsa: "(√29)" -> "√29"
+    while (/\((√|3√|4√|ⁿ√)([^()]+)\)/.test(s)) {
+      s = s.replace(/\((√|3√|4√|ⁿ√)([^()]+)\)/g, '$1$2');
+    }
+
+    // 6. Ko'paytirish belgisi ko'rinishi: "8*√58" -> "8√58", "36*π" -> "36π"
+    s = s.replace(/(\d|\))\*(√|3√|4√|ⁿ√|π|[a-zA-Z])/g, '$1$2');
+    s = s.replace(/(\d)\((√|3√|4√|ⁿ√|π)/g, '$1$2');
+    s = s.replace(/\*(π)/g, '$1');
+    s = s.replace(/(π)\*/g, '$1');
+
+    // Darajalarni standart ^ shakliga keltirish:
+    s = s.replace(/⁰/g, '^0').replace(/¹/g, '^1').replace(/²/g, '^2').replace(/³/g, '^3');
+    s = s.replace(/⁴/g, '^4').replace(/⁵/g, '^5').replace(/⁶/g, '^6').replace(/⁷/g, '^7').replace(/⁸/g, '^8').replace(/⁹/g, '^9');
+
+    // Ortiqcha figurali qavslar va sleshlar
+    s = s.replace(/\{([^}]+)\}/g, '$1');
+    s = s.replace(/\\/g, '');
+
+    return s;
+  }
+
+  function parseNumericOrFraction(val) {
+    if (!val) return null;
+    val = String(val).trim();
+    try {
+      // Sof kasr holati: "a/b"
+      if (/^-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(val)) {
+        var parts = val.split('/');
+        var num = parseFloat(parts[0]);
+        var den = parseFloat(parts[1]);
+        if (!isNaN(num) && !isNaN(den) && den !== 0) {
+          return num / den;
+        }
+        return null;
+      }
+      // Sof butun yoki o'nlik kasr: "123", "-123.45"
+      if (/^-?\d+(?:\.\d+)?$/.test(val)) {
+        var f = parseFloat(val);
+        return !isNaN(f) ? f : null;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function isAnswerMatching(cVal, uVal) {
+    var nC = normalizeAnswer(cVal);
+    var nU = normalizeAnswer(uVal);
+    if (!nC || !nU) return false;
+    if (nC === nU) return true;
+    var numC = parseNumericOrFraction(nC);
+    var numU = parseNumericOrFraction(nU);
+    if (numC !== null && numU !== null) {
+      return Math.abs(numC - numU) < 1e-5;
+    }
+    return false;
   }
 
   var closedItems = [];
@@ -1226,9 +1317,7 @@ function renderKeyComparison(correct, user, container) {
       var key = q + sub;
       var cVal = getAnswerVal(correct ? correct[key] : null);
       var uVal = getAnswerVal(user ? user[key] : null);
-      var nC = normalizeAnswer(cVal);
-      var nU = normalizeAnswer(uVal);
-      var isOk = (nC !== '' && nU !== '' && nC === nU);
+      var isOk = isAnswerMatching(cVal, uVal);
       if (isOk) totalCorrectOpen++;
       openItems.push({
         key: key,

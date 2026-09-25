@@ -964,18 +964,59 @@ def parse_answers_json(raw: Any) -> Dict[str, Any]:
 def normalize_answer(ans: Any) -> str:
     if ans is None:
         return ""
-    res = str(ans).strip().lower()
-    res = res.replace(" ", "")
-    res = res.replace(",", ".")
-    res = res.replace("·", "*").replace("×", "*")
-    # Darajalarni standart ^ daraja shakliga keltirish:
-    res = res.replace("⁰", "^0").replace("¹", "^1").replace("²", "^2").replace("³", "^3")
-    res = res.replace("⁴", "^4").replace("⁵", "^5").replace("⁶", "^6").replace("⁷", "^7").replace("⁸", "^8").replace("⁹", "^9")
-    # Ildizlarni standartlashtirish:
-    res = res.replace("sqrt", "√")
-    res = res.replace("∛", "3√").replace("cbrt", "3√").replace("³√", "3√")
-    res = res.replace("∜", "4√").replace("⁴√", "4√")
-    return res
+    s = str(ans).strip().lower()
+
+    # Bo'shliqlar va dollar belgilarini olib tashlash
+    s = re.sub(r"[\s\$]", "", s)
+
+    # 1. Vergul va nuqta: "2,5" -> "2.5"
+    s = s.replace(",", ".")
+
+    # 2. Ko'paytirish belgilari: "×", "·" -> "*"
+    s = s.replace("×", "*").replace("·", "*")
+    s = re.sub(r"\\+(?:cdot|times)\b", "*", s)
+
+    # 3. Pi soni: \pi, pi, π
+    s = re.sub(r"(^|[^a-zA-Z])\\*pi(?![a-zA-Z])", r"\g<1>π", s)
+
+    # 4. LaTeX residuallari: \frac, \sqrt
+    while re.search(r"\\+d?frac\{([^{}]+)\}\{([^{}]+)\}", s):
+        s = re.sub(r"\\+d?frac\{([^{}]+)\}\{([^{}]+)\}", r"\1/\2", s)
+    while "sqrt{" in s:
+        s = re.sub(r"\\+sqrt\{([^{}]+)\}", r"√\1", s)
+    s = re.sub(r"\\+sqrt([0-9a-zA-Z]+)", r"√\1", s)
+    s = s.replace("sqrt", "√")
+
+    # Ildizlar va darajalar:
+    s = s.replace("∛", "3√").replace("cbrt", "3√").replace("³√", "3√")
+    s = s.replace("∜", "4√").replace("⁴√", "4√")
+
+    # 5. Ildiz qavslari: "√(29)" -> "√29", "3√(8)" -> "3√8"
+    while re.search(r"(√|3√|4√|ⁿ√)\(([^()]+)\)", s):
+        s = re.sub(r"(√|3√|4√|ⁿ√)\(([^()]+)\)", r"\1\2", s)
+
+    # Agar ildiz butunligicha qavs ichida bo'lsa: "(√29)" -> "√29"
+    while re.search(r"\((√|3√|4√|ⁿ√)([^()]+)\)", s):
+        s = re.sub(r"\((√|3√|4√|ⁿ√)([^()]+)\)", r"\1\2", s)
+
+    # 6. Ko'paytirish belgisi ko'rinishi: "8*√58" -> "8√58", "36*π" -> "36π"
+    # Raqam yoki qavsdan keyin kelgan * belgisini ildiz yoki pi oldidan olib tashlash:
+    s = re.sub(r"(\d|\))\*(√|3√|4√|ⁿ√|π|[a-zA-Z])", r"\1\2", s)
+    # Raqam va ildiz o'rtasidagi qavsli ko'paytirish: "8(√58)" -> "8√58"
+    s = re.sub(r"(\d)\((√|3√|4√|ⁿ√|π)", r"\1\2", s)
+    # Pi atrofidagi ko'paytirishni tozalash:
+    s = re.sub(r"\*(π)", r"\1", s)
+    s = re.sub(r"(π)\*", r"\1", s)
+
+    # Darajalarni standart ^ shakliga keltirish:
+    s = s.replace("⁰", "^0").replace("¹", "^1").replace("²", "^2").replace("³", "^3")
+    s = s.replace("⁴", "^4").replace("⁵", "^5").replace("⁶", "^6").replace("⁷", "^7").replace("⁸", "^8").replace("⁹", "^9")
+
+    # Ortiqcha figurali qavslar va sleshlar
+    s = re.sub(r"\{([^{}]+)\}", r"\1", s)
+    s = s.replace("\\", "")
+
+    return s
 
 
 def parse_numeric_or_fraction(val: str) -> Optional[float]:
