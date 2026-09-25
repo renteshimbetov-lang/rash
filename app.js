@@ -454,7 +454,10 @@ async function loadActiveTests() {
   try {
     var tgId = (state.tgUser && state.tgUser.id) || 0;
     var data = await apiGet('/api/app/active-tests?tg_id=' + tgId);
-    if (data.success) renderHomeTab(data.tests);
+    if (data.success) {
+      window.availableActiveTests = data.tests || [];
+      renderHomeTab(data.tests);
+    }
     else throw new Error('no success');
   } catch (e) {
     tab.innerHTML = '<div class="empty-state"><div class="empty-icon">\u26A0\uFE0F</div><p>' + t('empty_active') + '</p></div>';
@@ -478,6 +481,14 @@ async function loadAllUsers() {
   try {
     var urlParams = new URLSearchParams(window.location.search);
     var tgId = (state.tgUser && state.tgUser.id) || parseInt(urlParams.get('tg_id')) || 0;
+    
+    // Agar testlar ro'yxati yuklanmagan bo'lsa, shablonlar uchun fon rejimida yuklab olamiz
+    if (!window.availableActiveTests) {
+      apiGet('/api/app/active-tests?tg_id=' + tgId).then(function(d) {
+        if (d && d.success) window.availableActiveTests = d.tests || [];
+      }).catch(function() {});
+    }
+
     var data = await apiGet('/api/app/users?tg_id=' + tgId);
     if (data.success) {
       renderUsersSection(data.users, data.stats);
@@ -665,6 +676,126 @@ function renderProfileTab() {
 }
 
 // ── ADMIN TAB ───────────────────────────────────
+var ADMIN_QUICK_TEMPLATES = {
+  '30m': "⏳ Diqqat! Test boshlanishiga 30 daqiqa qoldi! Internet aloqangizni tekshirib, qoralama qog'ozlarni tayyorlab oling.",
+  '10m': "⚠️ Test boshlanishiga 10 daqiqa qoldi! Mini ilovaga kirib, tayyor bo'lib turing.",
+  'started': "🚀 Test boshlandi! Barchaga omad tilaymiz. Belgilangan vaqt ichida javoblarni topshirishni unutmang.",
+  '15m': "⏰ Diqqat, test yakunlanishiga 15 daqiqa qoldi! Qolgan javoblarni tekshirib, topshirishga shoshiling."
+};
+
+function getActiveOrPlannedTestCode() {
+  var tests = window.availableActiveTests || [];
+  var active = tests.find(function(t) { return t.is_active; });
+  if (active && active.test_code) return String(active.test_code).trim();
+  if (tests.length > 0 && tests[0].test_code) return String(tests[0].test_code).trim();
+  return '';
+}
+
+function applyQuickTemplate(type) {
+  var textarea = document.getElementById('admin-broadcast-text');
+  if (!textarea) return;
+
+  var text = ADMIN_QUICK_TEMPLATES[type] || '';
+  if (type === 'started') {
+    var code = getActiveOrPlannedTestCode();
+    var codeDisplay = code ? (code.startsWith('#') ? code : ('#' + code)) : '#TEST_KODI';
+    text = text + "\n\n📌 Test kodi: " + codeDisplay;
+  }
+
+  textarea.value = text;
+  updateBroadcastCharCount();
+
+  textarea.focus();
+  try {
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  } catch (e) {}
+
+  try {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+    }
+  } catch (e) {}
+
+  var btn = document.getElementById('tmpl-btn-' + type);
+  if (btn) {
+    btn.classList.add('tmpl-active');
+    setTimeout(function() { btn.classList.remove('tmpl-active'); }, 300);
+  }
+}
+
+function updateBroadcastCharCount() {
+  var textarea = document.getElementById('admin-broadcast-text');
+  var countEl = document.getElementById('broadcast-char-count');
+  if (!textarea || !countEl) return;
+  var len = (textarea.value || '').length;
+  countEl.textContent = len + ' belgi';
+}
+
+function clearBroadcastText() {
+  var textarea = document.getElementById('admin-broadcast-text');
+  if (textarea) {
+    textarea.value = '';
+    updateBroadcastCharCount();
+    textarea.focus();
+  }
+}
+
+async function sendAdminBroadcast() {
+  var textarea = document.getElementById('admin-broadcast-text');
+  if (!textarea) return;
+  var msg = (textarea.value || '').trim();
+  if (!msg) {
+    alert("Iltimos, avval xabar matnini kiriting yoki yuqoridagi tayyor shablonlardan birini tanlang!");
+    textarea.focus();
+    return;
+  }
+
+  var usersCount = (window.currentAdminUsers || []).filter(function(u) { return (u.status || '').toLowerCase() === 'approved'; }).length;
+  var countPrompt = usersCount ? usersCount + " nafar faol" : "barcha";
+
+  if (!confirm("📢 Ushbu xabarni " + countPrompt + " o'quvchilarga yuborishni tasdiqlaysizmi?\n\n\"" + (msg.length > 80 ? msg.substring(0, 80) + '...' : msg) + "\"")) {
+    return;
+  }
+
+  var btn = document.getElementById('btn-send-broadcast');
+  var originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳ Xabar yuborilmoqda...</span>';
+  }
+
+  var urlParams = new URLSearchParams(window.location.search);
+  var adminId = (state.tgUser && state.tgUser.id) || parseInt(urlParams.get('tg_id')) || 0;
+
+  try {
+    var res = await fetch('/api/app/broadcast', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        admin_id: adminId,
+        message: msg,
+        init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
+      })
+    });
+    var data = await res.json();
+    if (data.success) {
+      alert("✅ Xabar muvaffaqiyatli tarqatildi!\n\n📨 Yetkazildi: " + (data.sent || 0) + " ta o'quvchiga" + (data.fail ? "\n⚠️ Yetkazilmadi: " + data.fail + " ta" : ""));
+      textarea.value = '';
+      updateBroadcastCharCount();
+    } else {
+      alert("⚠️ Xatolik yuz berdi: " + (data.message || "Xabar yuborib bo'lmadi"));
+    }
+  } catch (e) {
+    console.error("Broadcast error:", e);
+    alert("⚠️ Server bilan bog'lanishda xatolik yuz berdi: " + e.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
+}
+
 function renderAdminTab() {
   var tab = document.getElementById('tab-admin');
   if (!tab) return;
@@ -679,6 +810,57 @@ function renderAdminTab() {
 
     // Statistika konteyneri (JS to'ldiradi)
     '<div id="admin-stats-container" class="animate-in" style="margin-top:12px"></div>' +
+
+    // 📢 O'quvchilarga xabar yuborish (Tezkor shablonlar + Textarea)
+    '<div class="admin-broadcast-card animate-in">' +
+      '<div class="admin-broadcast-header">' +
+        '<div class="admin-broadcast-title-wrap">' +
+          '<div class="admin-broadcast-icon-box">📢</div>' +
+          '<div>' +
+            '<div class="admin-broadcast-title">O\'quvchilarga xabar yuborish</div>' +
+            '<div class="admin-broadcast-subtitle">Barcha faol o\'quvchilarga tezkor xabarnoma tarqatish</div>' +
+          '</div>' +
+        '</div>' +
+        '<span class="admin-broadcast-badge">⚡️ Tezkor</span>' +
+      '</div>' +
+
+      // Tezkor tayyor shablonlar
+      '<div class="quick-templates-section">' +
+        '<div class="quick-templates-label"><span>⚡️</span> Tezkor tayyor shablonlar:</div>' +
+        '<div class="quick-templates-grid">' +
+          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-30m" onclick="applyQuickTemplate(\'30m\')">' +
+            '<span class="tmpl-icon">⏳</span>' +
+            '<span class="tmpl-text">30 daqiqa qoldi</span>' +
+          '</button>' +
+          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-10m" onclick="applyQuickTemplate(\'10m\')">' +
+            '<span class="tmpl-icon">⚠️</span>' +
+            '<span class="tmpl-text">10 daqiqa qoldi</span>' +
+          '</button>' +
+          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-started" onclick="applyQuickTemplate(\'started\')">' +
+            '<span class="tmpl-icon">🚀</span>' +
+            '<span class="tmpl-text">Test boshlandi</span>' +
+          '</button>' +
+          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-15m" onclick="applyQuickTemplate(\'15m\')">' +
+            '<span class="tmpl-icon">⏰</span>' +
+            '<span class="tmpl-text">15 daqiqa qoldi</span>' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+
+      // Xabar matni maydoni (textarea)
+      '<div class="broadcast-textarea-wrap">' +
+        '<textarea id="admin-broadcast-text" class="admin-broadcast-textarea" rows="4" placeholder="Xabar matnini kiriting yoki yuqoridagi tayyor shablonlardan birini bosing..." oninput="updateBroadcastCharCount()"></textarea>' +
+        '<div class="broadcast-meta-row">' +
+          '<span id="broadcast-char-count" class="broadcast-char-count">0 belgi</span>' +
+          '<button type="button" class="btn-clear-broadcast" onclick="clearBroadcastText()">✕ Tozalash</button>' +
+        '</div>' +
+      '</div>' +
+
+      // Yuborish tugmasi
+      '<button type="button" class="btn-send-broadcast" id="btn-send-broadcast" onclick="sendAdminBroadcast()">' +
+        '<span>🚀 Barcha o\'quvchilarga yuborish</span>' +
+      '</button>' +
+    '</div>' +
 
     // Barchani cheklash tugmasi
     '<button class="admin-btn-restrict-all animate-in" onclick="restrictAllUsersFromApp()">' +

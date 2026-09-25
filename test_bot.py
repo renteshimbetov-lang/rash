@@ -1375,6 +1375,42 @@ async def adm_maint_set_off_cb(call: CallbackQuery):
         )
 
 # 2. O'quvchilarga xabar yuborish menyusi
+def get_broadcast_started_text() -> str:
+    active_tests = test_db.get_active_tests()
+    test_code = ""
+    if active_tests:
+        test_code = active_tests[0].get("test_code", "")
+    if not test_code:
+        all_tests = test_db.get_all_tests()
+        if all_tests:
+            test_code = all_tests[0].get("test_code", "")
+    
+    code_display = f"#{test_code}" if test_code and not str(test_code).startswith("#") else (str(test_code) or "#TEST_KODI")
+    return (
+        "🚀 <b>Test boshlandi! Barchaga omad tilaymiz.</b>\n"
+        "Belgilangan vaqt ichida javoblarni topshirishni unutmang.\n\n"
+        f"📌 <b>Test kodi:</b> <code>{code_display}</code>"
+    )
+
+BROADCAST_TEMPLATES = {
+    "30m": {
+        "title": "⏳ 30 daqiqa qoldi",
+        "text": "⏳ <b>Diqqat! Test boshlanishiga 30 daqiqa qoldi!</b>\n\nInternet aloqangizni tekshirib, qoralama qog'ozlarni tayyorlab oling."
+    },
+    "10m": {
+        "title": "⚠️ 10 daqiqa qoldi",
+        "text": "⚠️ <b>Test boshlanishiga 10 daqiqa qoldi!</b>\n\nMini ilovaga kirib, tayyor bo'lib turing."
+    },
+    "started": {
+        "title": "🚀 Test boshlandi",
+        "get_text": get_broadcast_started_text
+    },
+    "15m": {
+        "title": "⏰ 15 daqiqa qoldi",
+        "text": "⏰ <b>Diqqat, test yakunlanishiga 15 daqiqa qoldi!</b>\n\nQolgan javoblarni tekshirib, topshirishga shoshiling."
+    }
+}
+
 @router.callback_query(F.data == "admin_broadcast_menu")
 async def admin_broadcast_menu_cb(call: CallbackQuery, state: FSMContext):
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
@@ -1385,17 +1421,27 @@ async def admin_broadcast_menu_cb(call: CallbackQuery, state: FSMContext):
     text = (
         f"📢 <b>O'QUVCHILARGA XABAR YUBORISH BO'LIMI</b>\n\n"
         f"👥 <b>Qabul qiluvchilar:</b> {users_count} nafar faol foydalanuvchi\n\n"
-        f"Quyidagi tezkor tayyor xabarlardan birini tanlashingiz yoki o'zingiz erkin xabar yozishingiz mumkin:\n\n"
-        f"1️⃣ <b>🛠 Texnik profilaktika xabari:</b>\n"
-        f"<i>«Botda texnik ishlar ketayotgani va vaqtincha to'xtatilgani haqida ogohlantirish»</i>\n\n"
-        f"2️⃣ <b>✅ Texnik ishlar yakunlandi:</b>\n"
-        f"<i>«Bot yana o'z faoliyatini boshlagani haqida xushxabar e'loni»</i>\n\n"
-        f"3️⃣ <b>✍️ Erkin xabar yozish:</b>\n"
-        f"<i>«Admin o'zi xohlagan matn, e'lon yoki rasmli postni barchaga yuborishi mumkin»</i>"
+        f"Quyidagi tezkor tayyor shablonlardan birini tanlashingiz yoki o'zingiz erkin xabar yozishingiz mumkin:\n\n"
+        f"⏳ <b>30 daqiqa qoldi:</b> Test boshlanishiga 30 daqiqa ogohlantirishi\n"
+        f"⚠️ <b>10 daqiqa qoldi:</b> Test boshlanishiga 10 daqiqa ogohlantirishi\n"
+        f"🚀 <b>Test boshlandi:</b> Test kodi bilan boshlanganlik xabari\n"
+        f"⏰ <b>15 daqiqa qoldi:</b> Test yakunlanishiga 15 daqiqa ogohlantirishi\n\n"
+        f"🛠 <b>Texnik profilaktika:</b> Tizim ta'mirlash xabarlari\n"
+        f"✍️ <b>Erkin xabar:</b> O'zingiz matn yoki rasm yuborishingiz mumkin"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛠 1. Texnik ishlar boshlandi (Tezkor)", callback_data="adm_bc_preview_start")],
-        [InlineKeyboardButton(text="✅ 2. Texnik ishlar yakunlandi (Tezkor)", callback_data="adm_bc_preview_end")],
+        [
+            InlineKeyboardButton(text="⏳ 30 daqiqa qoldi", callback_data="adm_bc_tmpl_30m"),
+            InlineKeyboardButton(text="⚠️ 10 daqiqa qoldi", callback_data="adm_bc_tmpl_10m")
+        ],
+        [
+            InlineKeyboardButton(text="🚀 Test boshlandi", callback_data="adm_bc_tmpl_started"),
+            InlineKeyboardButton(text="⏰ 15 daqiqa qoldi", callback_data="adm_bc_tmpl_15m")
+        ],
+        [
+            InlineKeyboardButton(text="🛠 1. Texnik ishlar boshlandi", callback_data="adm_bc_preview_start"),
+            InlineKeyboardButton(text="✅ 2. Texnik ishlar yakunlandi", callback_data="adm_bc_preview_end")
+        ],
         [InlineKeyboardButton(text="✍️ 3. O'zingiz erkin xabar yozish", callback_data="adm_bc_custom_input")],
         [InlineKeyboardButton(text="⬅️ Admin panelga qaytish", callback_data="admin_back_to_menu")]
     ])
@@ -1404,6 +1450,58 @@ async def admin_broadcast_menu_cb(call: CallbackQuery, state: FSMContext):
     except Exception:
         await call.message.answer(text, reply_markup=kb)
     await call.answer()
+
+@router.callback_query(F.data.startswith("adm_bc_tmpl_"))
+async def adm_bc_tmpl_preview_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    tmpl_key = call.data.replace("adm_bc_tmpl_", "")
+    tmpl = BROADCAST_TEMPLATES.get(tmpl_key)
+    if not tmpl:
+        await call.answer("Shablon topilmadi!", show_alert=True)
+        return
+
+    text_to_send = tmpl["get_text"]() if "get_text" in tmpl else tmpl["text"]
+
+    preview_text = (
+        f"📋 <b>XABAR KO'RINISHI (PREVIEW):</b>\n\n"
+        f"────────────────────\n"
+        f"{text_to_send}\n"
+        f"────────────────────\n\n"
+        f"<b>Ushbu tayyor shablon xabarini barcha o'quvchilarga yuborishni tasdiqlaysizmi?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Barchaga yuborish", callback_data=f"adm_bc_send_tmpl_{tmpl_key}")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_broadcast_menu")]
+    ])
+    await call.message.edit_text(preview_text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data.startswith("adm_bc_send_tmpl_"))
+async def adm_bc_send_tmpl_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    tmpl_key = call.data.replace("adm_bc_send_tmpl_", "")
+    tmpl = BROADCAST_TEMPLATES.get(tmpl_key)
+    if not tmpl:
+        await call.answer("Shablon topilmadi!", show_alert=True)
+        return
+
+    text_to_send = tmpl["get_text"]() if "get_text" in tmpl else tmpl["text"]
+
+    await call.answer("⏳ Xabar tarqatilmoqda...")
+    status_msg = await call.message.answer("⏳ Barcha o'quvchilarga tayyor shablon xabari yuborilmoqda...")
+    sent, fail = await send_broadcast_to_users(message_text=text_to_send)
+    await status_msg.edit_text(
+        f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
+        f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
+            [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+        ])
+    )
+
 
 @router.callback_query(F.data == "adm_bc_preview_start")
 async def adm_bc_preview_start_cb(call: CallbackQuery):
@@ -2955,6 +3053,43 @@ async def handle_app_restrict_all_users(request):
         log.error(f"App Restrict All Users Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+async def handle_app_broadcast(request):
+    """Admin tomonidan barcha o'quvchilarga xabar yuborish (Mini App orqali)."""
+    try:
+        data = await request.json()
+        admin_id = int(data.get('admin_id', 0))
+        message_text = str(data.get('message', '')).strip()
+
+        if not admin_id or not test_db.is_admin(admin_id, ADMIN_ID):
+            init_data = data.get('init_data', '') or request.headers.get('X-Telegram-Init-Data', '')
+            import urllib.parse, json
+            try:
+                parsed = dict(urllib.parse.parse_qsl(init_data))
+                if 'user' in parsed:
+                    u_dict = json.loads(parsed['user'])
+                    if u_dict and u_dict.get('id'):
+                        admin_id = int(u_dict['id'])
+            except Exception:
+                pass
+
+        if not test_db.is_admin(admin_id, ADMIN_ID):
+            return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
+
+        if not message_text:
+            return web.json_response({"success": False, "message": "Xabar matni bo'sh bo'lishi mumkin emas!"}, status=400)
+
+        # Barcha faol o'quvchilarga xabar tarqatish
+        sent, fail = await send_broadcast_to_users(message_text=message_text)
+        return web.json_response({
+            "success": True,
+            "sent": sent,
+            "fail": fail,
+            "message": f"Xabar {sent} nafar o'quvchiga muvaffaqiyatli yetkazildi!"
+        })
+    except Exception as e:
+        log.error(f"App Broadcast Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=400)
+
 async def handle_rasch_evaluate_api(request):
     try:
         test_id = int(request.match_info.get('test_id', 0))
@@ -2993,6 +3128,7 @@ async def create_web_app():
     app.router.add_get('/api/app/users', handle_app_users)
     app.router.add_post('/api/app/update-user-status', handle_app_update_user_status)
     app.router.add_post('/api/app/restrict-all-users', handle_app_restrict_all_users)
+    app.router.add_post('/api/app/broadcast', handle_app_broadcast)
     app.router.add_get('/api/app/status', handle_app_status)
     app.router.add_get('/healthz', handle_app_status)
     app.router.add_get('/ping', handle_app_status)
