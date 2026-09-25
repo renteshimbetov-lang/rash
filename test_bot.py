@@ -161,8 +161,8 @@ class ScheduleState(StatesGroup):
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
     is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
     
-    app_url = f"{WEBAPP_URL}/app.html"
-    admin_webapp_url = f"{WEBAPP_URL}/admin.html"
+    app_url = f"{WEBAPP_URL}/app.html?tg_id={user_tg_id}"
+    admin_webapp_url = f"{WEBAPP_URL}/admin.html?tg_id={user_tg_id}"
 
     # Agar HTTPS bo'lsa to'g'ridan-to'g'ri Telegram WebApp ochadi
     if app_url.startswith("https://"):
@@ -593,7 +593,7 @@ async def solve_test_cb(call: CallbackQuery):
 
 @router.callback_query(F.data == "admin_webapp_info")
 async def admin_webapp_info_cb(call: CallbackQuery):
-    admin_webapp_url = f"{WEBAPP_URL}/admin.html"
+    admin_webapp_url = f"{WEBAPP_URL}/admin.html?tg_id={call.from_user.id}"
     reply_kb = InlineKeyboardMarkup(inline_keyboard=[
         [make_webapp_button("📱 Admin Panelni ochish (Mini App)", admin_webapp_url)],
         [InlineKeyboardButton(text="🔙 Admin Menyuga qaytish", callback_data="admin_back_to_menu")]
@@ -670,7 +670,7 @@ show_about = show_help
 async def admin_create_test_text_handler(message: Message):
     if not test_db.is_admin(message.from_user.id, ADMIN_ID):
         return
-    admin_webapp_url = f"{WEBAPP_URL}/admin.html"
+    admin_webapp_url = f"{WEBAPP_URL}/admin.html?tg_id={message.from_user.id}"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [make_webapp_button("➕ Yangi test yaratish (Mini App)", admin_webapp_url)]
     ])
@@ -813,16 +813,21 @@ async def admin_manage_test_card(call: CallbackQuery):
     time_str = f"{t['time_limit_min']} daqiqa" if t.get("time_limit_min", 0) > 0 else "Cheksiz"
     toggle_btn_text = "🔴 To'xtatish" if t["is_active"] == 1 else "🟢 Faollashtirish"
 
+    has_pdf_str = f"📄 <b>PDF:</b> {t.get('pdf_file_name') or 'Biriktirilgan ✅'}\n" if t.get("pdf_file_id") else "📄 <b>PDF:</b> ❌ Yuklanmagan\n"
+    pdf_btn_text = "📄 PDF almashtirish" if t.get("pdf_file_id") else "📥 PDF yuklash"
+
     card_text = (
         f"📖 <b>{t['title']}</b> (<code>#{t['test_code']}</code>)\n"
         f"📌 <b>Fan:</b> {t.get('subject', 'Matematika')}\n"
         f"📊 <b>Holati:</b> {status_str}\n"
-        f"⏱ <b>Vaqt chegarasi:</b> {time_str}\n\n"
+        f"⏱ <b>Vaqt chegarasi:</b> {time_str}\n"
+        f"{has_pdf_str}\n"
         f"<i>Boshqarish uchun quyidagi amallardan birini tanlang:</i>"
     )
 
     kb_rows = [
         [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_{t['id']}")],
+        [InlineKeyboardButton(text=pdf_btn_text, callback_data=f"ask_pdf_{t['id']}")],
         [InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del_test_confirm_{t['id']}")],
         [InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_manage_tests")]
     ]
@@ -1089,6 +1094,11 @@ async def no_pdf_cb(call: CallbackQuery):
 
 @router.message(UploadPostPdfState.pdf_file, F.document)
 async def process_post_create_pdf(message: Message, state: FSMContext):
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        await message.answer("Sizda ushbu amalni bajarish uchun admin ruxsati yo'q.")
+        await state.clear()
+        return
+
     data = await state.get_data()
     test_id = data.get("test_id")
     if not test_id:
@@ -2224,19 +2234,57 @@ async def handle_create_test_api(request):
                     [InlineKeyboardButton(text="❌ Yo'q, kerak emas", callback_data=f"no_pdf_{test_id}")]
                 ])
 
+                # Testni yaratgan adminga (bosh admin yoki tayinlangan admin) PDF so'rovini yuborish
+                creator_id = int(data.get("creator_tg_id", 0) or data.get("tg_id", 0))
+                if not creator_id:
+                    init_data = data.get("init_data", "") or request.headers.get("X-Telegram-Init-Data", "")
+                    if init_data:
+                        try:
+                            import urllib.parse
+                            parsed = dict(urllib.parse.parse_qsl(init_data))
+                            if 'user' in parsed:
+                                u_dict = json.loads(parsed['user'])
+                                if u_dict and u_dict.get('id'):
+                                    creator_id = int(u_dict['id'])
+                        except Exception:
+                            pass
+
+                target_chat_id = creator_id if (creator_id and test_db.is_admin(creator_id, ADMIN_ID)) else ADMIN_ID
+
                 await bot.send_message(
-                    chat_id=ADMIN_ID,
+                    chat_id=target_chat_id,
                     text=(
                         f"✅ <b>Yangi test yaratildi va saqlandi!</b>\n\n"
                         f"📖 <b>Nomi:</b> {title}\n"
                         f"📌 <b>Fani:</b> {subject}\n"
                         f"{sched_info}"
                         f"{time_info}"
-                        f"🎯 <i>Barcha savol kalitlari muvaffaqiyatli saqlandi!</i>\n\n"
-                        f"Ushbu test uchun PDF fayl yuklaysizmi?"
+                        f"🎯 <i>Barcha 55 ta savol kalitlari muvaffaqiyatli saqlandi!</i>\n\n"
+                        f"📥 <b>Ushbu test uchun PDF fayl yuklaysizmi?</b>"
                     ),
                     reply_markup=kb
                 )
+
+                # Agar testni tayinlangan admin yaratgan bo'lsa, Bosh Adminga ham bildirishnoma yuborish:
+                if target_chat_id != ADMIN_ID:
+                    try:
+                        creator_u = test_db.get_user(target_chat_id)
+                        creator_name = creator_u.get("fullname", "Admin") if creator_u else f"Admin (ID: {target_chat_id})"
+                        await bot.send_message(
+                            chat_id=ADMIN_ID,
+                            text=(
+                                f"📢 <b>Tayinlangan admin ({creator_name}) tomonidan yangi test yaratildi!</b>\n\n"
+                                f"📖 <b>Nomi:</b> {title}\n"
+                                f"📌 <b>Fani:</b> {subject}\n"
+                                f"{sched_info}"
+                                f"{time_info}"
+                                f"🎯 <i>Kalitlar saqlandi.</i>\n\n"
+                                f"Ushbu test uchun siz ham PDF yuklashingiz mumkin:"
+                            ),
+                            reply_markup=kb
+                        )
+                    except Exception as e_adm:
+                        log.warning(f"Bosh adminga xabar yuborishda xatolik: {e_adm}")
             except Exception as ex:
                 log.warning(f"Adminga xabar yuborishda xatolik: {ex}")
 

@@ -348,6 +348,10 @@ const AdminApp = {
     const schedStart = (document.getElementById('adm-test-sched-start')?.value || '').trim();
     const schedEnd = (document.getElementById('adm-test-sched-end')?.value || '').trim();
 
+    const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const creatorId = (tgUser && tgUser.id) ? parseInt(tgUser.id) : (urlParams.get('tg_id') ? parseInt(urlParams.get('tg_id')) : 0);
+
     const payload = {
       test_code: code,
       title: title,
@@ -357,6 +361,7 @@ const AdminApp = {
       scheduled_date: schedDate,
       scheduled_start: schedStart,
       scheduled_end: schedEnd,
+      creator_tg_id: creatorId,
       answers: this.answers
     };
 
@@ -379,13 +384,14 @@ const AdminApp = {
 
       const res = await response.json();
       if (res.success) {
+        const msg = "✅ Test muvaffaqiyatli saqlandi va e'lon qilindi!\n\nBotga o'tib, test uchun PDF faylni yuborishingiz mumkin 📥";
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
-          window.Telegram.WebApp.showAlert('✅ Test muvaffaqiyatli saqlandi va e\'lon qilindi!');
+          window.Telegram.WebApp.showAlert(msg);
           setTimeout(() => {
             window.Telegram.WebApp.close();
-          }, 800);
+          }, 1200);
         } else {
-          alert('✅ Test muvaffaqiyatli saqlandi va e\'lon qilindi!');
+          alert(msg);
           window.location.reload();
         }
       } else {
