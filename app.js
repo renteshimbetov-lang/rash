@@ -110,6 +110,8 @@ function initApp() {
   updateLangLabel();
 
   try {
+    var urlParams = new URLSearchParams(window.location.search);
+    var queryTgId = urlParams.get('tg_id');
     var tg = window.Telegram && window.Telegram.WebApp;
     if (tg) {
       try { tg.ready(); tg.expand(); } catch (e) {}
@@ -117,8 +119,9 @@ function initApp() {
     var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
     if (tgU && tgU.id) {
       state.tgUser = tgU;
+    } else if (queryTgId && parseInt(queryTgId) > 0) {
+      state.tgUser = { id: parseInt(queryTgId), first_name: 'Foydalanuvchi', last_name: '', username: '' };
     } else {
-      // Telegramdan tashqarida xavfsiz mehmon rejimi (hech qanday admin yoki boshqa akkaunt huquqlari berilmaydi)
       state.tgUser = { id: 0, first_name: 'Mehmon', last_name: '', username: '' };
     }
     try {
@@ -415,7 +418,15 @@ async function apiGet(path) {
 }
 
 async function loadUserProfile() {
-  var tgId = state.tgUser && state.tgUser.id;
+  var urlParams = new URLSearchParams(window.location.search);
+  var tgId = (state.tgUser && state.tgUser.id) || parseInt(urlParams.get('tg_id')) || 0;
+  if (!tgId) {
+    var tg = window.Telegram && window.Telegram.WebApp;
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+      tgId = tg.initDataUnsafe.user.id;
+      state.tgUser = tg.initDataUnsafe.user;
+    }
+  }
   if (!tgId) return;
   try {
     var data = await apiGet('/api/app/profile?tg_id=' + tgId);
@@ -428,6 +439,9 @@ async function loadUserProfile() {
       if (state.isAdmin && data.pending_users > 0) {
         var badge = document.getElementById('admin-badge');
         if (badge) { badge.textContent = data.pending_users; badge.style.display = 'block'; }
+      }
+      if (urlParams.get('tab') === 'admin' && state.isAdmin) {
+        switchTab('admin');
       }
     }
   } catch (e) { console.warn('loadUserProfile err:', e); }
@@ -462,10 +476,24 @@ async function loadMyResults() {
 
 async function loadAllUsers() {
   try {
-    var tgId = (state.tgUser && state.tgUser.id) || 0;
+    var urlParams = new URLSearchParams(window.location.search);
+    var tgId = (state.tgUser && state.tgUser.id) || parseInt(urlParams.get('tg_id')) || 0;
     var data = await apiGet('/api/app/users?tg_id=' + tgId);
-    if (data.success) renderUsersSection(data.users, data.stats);
-  } catch (e) { console.warn('users err:', e); }
+    if (data.success) {
+      renderUsersSection(data.users, data.stats);
+    } else {
+      var listEl = document.getElementById('users-list');
+      if (listEl) {
+        listEl.innerHTML = '<div class="empty-state" style="padding:24px 10px;"><div class="empty-icon">⚠️</div><p>' + (data.message || 'Foydalanuvchilarni yuklab bo\'lmadi') + '</p></div>';
+      }
+    }
+  } catch (e) {
+    console.warn('users err:', e);
+    var listEl = document.getElementById('users-list');
+    if (listEl) {
+      listEl.innerHTML = '<div class="empty-state" style="padding:24px 10px;"><div class="empty-icon">⚠️</div><p>Server bilan bog\'lanishda xatolik</p></div>';
+    }
+  }
 }
 
 // ── TAB NAVIGATION ──────────────────────────────

@@ -189,21 +189,13 @@ const MathKeyboard = {
   },
 
   switchTab(tab) {
-    const btnMath = document.getElementById('kb-tab-math');
-    const btnFunc = document.getElementById('kb-tab-func');
-    const btnVars = document.getElementById('kb-tab-vars');
-
-    const bodyMath = document.getElementById('keyboard-body-math');
-    const bodyFunc = document.getElementById('keyboard-body-func');
-    const bodyVars = document.getElementById('keyboard-body-vars');
-
-    if (btnMath) btnMath.classList.toggle('active', tab === 'math');
-    if (btnFunc) btnFunc.classList.toggle('active', tab === 'func');
-    if (btnVars) btnVars.classList.toggle('active', tab === 'vars');
-
-    if (bodyMath) bodyMath.style.display = tab === 'math' ? 'flex' : 'none';
-    if (bodyFunc) bodyFunc.style.display = tab === 'func' ? 'flex' : 'none';
-    if (bodyVars) bodyVars.style.display = tab === 'vars' ? 'flex' : 'none';
+    const tabs = ['math', 'power', 'func', 'vars'];
+    tabs.forEach(t => {
+      const btn = document.getElementById(`kb-tab-${t}`);
+      const body = document.getElementById(`keyboard-body-${t}`);
+      if (btn) btn.classList.toggle('active', t === tab);
+      if (body) body.style.display = t === tab ? 'flex' : 'none';
+    });
   }
 };
 

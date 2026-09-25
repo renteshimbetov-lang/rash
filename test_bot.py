@@ -231,9 +231,8 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(text="📢 O'quvchilarga xabar yuborish", callback_data="admin_broadcast_menu")],
         [InlineKeyboardButton(text=maint_btn_text, callback_data="admin_toggle_maint_prompt")],
-        [InlineKeyboardButton(text="⏰ Test vaqtini sozlash (Auto)", callback_data="admin_test_time_settings")],
         [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")],
-        [make_webapp_button("👥 Foydalanuvchilar boshqaruvi (Web App)", f"{WEBAPP_URL}/app.html?tab=admin", "admin_webapp_redirect_info")]
+        [make_webapp_button("👥 Foydalanuvchilar boshqaruvi (Web App)", f"{WEBAPP_URL}/app.html?tab=admin&tg_id={ADMIN_ID}", "admin_webapp_redirect_info")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -1131,7 +1130,7 @@ async def admin_view_users_redirect_cb(call: CallbackQuery):
         "Quyidagi tugma orqali ilovani ochishingiz mumkin 👇"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [make_webapp_button("🚀 Foydalanuvchilarni boshqarish (Web App)", f"{WEBAPP_URL}/app.html?tab=admin")],
+        [make_webapp_button("🚀 Foydalanuvchilarni boshqarish (Web App)", f"{WEBAPP_URL}/app.html?tab=admin&tg_id={ADMIN_ID}")],
         [InlineKeyboardButton(text="🔙 Admin Menyuga qaytish", callback_data="admin_back_to_menu")]
     ])
     try:
@@ -1654,26 +1653,14 @@ async def admin_test_stats_detail(call: CallbackQuery):
     )
 
     toggle_btn_text = "🔴 Javob qabul qilishni to'xtatish" if is_active else "🟢 Javob qabul qilishni boshlash"
+    time_btn_text = "⏰ Vaqtni o'zgartirish / bekor qilish" if (sched_date and sched_start and sched_end) else "⏰ Test vaqtini sozlash"
 
     buttons = [
         [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_tstat_{test_id}")],
+        [InlineKeyboardButton(text=time_btn_text, callback_data=f"adm_schedule_{test_id}")],
+        [InlineKeyboardButton(text="🗑 Testni o'chirish", callback_data=f"adm_del_test_prompt_{test_id}")],
+        [InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")]
     ]
-
-    if not is_pub:
-        buttons.append([InlineKeyboardButton(text="📢 Natijalarni hisoblash va e'lon qilish", callback_data=f"adm_eval_prompt_{test_id}")])
-    else:
-        buttons.append([InlineKeyboardButton(text="🔄 Qayta hisoblash va e'lon qilish", callback_data=f"adm_eval_prompt_{test_id}")])
-        buttons.append([InlineKeyboardButton(text="🔒 Natijalarni yashirish (Qayta javob qabul qilish)", callback_data=f"adm_hide_results_{test_id}")])
-
-    buttons.append([
-        InlineKeyboardButton(text="📄 Matn shaklida", callback_data=f"adm_restxt_{test_id}"),
-        InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
-    ])
-    if sched_date and sched_start and sched_end:
-        buttons.append([InlineKeyboardButton(text="⏰ Vaqtni o'zgartirish / bekor qilish", callback_data=f"adm_schedule_{test_id}")])
-    else:
-        buttons.append([InlineKeyboardButton(text="⏰ Avtomatik vaqt belgilash", callback_data=f"adm_schedule_{test_id}")])
-    buttons.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")])
 
     try:
         await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
@@ -1683,6 +1670,46 @@ async def admin_test_stats_detail(call: CallbackQuery):
         await call.answer()
     except Exception:
         pass
+
+# Testni o'chirishni tasdiqlash
+@router.callback_query(F.data.startswith("adm_del_test_prompt_"))
+async def adm_del_test_prompt_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[4])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+    
+    text = (
+        f"⚠️ <b>DIQQAT! TESTNI O'CHIRISH</b>\n\n"
+        f"📖 Nomi: <b>{test['title']}</b> (#{test['test_code']})\n\n"
+        f"Ushbu testni va uning barcha o'quvchilar topshirgan natijalarini <b>butunlay o'chirib tashlamoqchimisiz?</b>\n"
+        f"<i>Ushbu amalni ortga qaytarib bo'lmaydi!</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗑 Ha, butunlay o'chirilsin!", callback_data=f"adm_del_test_exec_{test_id}")],
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data=f"adm_tstat_{test_id}")]
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data.startswith("adm_del_test_exec_"))
+async def adm_del_test_exec_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[4])
+    ok = test_db.delete_test(test_id)
+    if ok:
+        await call.answer("🗑 Test muvaffaqiyatli o'chirildi!", show_alert=True)
+        call.data = "admin_leaderboard"
+        await admin_leaderboard_cb(call)
+    else:
+        await call.answer("O'chirishda xatolik yuz berdi!", show_alert=True)
 
 # Javob qabul qilishni boshlash / to'xtatish
 @router.callback_query(F.data.startswith("toggle_test_tstat_"))
@@ -2182,13 +2209,21 @@ async def handle_create_test_api(request):
             key_access_code=key_access_code
         )
 
+        sched_date = data.get("scheduled_date", "").strip()
+        sched_start = data.get("scheduled_start", "").strip()
+        sched_end = data.get("scheduled_end", "").strip()
+
         if success:
             try:
-                time_info = f"⏱ <b>Vaqt:</b> {time_limit_min} daqiqa\n" if time_limit_min > 0 else "⏱ <b>Vaqt:</b> Cheksiz\n"
-                
-                # Fetch the created test from DB to get its ID for the inline keyboard
                 t_obj = test_db.get_test_by_code(test_code)
                 test_id = t_obj['id'] if t_obj else 0
+                
+                # Jadval vaqtini sozlash
+                if sched_start and sched_end and test_id:
+                    test_db.set_test_schedule(test_id, sched_date, sched_start, sched_end)
+
+                time_info = f"⏱ <b>Vaqt chegarasi:</b> {time_limit_min} daqiqa\n" if time_limit_min > 0 else ""
+                sched_info = f"⏰ <b>O'tkazilish vaqti:</b> {sched_date} {sched_start}–{sched_end} (UZB)\n" if (sched_start and sched_end) else ""
                 
                 kb = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="📥 Ha, PDF yuklayman", callback_data=f"ask_pdf_{test_id}")],
@@ -2198,11 +2233,12 @@ async def handle_create_test_api(request):
                 await bot.send_message(
                     chat_id=ADMIN_ID,
                     text=(
-                        f"✅ <b>Yangi test yaratildi va e'lon qilindi!</b>\n\n"
+                        f"✅ <b>Yangi test yaratildi va saqlandi!</b>\n\n"
                         f"📖 <b>Nomi:</b> {title}\n"
                         f"📌 <b>Fani:</b> {subject}\n"
+                        f"{sched_info}"
                         f"{time_info}"
-                        f"🎯 <i>Barcha 45 ta savol kalitlari va ballar muvaffaqiyatli saqlandi!</i>\n\n"
+                        f"🎯 <i>Barcha savol kalitlari muvaffaqiyatli saqlandi!</i>\n\n"
                         f"Ushbu test uchun PDF fayl yuklaysizmi?"
                     ),
                     reply_markup=kb
@@ -2513,6 +2549,18 @@ async def handle_app_users(request):
     """Admin uchun barcha foydalanuvchilar ro'yxati va statistika."""
     try:
         tg_id = int(request.rel_url.query.get('tg_id', 0))
+        if not tg_id or not test_db.is_admin(tg_id, ADMIN_ID):
+            init_data = request.rel_url.query.get('init_data', '') or request.headers.get('X-Telegram-Init-Data', '')
+            import urllib.parse, json
+            try:
+                parsed = dict(urllib.parse.parse_qsl(init_data))
+                if 'user' in parsed:
+                    u_dict = json.loads(parsed['user'])
+                    if u_dict and u_dict.get('id'):
+                        tg_id = int(u_dict['id'])
+            except Exception:
+                pass
+
         if not test_db.is_admin(tg_id, ADMIN_ID):
             return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
 
@@ -2534,6 +2582,18 @@ async def handle_app_update_user_status(request):
         admin_id = int(data.get('admin_id', 0))
         target_uid = int(data.get('target_uid', 0))
         action = str(data.get('status', '')).strip().lower()
+
+        if not admin_id or not test_db.is_admin(admin_id, ADMIN_ID):
+            init_data = data.get('init_data', '') or request.headers.get('X-Telegram-Init-Data', '')
+            import urllib.parse, json
+            try:
+                parsed = dict(urllib.parse.parse_qsl(init_data))
+                if 'user' in parsed:
+                    u_dict = json.loads(parsed['user'])
+                    if u_dict and u_dict.get('id'):
+                        admin_id = int(u_dict['id'])
+            except Exception:
+                pass
 
         if not test_db.is_admin(admin_id, ADMIN_ID):
             return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)

@@ -15,6 +15,17 @@ const AdminApp = {
     this.updateRaschBadge();
     this.updateUnfilledStats();
     this.runIntroAnimation();
+
+    const dateInput = document.getElementById('adm-test-sched-date');
+    if (dateInput && !dateInput.value) {
+      try {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        dateInput.value = `${yyyy}-${mm}-${dd}`;
+      } catch (e) {}
+    }
   },
 
   runIntroAnimation() {
@@ -333,12 +344,19 @@ const AdminApp = {
     const keyCodeInput = document.getElementById('adm-test-key-code');
     const keyCode = keyCodeInput ? keyCodeInput.value.trim() : '';
 
+    const schedDate = (document.getElementById('adm-test-sched-date')?.value || '').trim();
+    const schedStart = (document.getElementById('adm-test-sched-start')?.value || '').trim();
+    const schedEnd = (document.getElementById('adm-test-sched-end')?.value || '').trim();
+
     const payload = {
       test_code: code,
       title: title,
       subject: subject,
       time_limit_min: timeLimit,
       key_access_code: keyCode,
+      scheduled_date: schedDate,
+      scheduled_start: schedStart,
+      scheduled_end: schedEnd,
       answers: this.answers
     };
 
