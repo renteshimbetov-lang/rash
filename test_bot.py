@@ -2255,6 +2255,10 @@ async def handle_create_test_api(request):
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
 def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+    import base64
+    import re
+    import requests
+
     gemini_key = (
         os.getenv("GEMINI_API_KEY")
         or os.getenv("GOOGLE_API_KEY")
@@ -2262,11 +2266,6 @@ def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg")
     )
     if not gemini_key:
         raise ValueError("GEMINI_API_KEY o'rnatilmagan")
-
-    from google import genai
-    from google.genai import types
-
-    client = genai.Client(api_key=gemini_key)
 
     prompt = (
         "Ushbu rasmda test javoblari/kalitlari varaqasi yoki jadvali berilgan.\n"
@@ -2288,28 +2287,41 @@ def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg")
         "DIQQAT: Faqat toza JSON matnini qaytar, hech qanday qo'shimcha so'z, sharh yoki izoh yozma!"
     )
 
-    image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-
     models_to_try = [
         "gemini-3.5-flash-lite",
         "gemini-3.1-flash-lite",
         "gemini-3.8-flash",
-        "gemini-flash-latest",
     ]
+
+    b64_data = base64.b64encode(image_bytes).decode("utf-8")
+    payload = {
+        "contents": [{
+            "parts": [
+                {"inlineData": {"mimeType": mime_type, "data": b64_data}},
+                {"text": prompt}
+            ]
+        }]
+    }
 
     last_err = None
     for model_name in models_to_try:
         try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=[image_part, prompt]
-            )
-            raw_text = (response.text or "").strip()
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+            resp = requests.post(url, json=payload, timeout=60)
+            if resp.status_code != 200:
+                raise ValueError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+
+            res_json = resp.json()
+            candidates = res_json.get("candidates", [])
+            if not candidates:
+                raise ValueError("Bo'sh javob qaytdi (candidates yo'q)")
+
+            raw_text = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
             match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', raw_text)
             if match:
                 raw_text = match.group(1).strip()
             parsed = json.loads(raw_text)
-            if isinstance(parsed, dict) and len(parsed) > 0:
+            if isinstance(parsed, dict):
                 cleaned = {}
                 for k, v in parsed.items():
                     k_clean = str(k).strip().lower().replace("q", "").replace("-savol", "").replace("savol", "").strip()
@@ -2317,14 +2329,13 @@ def _sync_extract_keys_gemini(image_bytes: bytes, mime_type: str = "image/jpeg")
                     if k_clean.isdigit() and int(k_clean) <= 35:
                         v_str = v_str.upper()
                     cleaned[k_clean] = v_str
-                return cleaned
+                if cleaned:
+                    return cleaned
         except Exception as ex:
             log.warning(f"Gemini {model_name} xatosi: {ex}")
             last_err = ex
             continue
 
-    if last_err:
-        raise last_err
     return {}
 
 async def handle_scan_keys_api(request):
@@ -2365,7 +2376,7 @@ async def handle_scan_keys_api(request):
             return web.json_response({
                 "success": False,
                 "message": "Rasmdan kalitlarni ajratib bo'lmadi. Iltimos, aniqroq yoki sifatliroq rasm yuklang."
-            }, status=422)
+            }, status=200)
 
         return web.json_response({
             "success": True,
