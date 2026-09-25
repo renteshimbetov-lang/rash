@@ -821,26 +821,10 @@ async def admin_manage_test_card(call: CallbackQuery):
     )
 
     kb_rows = [
-        [
-            InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_{t['id']}"),
-            InlineKeyboardButton(text="⏱ Vaqt", callback_data=f"set_time_prompt_{t['id']}")
-        ]
+        [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_{t['id']}")],
+        [InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del_test_confirm_{t['id']}")],
+        [InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_manage_tests")]
     ]
-    if t["is_active"] == 0:
-        kb_rows.append([
-            InlineKeyboardButton(text="🧮 Rasch orqali tekshirish (JMLE)", callback_data=f"adm_rasch_{t['id']}")
-        ])
-        kb_rows.append([
-            InlineKeyboardButton(text="📢 Natijalarni e'lon qilish", callback_data=f"adm_broadcast_results_{t['id']}"),
-            InlineKeyboardButton(text="📊 Reyting", callback_data=f"adm_tstat_{t['id']}")
-        ])
-    else:
-        kb_rows.append([
-            InlineKeyboardButton(text="📊 Natijalar va statistika", callback_data=f"adm_tstat_{t['id']}")
-        ])
-
-    kb_rows.append([InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del_test_confirm_{t['id']}")])
-    kb_rows.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_manage_tests")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
 
@@ -1640,27 +1624,36 @@ async def admin_test_stats_detail(call: CallbackQuery):
         sched_badge = "➖ Belgilanmagan"
 
     text = (
-        f"📋 <b>Test boshqaruvi va hisoboti:</b>\n\n"
+        f"📊 <b>Test natijalari va tahlil bo'limi:</b>\n\n"
         f"📖 <b>Nomi:</b> {test['title']}\n"
         f"🔑 <b>Kodi:</b> <code>#{test['test_code']}</code>\n"
         f"📌 <b>Fani:</b> {test.get('subject', 'Matematika')}\n"
         f"🚦 <b>Holati:</b> {status_badge}\n"
-        f"📢 <b>Natijalar:</b> {pub_badge}\n"
-        f"⏰ <b>Avtomatik vaqt:</b> {sched_badge}\n\n"
+        f"📢 <b>Natijalar:</b> {pub_badge}\n\n"
         f"👥 <b>Topshirganlar soni:</b> <b>{count} nafar</b>\n"
         f"📈 <b>O'rtacha ball:</b> <b>{avg_score} ball</b>\n\n"
-        f"<i>Boshqarish uchun quyidagi amallardan birini tanlang 👇</i>"
+        f"<i>Hisoblash, tahlil qilish va natijalarni e'lon qilish usulini tanlang 👇</i>"
     )
 
-    toggle_btn_text = "🔴 Javob qabul qilishni to'xtatish" if is_active else "🟢 Javob qabul qilishni boshlash"
-    time_btn_text = "⏰ Vaqtni o'zgartirish / bekor qilish" if (sched_date and sched_start and sched_end) else "⏰ Test vaqtini sozlash"
-
     buttons = [
-        [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_tstat_{test_id}")],
-        [InlineKeyboardButton(text=time_btn_text, callback_data=f"adm_schedule_{test_id}")],
-        [InlineKeyboardButton(text="🗑 Testni o'chirish", callback_data=f"adm_del_test_prompt_{test_id}")],
-        [InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")]
+        [InlineKeyboardButton(text="🧮 Rasch modeli (JMLE) bo'yicha hisoblash", callback_data=f"adm_broadcast_rasch_{test_id}")],
+        [InlineKeyboardButton(text="✅ Standart hisoblash (To'g'ri javoblar)", callback_data=f"adm_broadcast_std_{test_id}")],
     ]
+
+    if not is_pub:
+        buttons.append([InlineKeyboardButton(text="📢 Natijalarni e'lon qilish va yuborish", callback_data=f"adm_eval_prompt_{test_id}")])
+    else:
+        buttons.append([
+            InlineKeyboardButton(text="🔄 Natijalarni qayta yuborish", callback_data=f"adm_eval_prompt_{test_id}"),
+            InlineKeyboardButton(text="🔒 Natijalarni yashirish", callback_data=f"adm_hide_results_{test_id}")
+        ])
+
+    buttons.append([
+        InlineKeyboardButton(text="📄 Matn shaklida reyting", callback_data=f"adm_restxt_{test_id}"),
+        InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
+    ])
+    buttons.append([InlineKeyboardButton(text="🧮 Rasch modeli tahlil jadvali", callback_data=f"adm_rasch_{test_id}")])
+    buttons.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")])
 
     try:
         await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
