@@ -340,6 +340,12 @@ async function launchApp() {
     loadActiveTests().catch(function(e) { console.warn('ActiveTests:', e); })
   ]).then(function() {
     updateHeaderUser();
+    try {
+      var urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('tab') === 'admin' && state.isAdmin) {
+        switchTab('admin');
+      }
+    } catch (e) {}
   });
 
   // Yangi foydalanuvchilar uchun tugmalar va dizayn qo'llanmasi
@@ -633,62 +639,164 @@ function renderProfileTab() {
 // ── ADMIN TAB ───────────────────────────────────
 function renderAdminTab() {
   var tab = document.getElementById('tab-admin');
+  if (!tab) return;
   tab.innerHTML =
     '<div class="admin-header-card animate-in">' +
-    '<div class="admin-header-icon">\u2699\uFE0F</div>' +
-    '<div><div style="font-size:16px;font-weight:800;color:var(--text)">' + t('admin_panel') + '</div>' +
-    '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">Tizimni boshqarish</div></div></div>' +
-    '<div class="card animate-in" style="margin-top:12px">' +
-    '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">\uD83D\uDC65 ' + t('users_title') + ' <span style="font-size:11px;font-weight:normal;color:var(--text-muted)">(Ma\'lumotlarini ko\'rish uchun bosing)</span></div>' +
-    '<div id="users-list"><div class="skeleton skeleton-card" style="height:50px"></div><div class="skeleton skeleton-card" style="height:50px;margin-top:8px"></div></div>' +
+      '<div class="admin-header-icon">⚙️</div>' +
+      '<div>' +
+        '<div style="font-size:16px;font-weight:800;color:var(--text)">' + t('admin_panel') + '</div>' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-top:2px">Foydalanuvchilar va tizim boshqaruvi</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Statistika konteyneri (JS to'ldiradi)
+    '<div id="admin-stats-container" class="animate-in" style="margin-top:12px"></div>' +
+
+    // Barchani cheklash tugmasi
+    '<button class="admin-btn-restrict-all animate-in" onclick="restrictAllUsersFromApp()">' +
+      '🔒 Barcha o\'quvchilarni cheklash (qayta so\'rov)' +
+    '</button>' +
+
+    // Foydalanuvchilar kartasi
+    '<div class="card animate-in" style="margin-top:0">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+        '<div style="font-size:13.5px;font-weight:800;color:var(--text)">👥 Foydalanuvchilar ro\'yxati</div>' +
+        '<div id="admin-users-badge-count" style="font-size:11.5px;font-weight:700;color:var(--text-muted)">0 ta</div>' +
+      '</div>' +
+
+      // Qidiruv paneli
+      '<div class="admin-search-box">' +
+        '<span class="admin-search-icon">🔍</span>' +
+        '<input type="text" id="admin-user-search-input" class="admin-search-input" placeholder="Ism, telefon yoki Telegram ID..." oninput="handleAdminUserSearch(this.value)">' +
+      '</div>' +
+
+      // Filtr tugmalari
+      '<div class="admin-filter-tabs">' +
+        '<button class="admin-filter-btn active" id="btn-flt-all" onclick="setAdminUserFilter(\'all\')">Barchasi</button>' +
+        '<button class="admin-filter-btn" id="btn-flt-approved" onclick="setAdminUserFilter(\'approved\')">✅ Faol</button>' +
+        '<button class="admin-filter-btn" id="btn-flt-pending" onclick="setAdminUserFilter(\'pending\')">⏳ Kutilmoqda</button>' +
+        '<button class="admin-filter-btn" id="btn-flt-blocked" onclick="setAdminUserFilter(\'blocked\')">⛔️ Bloklangan</button>' +
+      '</div>' +
+
+      // Ro'yxat
+      '<div id="users-list">' +
+        '<div class="skeleton skeleton-card" style="height:50px"></div>' +
+        '<div class="skeleton skeleton-card" style="height:50px;margin-top:8px"></div>' +
+      '</div>' +
     '</div>';
 }
 
-function renderUsersSection(users, stats) {
-  var listEl = document.getElementById('users-list');
-  if (!listEl) return;
-  window.currentAdminUsers = users || [];
-  if (!users || users.length === 0) {
-    listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">\uD83D\uDC65</div><p>' + t('users_title') + '</p></div>';
-    return;
-  }
-  var statsHtml = '';
-  if (stats) {
-    statsHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">' +
-      '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px">' + (stats.total||0) + '</div><div class="stat-label">' + t('total') + '</div></div>' +
-      '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px;color:#10b981">' + (stats.approved||0) + '</div><div class="stat-label">' + t('approved') + '</div></div>' +
-      '<div class="stat-card" style="padding:10px"><div class="stat-value" style="font-size:18px;color:#f59e0b">' + (stats.pending||0) + '</div><div class="stat-label">' + t('pending') + '</div></div>' +
-      '</div>';
-  }
-  var usersHtml = users.slice(0, 50).map(function(u, idx) {
-    var letter = (u.fullname || 'F').charAt(0).toUpperCase();
-    var tc = u.tests_count || 0;
-    var st = u.status || 'pending';
-    var sb = st === 'approved'
-      ? '<span class="badge" style="padding:3px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:12px;"><span class="status-dot approved" style="width:6px;height:6px"></span> Faol</span>'
-      : st === 'pending'
-        ? '<span class="badge" style="padding:3px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:12px;"><span class="status-dot pending" style="width:6px;height:6px"></span> Kutilmoqda</span>'
-        : '<span class="badge" style="padding:3px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:12px;"><span class="status-dot rejected" style="width:6px;height:6px"></span> Rad etilgan</span>';
-    return '<div class="user-row clickable" onclick="openAdminUserModal(' + idx + ')">' +
-      '<div class="user-row-avatar">' + letter + '</div>' +
-      '<div class="user-row-info">' +
-      '<div class="user-row-name">' + escHtml(u.fullname || 'Nomaʼlum') + '</div>' +
-      '<div class="user-row-meta">' + escHtml(u.phone || '\u2014') + ' \u2022 ' + tc + ' test</div>' +
-      '</div>' + sb + '<span style="color:var(--text-muted);font-size:16px;margin-left:4px">\u203A</span></div>';
-  }).join('');
-  if (users.length > 50) usersHtml += '<div style="text-align:center;font-size:12px;color:var(--text-muted);padding:8px">va yana ' + (users.length - 50) + ' ta...</div>';
-  listEl.innerHTML = statsHtml + usersHtml;
+function handleAdminUserSearch(query) {
+  window.adminSearchQuery = (query || '').trim().toLowerCase();
+  renderFilteredAdminUsers();
 }
 
-function openAdminUserModal(idx) {
-  var u = null;
-  if (typeof idx === 'object' && idx !== null) {
-    u = idx;
-  } else if (window.currentAdminUsers && window.currentAdminUsers[idx]) {
-    u = window.currentAdminUsers[idx];
+function setAdminUserFilter(filter) {
+  window.adminCurrentFilter = filter;
+  ['all', 'approved', 'pending', 'blocked'].forEach(function(f) {
+    var btn = document.getElementById('btn-flt-' + f);
+    if (btn) btn.classList.toggle('active', f === filter);
+  });
+  renderFilteredAdminUsers();
+}
+
+function renderUsersSection(users, stats) {
+  window.currentAdminUsers = users || [];
+  window.adminCurrentFilter = window.adminCurrentFilter || 'all';
+  window.adminSearchQuery = window.adminSearchQuery || '';
+
+  // 1. Statistikani yangilash
+  var statsContainer = document.getElementById('admin-stats-container');
+  if (statsContainer && stats) {
+    statsContainer.innerHTML =
+      '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">' +
+        '<div class="stat-card" style="padding:8px 4px;text-align:center"><div class="stat-value" style="font-size:16px;font-weight:800">' + (stats.total||0) + '</div><div class="stat-label" style="font-size:10px">Jami</div></div>' +
+        '<div class="stat-card" style="padding:8px 4px;text-align:center"><div class="stat-value" style="font-size:16px;font-weight:800;color:#10b981">' + (stats.approved||0) + '</div><div class="stat-label" style="font-size:10px">Faol</div></div>' +
+        '<div class="stat-card" style="padding:8px 4px;text-align:center"><div class="stat-value" style="font-size:16px;font-weight:800;color:#f59e0b">' + (stats.pending||0) + '</div><div class="stat-label" style="font-size:10px">Kutilmoqda</div></div>' +
+        '<div class="stat-card" style="padding:8px 4px;text-align:center"><div class="stat-value" style="font-size:16px;font-weight:800;color:#ef4444">' + (stats.blocked||0) + '</div><div class="stat-label" style="font-size:10px">Bloklangan</div></div>' +
+      '</div>';
   }
+
+  // 2. Foydalanuvchilar ro'yxatini render qilish
+  renderFilteredAdminUsers();
+}
+
+function renderFilteredAdminUsers() {
+  var listEl = document.getElementById('users-list');
+  if (!listEl) return;
+
+  var users = window.currentAdminUsers || [];
+  var filter = window.adminCurrentFilter || 'all';
+  var q = window.adminSearchQuery || '';
+
+  var filtered = users.filter(function(u) {
+    // Holat bo'yicha filter
+    var st = (u.status || 'pending').toLowerCase();
+    if (filter === 'approved' && st !== 'approved') return false;
+    if (filter === 'pending' && st !== 'pending') return false;
+    if (filter === 'blocked' && st !== 'blocked') return false;
+
+    // Qidiruv bo'yicha filter
+    if (q) {
+      var nameMatch = (u.fullname || '').toLowerCase().indexOf(q) !== -1;
+      var phoneMatch = (u.phone || '').toLowerCase().indexOf(q) !== -1;
+      var idMatch = String(u.tg_id || '').indexOf(q) !== -1;
+      var userMatch = (u.username || '').toLowerCase().indexOf(q) !== -1;
+      if (!nameMatch && !phoneMatch && !idMatch && !userMatch) return false;
+    }
+    return true;
+  });
+
+  var countBadge = document.getElementById('admin-users-badge-count');
+  if (countBadge) {
+    countBadge.textContent = filtered.length + ' ta' + (filtered.length !== users.length ? ' (saralangan)' : '');
+  }
+
+  if (filtered.length === 0) {
+    listEl.innerHTML =
+      '<div class="empty-state" style="padding:24px 10px;">' +
+        '<div class="empty-icon" style="font-size:36px;">🔍</div>' +
+        '<p style="font-size:13px;color:var(--text-muted);">' + (q ? 'Mos keluvchi foydalanuvchi topilmadi' : 'Foydalanuvchilar mavjud emas') + '</p>' +
+      '</div>';
+    return;
+  }
+
+  var usersHtml = filtered.map(function(u) {
+    var letter = (u.fullname || 'F').charAt(0).toUpperCase();
+    var tc = u.tests_count || 0;
+    var st = (u.status || 'pending').toLowerCase();
+    var sb = '';
+    if (st === 'approved') {
+      sb = '<span class="badge" style="padding:3px 8px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:12px;"><span class="status-dot approved" style="width:6px;height:6px"></span> Faol</span>';
+    } else if (st === 'pending') {
+      sb = '<span class="badge" style="padding:3px 8px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);border-radius:12px;"><span class="status-dot pending" style="width:6px;height:6px"></span> Kutilmoqda</span>';
+    } else if (st === 'blocked') {
+      sb = '<span class="badge" style="padding:3px 8px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:12px;"><span class="status-dot rejected" style="width:6px;height:6px"></span> Bloklangan</span>';
+    } else {
+      sb = '<span class="badge" style="padding:3px 8px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.3);border-radius:12px;">' + st + '</span>';
+    }
+
+    return '<div class="user-row clickable" onclick="openAdminUserModal(' + u.tg_id + ')">' +
+      '<div class="user-row-avatar">' + letter + '</div>' +
+      '<div class="user-row-info">' +
+        '<div class="user-row-name">' + escHtml(u.fullname || 'Nomaʼlum') + '</div>' +
+        '<div class="user-row-meta">' + escHtml(u.phone || '—') + ' • ID: <code>' + u.tg_id + '</code> • ' + tc + ' test</div>' +
+      '</div>' +
+      sb +
+      '<span style="color:var(--text-muted);font-size:16px;margin-left:4px">›</span>' +
+    '</div>';
+  }).join('');
+
+  listEl.innerHTML = usersHtml;
+}
+
+function openAdminUserModal(targetUid) {
+  var users = window.currentAdminUsers || [];
+  var u = users.find(function(item) { return item.tg_id === Number(targetUid); });
+  if (!u && typeof targetUid === 'object') u = targetUid;
+
   if (!u) {
-    console.warn('Foydalanuvchi topilmadi:', idx);
+    alert('Foydalanuvchi ma\'lumotlari topilmadi');
     return;
   }
 
@@ -697,15 +805,15 @@ function openAdminUserModal(idx) {
     modal = document.createElement('div');
     modal.id = 'admin-user-modal';
     modal.className = 'modal-overlay';
-    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:16px;';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:16px;';
     modal.onclick = function(e) { closeAdminUserModal(e); };
     modal.innerHTML =
-      '<div class="modal-box" id="admin-user-modal-box" style="max-width:390px;width:100%;max-height:90vh;overflow-y:auto;padding:20px 18px 22px;border-radius:24px;background:var(--bg-card,#1e293b);border:1px solid var(--border,rgba(255,255,255,0.12));box-shadow:0 24px 60px rgba(0,0,0,0.4);position:relative;">' +
-      '  <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-      '    <div class="modal-title" style="font-size:16px;font-weight:800;color:var(--text,#fff);">Foydalanuvchi ma\'lumotlari</div>' +
-      '    <button class="modal-close" onclick="closeAdminUserModal()" style="background:none;border:none;font-size:20px;color:var(--text-muted,#94a3b8);cursor:pointer;padding:4px 8px;line-height:1;">✕</button>' +
-      '  </div>' +
-      '  <div class="modal-body" id="admin-user-modal-body"></div>' +
+      '<div class="modal-box" id="admin-user-modal-box" style="max-width:400px;width:100%;max-height:92vh;overflow-y:auto;padding:22px 18px;border-radius:24px;background:var(--bg-card,#1e293b);border:1px solid var(--border,rgba(255,255,255,0.12));box-shadow:0 24px 60px rgba(0,0,0,0.5);position:relative;">' +
+        '<div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+          '<div class="modal-title" style="font-size:16px;font-weight:800;color:var(--text,#fff);">👤 Foydalanuvchi boshqaruvi</div>' +
+          '<button class="modal-close" onclick="closeAdminUserModal()" style="background:none;border:none;font-size:22px;color:var(--text-muted,#94a3b8);cursor:pointer;padding:4px 8px;line-height:1;">✕</button>' +
+        '</div>' +
+        '<div class="modal-body" id="admin-user-modal-body"></div>' +
       '</div>';
     document.body.appendChild(modal);
   }
@@ -714,30 +822,43 @@ function openAdminUserModal(idx) {
   if (!body) return;
 
   var letter = (u.fullname || 'F').charAt(0).toUpperCase();
-  var st = u.status || 'pending';
-  
+  var st = (u.status || 'pending').toLowerCase();
+
   var statusBadge = '';
   if (st === 'approved') {
-    statusBadge = '<span class="stat-status-badge status-approved" style="font-size:12px;padding:4px 12px;"><span class="status-dot approved"></span> Tasdiqlangan (Faol)</span>';
+    statusBadge = '<span class="stat-status-badge status-approved" style="font-size:12px;padding:4px 12px;"><span class="status-dot approved"></span> Faol (Ruxsat berilgan)</span>';
   } else if (st === 'pending') {
-    statusBadge = '<span class="stat-status-badge status-pending" style="font-size:12px;padding:4px 12px;"><span class="status-dot pending"></span> Tasdiqlanmagan (Kutilmoqda)</span>';
+    statusBadge = '<span class="stat-status-badge status-pending" style="font-size:12px;padding:4px 12px;"><span class="status-dot pending"></span> Kutilmoqda (Cheklangan)</span>';
+  } else if (st === 'blocked') {
+    statusBadge = '<span class="stat-status-badge status-rejected" style="font-size:12px;padding:4px 12px;"><span class="status-dot rejected"></span> Bloklangan (Chiqarilgan)</span>';
   } else {
-    statusBadge = '<span class="stat-status-badge status-rejected" style="font-size:12px;padding:4px 12px;"><span class="status-dot rejected"></span> Rad etilgan / Cheklangan</span>';
+    statusBadge = '<span class="stat-status-badge" style="font-size:12px;padding:4px 12px;">' + st + '</span>';
   }
 
   var regDateStr = u.registered_at ? formatDate(u.registered_at) : 'Nomaʼlum';
   var lastTestStr = u.last_test_at ? formatDate(u.last_test_at) : 'Hali test topshirmagan';
   var usernameStr = u.username ? ('@' + u.username) : 'Mavjud emas';
 
-  var actionBtnHtml = '';
-  if (st === 'approved') {
-    actionBtnHtml = '<button class="btn btn-danger" style="width:100%;padding:12px;font-size:13.5px;border-radius:12px;background:#ef4444;color:#fff;border:none;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'rejected\')">\u274C Ruxsatni bekor qilish (Rad etish)</button>';
+  // Harakat tugmalari (Action buttons)
+  var actionButtonsHtml = '<div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">';
+
+  if (st !== 'approved') {
+    actionButtonsHtml += '<button class="admin-btn-action admin-btn-approve" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'approved\')">✅ Ruxsat berish (Faollashtirish)</button>';
   } else {
-    actionBtnHtml = '<button class="btn btn-primary" style="width:100%;padding:12px;font-size:13.5px;border-radius:12px;background:#10b981;color:#fff;border:none;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'approved\')">\u2705 Ruxsat berish (Faollashtirish)</button>';
+    actionButtonsHtml += '<button class="admin-btn-action admin-btn-pending" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'pending\')">⏳ Huquqini to\'xtatish (Kutilmoqda)</button>';
   }
 
+  if (st !== 'blocked') {
+    actionButtonsHtml += '<button class="admin-btn-action admin-btn-block" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'blocked\')">⛔️ Bloklash (Botdan chiqarish)</button>';
+  } else {
+    actionButtonsHtml += '<button class="admin-btn-action admin-btn-approve" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'approved\')">🔓 Blokdan chiqarish va Ruxsat berish</button>';
+  }
+
+  actionButtonsHtml += '<button class="admin-btn-action admin-btn-delete" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'delete\')">🗑 Bazadan butunlay o\'chirish</button>';
+  actionButtonsHtml += '</div>';
+
   body.innerHTML =
-    '<div style="text-align:center;padding:6px 0 14px;">' +
+    '<div style="text-align:center;padding:4px 0 14px;">' +
       '<div class="profile-avatar" style="margin:0 auto 10px;width:56px;height:56px;font-size:24px;display:flex;align-items:center;justify-content:center;">' + letter + '</div>' +
       '<div style="font-size:17px;font-weight:800;color:var(--text);">' + escHtml(u.fullname || 'Foydalanuvchi') + '</div>' +
       '<div style="margin-top:6px;">' + statusBadge + '</div>' +
@@ -746,11 +867,11 @@ function openAdminUserModal(idx) {
       '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📱</div><div><div class="info-label" style="font-size:11px;">Telefon raqami</div><div class="info-value" style="font-size:14px;font-weight:700;"><a href="tel:' + escHtml(u.phone || '') + '" style="color:var(--primary);text-decoration:none;">' + escHtml(u.phone || '—') + '</a></div></div></div>' +
       '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🆔</div><div><div class="info-label" style="font-size:11px;">Telegram ID</div><div class="info-value" style="font-size:14px;font-weight:700;"><code>' + u.tg_id + '</code></div></div></div>' +
       '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🔗</div><div><div class="info-label" style="font-size:11px;">Username</div><div class="info-value" style="font-size:14px;font-weight:700;">' + escHtml(usernameStr) + '</div></div></div>' +
-      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🕒</div><div><div class="info-label" style="font-size:11px;">Roʻyxatdan oʻtgan (Kirgan vaqti)</div><div class="info-value" style="font-size:14px;font-weight:700;color:var(--primary);">' + regDateStr + '</div></div></div>' +
+      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🕒</div><div><div class="info-label" style="font-size:11px;">Roʻyxatdan oʻtgan vaqti</div><div class="info-value" style="font-size:13.5px;font-weight:700;color:var(--primary);">' + regDateStr + '</div></div></div>' +
       '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📝</div><div><div class="info-label" style="font-size:11px;">Topshirgan testlari soni</div><div class="info-value" style="font-size:14px;font-weight:700;">' + (u.tests_count || 0) + ' ta</div></div></div>' +
       '<div class="info-row" style="padding:9px 0;border-bottom:none;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">⏱</div><div><div class="info-label" style="font-size:11px;">Oxirgi test topshirgan vaqti</div><div class="info-value" style="font-size:13px;font-weight:600;">' + lastTestStr + '</div></div></div>' +
     '</div>' +
-    actionBtnHtml;
+    actionButtonsHtml;
 
   modal.style.display = 'flex';
 }
@@ -762,12 +883,28 @@ function closeAdminUserModal(e) {
 }
 
 async function updateUserStatusFromModal(targetUid, newStatus) {
+  if (newStatus === 'delete') {
+    if (!confirm('⚠️ DIQQAT! Haqiqatan ham ushbu foydalanuvchini va uning barcha test natijalarini butunlay o\'chirib tashlamoqchimisiz? Bu amalni ortga qaytarib bo\'lmaydi!')) {
+      return;
+    }
+  } else if (newStatus === 'blocked') {
+    if (!confirm('Ushbu foydalanuvchini bloklamoqchimisiz? U botdan va test tizimidan chiqarib yuboriladi.')) {
+      return;
+    }
+  } else if (newStatus === 'pending') {
+    if (!confirm('Ushbu foydalanuvchining huquqini to\'xtatib, kutilmoqda holatiga o\'tkazmoqchimisiz?')) {
+      return;
+    }
+  }
+
   var adminId = (state.tgUser && state.tgUser.id) || 0;
   var btn = (typeof event !== 'undefined' && event && event.target) ? event.target : null;
+  var originalText = btn ? btn.textContent : '';
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Bajarilmoqda...';
   }
+
   try {
     var res = await fetch('/api/app/update-user-status', {
       method: 'POST',
@@ -782,14 +919,50 @@ async function updateUserStatusFromModal(targetUid, newStatus) {
     var data = await res.json();
     if (data.success) {
       closeAdminUserModal();
+      if (newStatus === 'delete') {
+        alert('🗑 Foydalanuvchi muvaffaqiyatli o\'chirildi!');
+      } else if (newStatus === 'approved') {
+        alert('✅ Foydalanuvchiga ruxsat berildi!');
+      } else if (newStatus === 'blocked') {
+        alert('⛔️ Foydalanuvchi bloklandi!');
+      } else if (newStatus === 'pending') {
+        alert('⏳ Foydalanuvchi kutilmoqda holatiga o\'tkazildi!');
+      }
       loadAllUsers();
     } else {
       alert(data.message || 'Xatolik yuz berdi');
-      if (btn) { btn.disabled = false; btn.textContent = 'Qayta urinish'; }
+      if (btn) { btn.disabled = false; btn.textContent = originalText; }
     }
   } catch (err) {
     alert('Server bilan bogʻlanishda xatolik: ' + err.message);
-    if (btn) { btn.disabled = false; btn.textContent = 'Qayta urinish'; }
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+  }
+}
+
+async function restrictAllUsersFromApp() {
+  if (!confirm('⚠️ DIQQAT! Barcha oddiy foydalanuvchilarning ruxsatini bekor qilib, ularni «kutilmoqda» (pending) holatiga o\'tkazmoqchimisiz?\n\nAdminlar daxlsiz qoladi.')) {
+    return;
+  }
+
+  var adminId = (state.tgUser && state.tgUser.id) || 0;
+  try {
+    var res = await fetch('/api/app/restrict-all-users', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        admin_id: adminId,
+        init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
+      })
+    });
+    var data = await res.json();
+    if (data.success) {
+      alert('🔒 Jami ' + (data.count || 0) + ' ta foydalanuvchi muvaffaqiyatli cheklandi!');
+      loadAllUsers();
+    } else {
+      alert(data.message || 'Xatolik yuz berdi');
+    }
+  } catch (err) {
+    alert('Server bilan bogʻlanishda xatolik: ' + err.message);
   }
 }
 

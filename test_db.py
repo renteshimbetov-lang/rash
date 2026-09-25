@@ -20,6 +20,7 @@ USE_POSTGRES = bool(DATABASE_URL and ("postgresql" in DATABASE_URL or "postgres"
 
 # ── PostgreSQL Connection Pool (tezlik uchun) ──────────────
 _pg_pool = None
+_pool_connections = set()
 
 def _get_pg_pool():
     """PostgreSQL connection pool — bir marta yaratiladi, qayta ishlatiladi."""
@@ -35,7 +36,11 @@ def _get_pg_pool():
 
 def _close_conn(conn):
     """Ulanishni pool ga qaytarish yoki yopish."""
-    if USE_POSTGRES and getattr(conn, '_from_pool', False):
+    if conn is None:
+        return
+    conn_id = id(conn)
+    if USE_POSTGRES and conn_id in _pool_connections:
+        _pool_connections.discard(conn_id)
         pool = _get_pg_pool()
         if pool:
             try:
@@ -43,7 +48,10 @@ def _close_conn(conn):
                 return
             except Exception:
                 pass
-    _close_conn(conn)
+    try:
+        conn.close()
+    except Exception:
+        pass
 
 if not USE_POSTGRES:
     import sqlite3
