@@ -188,12 +188,12 @@
       <button type="button" class="kb-done-btn" onclick="MathKeyboard.close()">Tayyor ✓</button>
     </div>
 
-    <!-- 2. BO'LIMLAR TUGMALARI (Segmented Control Tabs) -->
+    <!-- 2. BO'LIMLAR TUGMALARI (Segmented Control Tabs: 4 ta teng ustun telefonga 100% sig'adi) -->
     <div class="kb-tabs-bar">
-      <button type="button" class="kb-tab-btn active" id="kb-tab-math" onclick="MathKeyboard.switchTab('math')">🔢 Raqam & Asosiy</button>
-      <button type="button" class="kb-tab-btn" id="kb-tab-power" onclick="MathKeyboard.switchTab('power')">📐 Ildiz & Daraja</button>
-      <button type="button" class="kb-tab-btn" id="kb-tab-func" onclick="MathKeyboard.switchTab('func')">fx Funksiya</button>
-      <button type="button" class="kb-tab-btn" id="kb-tab-vars" onclick="MathKeyboard.switchTab('vars')">🔤 Harflar</button>
+      <button type="button" class="kb-tab-btn active" id="kb-tab-math" onclick="MathKeyboard.switchTab('math')">123</button>
+      <button type="button" class="kb-tab-btn" id="kb-tab-power" onclick="MathKeyboard.switchTab('power')">√ / xⁿ</button>
+      <button type="button" class="kb-tab-btn" id="kb-tab-func" onclick="MathKeyboard.switchTab('func')">f(x)</button>
+      <button type="button" class="kb-tab-btn" id="kb-tab-vars" onclick="MathKeyboard.switchTab('vars')">abc</button>
     </div>
 
     <!-- 3. TUGMALAR TANASI -->
@@ -201,9 +201,9 @@
     <div class="kb-body" id="keyboard-body-math">
       <div class="kb-row">
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('√(')">√</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('²')">x²</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('³')">x³</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('^')">^</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('²')">x²</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('³')">x³</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertCustomPower()">^</button>
         <button type="button" class="kb-key kb-op" onclick="MathKeyboard.insert('/')">/</button>
       </div>
       <div class="kb-row">
@@ -247,31 +247,31 @@
     <div class="kb-body" id="keyboard-body-power" style="display: none;">
       <div class="kb-row">
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('√(')">√</button>
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∛(')">∛</button>
-        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∜(')">∜</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∛(')">³√</button>
+        <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('∜(')">⁴√</button>
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('ⁿ√(')">ⁿ√</button>
         <button type="button" class="kb-key kb-backspace" onclick="MathKeyboard.backspace()">⌫</button>
       </div>
       <div class="kb-row">
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('²')">x²</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('³')">x³</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁴')">x⁴</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁵')">x⁵</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('^')">xⁿ (^)</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('²')">x²</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('³')">x³</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('⁴')">x⁴</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertPower('⁵')">x⁵</button>
+        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insertCustomPower()">xⁿ (^)</button>
       </div>
       <div class="kb-row">
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁰')">⁰</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('¹')">¹</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('²')">²</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('³')">³</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁴')">⁴</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁰')">⁰</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('¹')">¹</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('²')">²</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('³')">³</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁴')">⁴</button>
       </div>
       <div class="kb-row">
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁵')">⁵</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁶')">⁶</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁷')">⁷</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁸')">⁸</button>
-        <button type="button" class="kb-key kb-power" onclick="MathKeyboard.insert('⁹')">⁹</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁵')">⁵</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁶')">⁶</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁷')">⁷</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁸')">⁸</button>
+        <button type="button" class="kb-key kb-power kb-power-num" onclick="MathKeyboard.insert('⁹')">⁹</button>
       </div>
       <div class="kb-row">
         <button type="button" class="kb-key kb-func" onclick="MathKeyboard.insert('≤')">≤</button>

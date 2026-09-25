@@ -103,6 +103,43 @@ const MathKeyboard = {
     this.onInputChange();
   },
 
+  insertPower(powerChar) {
+    if (!this.activeFieldKey) return;
+    const liveInput = document.getElementById('keyboard-live-input');
+    const targetInput = this.activeInputElement || liveInput;
+    if (!targetInput) return;
+
+    const start = targetInput.selectionStart ?? targetInput.value.length;
+    const text = targetInput.value || '';
+    const charBefore = start > 0 ? text[start - 1] : '';
+
+    // Agar kursordan oldingi belgi harf (x, y, a...), raqam (0-9) yoki yopuvchi qavs bo'lsa:
+    // faqat daraja ko'rsatkichini qo'shamiz (masalan: x⁴, 5⁴, (a+b)⁴)
+    if (/[a-zA-Z0-9\)\_]/.test(charBefore)) {
+      this.insert(powerChar);
+    } else {
+      // Aks holda mustaqil x ning darajasini qo'shamiz (masalan: x⁴, x³, x²)
+      this.insert('x' + powerChar);
+    }
+  },
+
+  insertCustomPower() {
+    if (!this.activeFieldKey) return;
+    const liveInput = document.getElementById('keyboard-live-input');
+    const targetInput = this.activeInputElement || liveInput;
+    if (!targetInput) return;
+
+    const start = targetInput.selectionStart ?? targetInput.value.length;
+    const text = targetInput.value || '';
+    const charBefore = start > 0 ? text[start - 1] : '';
+
+    if (/[a-zA-Z0-9\)\_]/.test(charBefore)) {
+      this.insert('^');
+    } else {
+      this.insert('x^');
+    }
+  },
+
   backspace() {
     if (!this.activeFieldKey) return;
     const liveInput = document.getElementById('keyboard-live-input');

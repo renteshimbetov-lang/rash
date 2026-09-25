@@ -968,8 +968,13 @@ def normalize_answer(ans: Any) -> str:
     res = res.replace(" ", "")
     res = res.replace(",", ".")
     res = res.replace("·", "*").replace("×", "*")
-    res = res.replace("²", "^2").replace("³", "^3")
+    # Darajalarni standart ^ daraja shakliga keltirish:
+    res = res.replace("⁰", "^0").replace("¹", "^1").replace("²", "^2").replace("³", "^3")
+    res = res.replace("⁴", "^4").replace("⁵", "^5").replace("⁶", "^6").replace("⁷", "^7").replace("⁸", "^8").replace("⁹", "^9")
+    # Ildizlarni standartlashtirish:
     res = res.replace("sqrt", "√")
+    res = res.replace("∛", "3√").replace("cbrt", "3√").replace("³√", "3√")
+    res = res.replace("∜", "4√").replace("⁴√", "4√")
     return res
 
 

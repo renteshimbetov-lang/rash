@@ -841,27 +841,27 @@ body.dark-mode .kb-live-input {
   transform: scale(0.94);
 }
 
-/* 2. TABS BAR: Segmented Control (Full Width) */
+/* 2. TABS BAR: Segmented Control (Full Width, 4 teng ustun telefonga 100% sig'adi) */
 .kb-tabs-bar {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  padding: 6px 12px;
-  background: rgba(0, 0, 0, 0.02);
+  padding: 6px 10px;
+  background: var(--bg-card-sub, #F1F5F9);
   border-bottom: 1px solid var(--border);
   max-width: 540px;
   width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .kb-tab-btn {
-  flex: 1;
-  height: 32px;
+  height: 34px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
@@ -869,6 +869,7 @@ body.dark-mode .kb-live-input {
   justify-content: center;
   white-space: nowrap;
   transition: all 0.15s ease;
+  padding: 0 2px;
 }
 
 .kb-tab-btn.active {
@@ -955,6 +956,11 @@ body.dark-mode .kb-key.kb-func {
   color: #9333EA;
   font-weight: 800;
   font-size: 13.5px;
+}
+
+.kb-key.kb-power-num {
+  font-size: 18px !important;
+  font-weight: 800 !important;
 }
 
 body.dark-mode .kb-key.kb-power {
