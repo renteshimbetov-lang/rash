@@ -2257,50 +2257,56 @@ async def handle_create_test_api(request):
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(BASE_DIR, 'test_webapp')
 
-# Agar test_webapp yoki undagi fayllar Render diskida mavjud bo'lmasa, avtomatik tiklash
+# Agar test_webapp eskidan qolgan bo'lsa, joriy git fayllari xalaqitsiz ishlashi uchun tozalash
 try:
-    import web_assets_fallback
-    web_assets_fallback.ensure_assets_on_disk(WEB_DIR)
-except Exception as _we:
-    log.warning(f"Web assets fallback xatoligi: {_we}")
+    if os.path.exists(WEB_DIR):
+        import shutil
+        shutil.rmtree(WEB_DIR, ignore_errors=True)
+except Exception:
+    pass
 
 async def find_web_file(filename: str) -> str:
     filename_clean = filename.lstrip('/')
     candidates = [
-        os.path.join(WEB_DIR, filename_clean),
-        os.path.join(WEB_DIR, 'css', filename_clean),
-        os.path.join(WEB_DIR, 'js', filename_clean),
-        os.path.join(WEB_DIR, 'img', filename_clean),
         os.path.join(BASE_DIR, filename_clean),
         os.path.join(BASE_DIR, 'css', filename_clean),
         os.path.join(BASE_DIR, 'js', filename_clean),
         os.path.join(BASE_DIR, 'img', filename_clean),
-        os.path.join(os.getcwd(), 'test_webapp', filename_clean),
         os.path.join(os.getcwd(), filename_clean),
+        os.path.join(os.getcwd(), 'css', filename_clean),
+        os.path.join(os.getcwd(), 'js', filename_clean),
+        os.path.join(os.getcwd(), 'img', filename_clean),
+        os.path.join(WEB_DIR, filename_clean),
     ]
     for c in candidates:
         if os.path.exists(c) and os.path.isfile(c):
             return c
     # Fallback: Papkalar bo'ylab qidirish
     target = os.path.basename(filename_clean)
-    for root_dir in [WEB_DIR, BASE_DIR, os.getcwd()]:
+    for root_dir in [BASE_DIR, os.getcwd()]:
         if os.path.exists(root_dir):
             for root, dirs, files in os.walk(root_dir):
                 if target in files:
                     found = os.path.join(root, target)
                     log.info(f"🔍 Topildi (recursive search): {found}")
                     return found
-    return os.path.join(WEB_DIR, filename_clean)
+    return os.path.join(BASE_DIR, filename_clean)
+
+def set_no_cache_headers(resp):
+    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
 
 async def handle_index(request):
     fpath = await find_web_file('index.html')
     if os.path.exists(fpath) and os.path.isfile(fpath):
-        return web.FileResponse(fpath)
+        return set_no_cache_headers(web.FileResponse(fpath))
     try:
         import web_assets_fallback
         data, mime = web_assets_fallback.get_asset_bytes('index.html')
         if data:
-            return web.Response(body=data, content_type=mime or 'text/html', charset='utf-8')
+            return set_no_cache_headers(web.Response(body=data, content_type=mime or 'text/html', charset='utf-8'))
     except Exception as e:
         log.error(f"index.html yuklashda xatolik: {e}")
     return web.Response(status=404, text="index.html topilmadi")
@@ -2308,12 +2314,12 @@ async def handle_index(request):
 async def handle_admin(request):
     fpath = await find_web_file('admin.html')
     if os.path.exists(fpath) and os.path.isfile(fpath):
-        return web.FileResponse(fpath)
+        return set_no_cache_headers(web.FileResponse(fpath))
     try:
         import web_assets_fallback
         data, mime = web_assets_fallback.get_asset_bytes('admin.html')
         if data:
-            return web.Response(body=data, content_type=mime or 'text/html', charset='utf-8')
+            return set_no_cache_headers(web.Response(body=data, content_type=mime or 'text/html', charset='utf-8'))
     except Exception as e:
         log.error(f"admin.html yuklashda xatolik: {e}")
     return web.Response(status=404, text="admin.html topilmadi")
@@ -2333,10 +2339,7 @@ async def handle_app(request):
         except Exception as e:
             log.error(f"app.html yuklashda xatolik: {e}")
             resp = web.Response(status=404, text="app.html topilmadi")
-    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    resp.headers['Pragma'] = 'no-cache'
-    resp.headers['Expires'] = '0'
-    return resp
+    return set_no_cache_headers(resp)
 
 async def handle_static_file(request):
     path_name = request.match_info.get('path', '')
@@ -2347,10 +2350,8 @@ async def handle_static_file(request):
         resp = web.FileResponse(fpath)
         if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
             resp.headers['Cache-Control'] = 'public, max-age=86400'
-        elif any(path_name.endswith(ext) for ext in ['.css', '.js']):
-            resp.headers['Cache-Control'] = 'public, max-age=60'
         else:
-            resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            set_no_cache_headers(resp)
         return resp
 
     # Fallback to embedded in-memory asset
@@ -2361,13 +2362,15 @@ async def handle_static_file(request):
             resp = web.Response(body=data, content_type=mime or 'application/octet-stream')
             if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
                 resp.headers['Cache-Control'] = 'public, max-age=86400'
-            elif any(path_name.endswith(ext) for ext in ['.css', '.js']):
-                resp.headers['Cache-Control'] = 'public, max-age=60'
+            else:
+                set_no_cache_headers(resp)
             return resp
     except Exception as e:
         log.error(f"Statik faylni xotiradan yuklashda xatolik ({path_name}): {e}")
 
     return web.Response(status=404, text="Fayl topilmadi")
+
+
 
 # ── ASOSIY MINI APP API ENDPOINTLARI ────────────────────────────────────────
 
