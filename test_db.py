@@ -283,7 +283,80 @@ def init_db():
         VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
         """)
 
+    # Jadval vaqt ustunlari migration (mavjud bo'lsa xato bermaydi)
+    if USE_POSTGRES:
+        for col, coltype in [
+            ("scheduled_date", "TEXT"),
+            ("scheduled_start", "TEXT"),
+            ("scheduled_end", "TEXT"),
+        ]:
+            try:
+                cur.execute(f"ALTER TABLE tests ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT NULL")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+    else:
+        for col in ["scheduled_date", "scheduled_start", "scheduled_end"]:
+            try:
+                cur.execute(f"ALTER TABLE tests ADD COLUMN {col} TEXT DEFAULT NULL")
+                conn.commit()
+            except Exception:
+                pass
+
     _commit_and_close(conn)
+
+
+
+# ──────────────────────────────────────────────────────────
+# TEST JADVAL VAQT BOSHQARUVI (SCHEDULER)
+# ──────────────────────────────────────────────────────────
+
+def set_test_schedule(test_id: int, scheduled_date: str, start_time: str, end_time: str) -> bool:
+    """Test uchun avtomatik boshlanish/tugash vaqtini o'rnatish.
+    scheduled_date: "26.09.2026", start_time: "19:30", end_time: "22:00" (UZB vaqt)
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"UPDATE tests SET scheduled_date={_ph()}, scheduled_start={_ph()}, scheduled_end={_ph()} WHERE id={_ph()}",
+            (scheduled_date, start_time, end_time, test_id)
+        )
+        _commit_and_close(conn)
+        return True
+    except Exception as e:
+        print(f"Error set_test_schedule: {e}")
+        _close_conn(conn)
+        return False
+
+
+def clear_test_schedule(test_id: int) -> bool:
+    """Test jadvalini tozalash (avtomatik boshlanish bekor qilish)."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f"UPDATE tests SET scheduled_date=NULL, scheduled_start=NULL, scheduled_end=NULL WHERE id={_ph()}",
+            (test_id,)
+        )
+        _commit_and_close(conn)
+        return True
+    except Exception as e:
+        print(f"Error clear_test_schedule: {e}")
+        _close_conn(conn)
+        return False
+
+
+def get_scheduled_tests() -> List[Dict[str, Any]]:
+    """Jadval vaqti belgilangan barcha testlarni qaytaradi."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM tests WHERE scheduled_start IS NOT NULL AND scheduled_end IS NOT NULL"
+    )
+    rows = cur.fetchall()
+    _close_conn(conn)
+    return [_row_to_dict(r) for r in rows if r]
 
 
 # ──────────────────────────────────────────────────────────

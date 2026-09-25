@@ -151,6 +151,11 @@ class BroadcastState(StatesGroup):
     waiting_for_message = State()
     confirm_send = State()
 
+class ScheduleState(StatesGroup):
+    waiting_date = State()
+    waiting_start = State()
+    waiting_end = State()
+
 # ── KEYBOARDS (TUGMALAR) ──────────────────────────────
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
     is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
@@ -1846,13 +1851,25 @@ async def admin_test_stats_detail(call: CallbackQuery):
     status_badge = "🟢 Javoblar qabul qilinmoqda" if is_active else "🔴 Javoblar qabul qilish to'xtatilgan"
     pub_badge = "📢 Natijalar e'lon qilingan" if is_pub else "🔒 Yashirin (O'quvchilarga «Javoblar tekshirilmoqda» ko'rinadi)"
 
+    # Jadval vaqt ma'lumoti
+    sched_date = test.get('scheduled_date') or ''
+    sched_start = test.get('scheduled_start') or ''
+    sched_end = test.get('scheduled_end') or ''
+    if sched_date and sched_start and sched_end:
+        sched_badge = f"⏰ {sched_date} | {sched_start}–{sched_end} (UZB)"
+    elif sched_start and sched_end:
+        sched_badge = f"⏰ {sched_start}–{sched_end} (UZB, sana belgilanmagan)"
+    else:
+        sched_badge = "➖ Belgilanmagan"
+
     text = (
         f"📋 <b>Test boshqaruvi va hisoboti:</b>\n\n"
         f"📖 <b>Nomi:</b> {test['title']}\n"
         f"🔑 <b>Kodi:</b> <code>#{test['test_code']}</code>\n"
         f"📌 <b>Fani:</b> {test.get('subject', 'Matematika')}\n"
         f"🚦 <b>Holati:</b> {status_badge}\n"
-        f"📢 <b>Natijalar:</b> {pub_badge}\n\n"
+        f"📢 <b>Natijalar:</b> {pub_badge}\n"
+        f"⏰ <b>Avtomatik vaqt:</b> {sched_badge}\n\n"
         f"👥 <b>Topshirganlar soni:</b> <b>{count} nafar</b>\n"
         f"📈 <b>O'rtacha ball:</b> <b>{avg_score} ball</b>\n\n"
         f"<i>Boshqarish uchun quyidagi amallardan birini tanlang 👇</i>"
@@ -1874,6 +1891,10 @@ async def admin_test_stats_detail(call: CallbackQuery):
         InlineKeyboardButton(text="📄 Matn shaklida", callback_data=f"adm_restxt_{test_id}"),
         InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
     ])
+    if sched_date and sched_start and sched_end:
+        buttons.append([InlineKeyboardButton(text="⏰ Vaqtni o'zgartirish / bekor qilish", callback_data=f"adm_schedule_{test_id}")])
+    else:
+        buttons.append([InlineKeyboardButton(text="⏰ Avtomatik vaqt belgilash", callback_data=f"adm_schedule_{test_id}")])
     buttons.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")])
 
     try:
@@ -2910,6 +2931,240 @@ async def maintain_tunnel(local_port: int):
             await asyncio.sleep(2)
         await asyncio.sleep(3)
 
+# ── TEST JADVAL VAQT HANDLERLARI ───────────────────────────
+
+@router.callback_query(F.data.startswith("adm_schedule_"))
+async def adm_schedule_start(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[2])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    sched_date = test.get('scheduled_date') or ''
+    sched_start = test.get('scheduled_start') or ''
+    sched_end = test.get('scheduled_end') or ''
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏰ Yangi vaqt belgilash", callback_data=f"adm_sched_set_{test_id}")],
+        [InlineKeyboardButton(text="🗑 Jadval vaqtini bekor qilish", callback_data=f"adm_sched_clear_{test_id}")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"adm_tstat_{test_id}")],
+    ])
+
+    cur_sched = f"⏰ {sched_date} | {sched_start}–{sched_end}" if (sched_start and sched_end) else "➖ Belgilanmagan"
+    text = (
+        f"⏰ <b>Avtomatik vaqt boshqaruvi</b>\n\n"
+        f"📖 <b>Test:</b> {test['title']}\n"
+        f"🕐 <b>Hozirgi jadval:</b> {cur_sched}\n\n"
+        f"<i>Test belgilangan vaqtda avtomatik <b>faollashadi</b> (boshlanish vaqti kelganda)\n"
+        f"va belgilangan vaqtda avtomatik <b>to'xtatiladi</b> (tugash vaqti kelganda).\n"
+        f"Siz hech narsa qilmasangiz ham bot o'zi boshqaradi.</i>"
+    )
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm_sched_clear_"))
+async def adm_sched_clear(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[3])
+    test_db.clear_test_schedule(test_id)
+    await call.answer("✅ Jadval vaqti bekor qilindi!", show_alert=True)
+    # test boshqaruv sahifasiga qaytish
+    call.data = f"adm_tstat_{test_id}"
+    await admin_test_detail_cb(call)
+
+
+@router.callback_query(F.data.startswith("adm_sched_set_"))
+async def adm_sched_set_start(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[3])
+    await state.update_data(schedule_test_id=test_id)
+    await state.set_state(ScheduleState.waiting_date)
+
+    now_uzb = datetime.now(UZB_TZ)
+    today = now_uzb.strftime("%d.%m.%Y")
+    tomorrow = (now_uzb + timedelta(days=1)).strftime("%d.%m.%Y")
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"📅 Bugun ({today})", callback_data=f"sched_date_{today}_{test_id}")],
+        [InlineKeyboardButton(text=f"📅 Ertaga ({tomorrow})", callback_data=f"sched_date_{tomorrow}_{test_id}")],
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data=f"adm_schedule_{test_id}")],
+    ])
+    try:
+        await call.message.edit_text(
+            "📅 <b>Test o'tkaziladigan sanani tanlang yoki kiriting:</b>\n\n"
+            "<i>Format: <code>26.09.2026</code></i>",
+            reply_markup=kb
+        )
+    except Exception:
+        await call.message.answer(
+            "📅 <b>Sanani tanlang yoki kiriting (26.09.2026 formatida):</b>",
+            reply_markup=kb
+        )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("sched_date_"))
+async def adm_sched_date_chosen(call: CallbackQuery, state: FSMContext):
+    parts = call.data.split("_")
+    # sched_date_DD.MM.YYYY_testid
+    chosen_date = parts[2]
+    test_id = int(parts[3])
+    await state.update_data(schedule_date=chosen_date, schedule_test_id=test_id)
+    await state.set_state(ScheduleState.waiting_start)
+    await call.message.edit_text(
+        f"✅ Sana: <b>{chosen_date}</b>\n\n"
+        f"🕐 <b>Test boshlanish vaqtini kiriting</b> (UZB vaqti):\n"
+        f"<i>Format: <code>19:30</code></i>"
+    )
+    await call.answer()
+
+
+@router.message(ScheduleState.waiting_date)
+async def adm_sched_date_text(message: Message, state: FSMContext):
+    import re
+    text = message.text.strip()
+    if not re.match(r'^\d{2}\.\d{2}\.\d{4}$', text):
+        await message.answer("❌ Noto'g'ri format. Iltimos: <code>26.09.2026</code>")
+        return
+    data = await state.get_data()
+    test_id = data.get('schedule_test_id')
+    await state.update_data(schedule_date=text)
+    await state.set_state(ScheduleState.waiting_start)
+    await message.answer(
+        f"✅ Sana: <b>{text}</b>\n\n"
+        f"🕐 <b>Boshlanish vaqtini kiriting</b> (UZB):\n"
+        f"<i>Format: <code>19:30</code></i>"
+    )
+
+
+@router.message(ScheduleState.waiting_start)
+async def adm_sched_start_time(message: Message, state: FSMContext):
+    import re
+    text = message.text.strip()
+    if not re.match(r'^\d{1,2}:\d{2}$', text):
+        await message.answer("❌ Noto'g'ri format. Iltimos: <code>19:30</code>")
+        return
+    # HH:MM formatga keltirish
+    h, m = text.split(":")
+    text = f"{int(h):02d}:{m}"
+    await state.update_data(schedule_start=text)
+    await state.set_state(ScheduleState.waiting_end)
+    await message.answer(
+        f"✅ Boshlanish: <b>{text}</b>\n\n"
+        f"🕕 <b>Tugash vaqtini kiriting</b> (UZB):\n"
+        f"<i>Format: <code>22:00</code></i>"
+    )
+
+
+@router.message(ScheduleState.waiting_end)
+async def adm_sched_end_time(message: Message, state: FSMContext):
+    import re
+    text = message.text.strip()
+    if not re.match(r'^\d{1,2}:\d{2}$', text):
+        await message.answer("❌ Noto'g'ri format. Iltimos: <code>22:00</code>")
+        return
+    h, m = text.split(":")
+    text = f"{int(h):02d}:{m}"
+
+    data = await state.get_data()
+    test_id = data.get('schedule_test_id')
+    schedule_date = data.get('schedule_date', '')
+    schedule_start = data.get('schedule_start', '')
+
+    await state.clear()
+
+    # Saqlash
+    test_db.set_test_schedule(test_id, schedule_date, schedule_start, text)
+
+    test = test_db.get_test_by_id(test_id)
+    test_name = test['title'] if test else f"Test #{test_id}"
+
+    await message.answer(
+        f"✅ <b>Avtomatik jadval saqlandi!</b>\n\n"
+        f"📖 <b>Test:</b> {test_name}\n"
+        f"📅 <b>Sana:</b> {schedule_date}\n"
+        f"🕐 <b>Boshlanadi:</b> {schedule_start} (UZB)\n"
+        f"🕕 <b>Tugaydi:</b> {text} (UZB)\n\n"
+        f"<i>Bot belgilangan vaqtda testni avtomatik faollashtiradi va to'xtatadi.</i>"
+    )
+
+
+# ── BACKGROUND SCHEDULER (har 60 soniyada tekshiradi) ──────
+
+async def schedule_checker():
+    """Har 60 soniyada testlarning avtomatik vaqtini tekshiradi va faollashtiradi/to'xtatadi."""
+    log.info("⏰ Schedule Checker ishga tushdi")
+    while True:
+        try:
+            now_uzb = datetime.now(UZB_TZ)
+            today_str = now_uzb.strftime("%d.%m.%Y")
+            now_time = now_uzb.strftime("%H:%M")
+
+            tests = test_db.get_scheduled_tests()
+            for t in tests:
+                sdate = t.get('scheduled_date') or ''
+                sstart = t.get('scheduled_start') or ''
+                send = t.get('scheduled_end') or ''
+                test_id = t['id']
+                is_active = (t.get('is_active', 1) == 1)
+
+                if not sdate or not sstart or not send:
+                    continue
+                if sdate != today_str:
+                    continue
+
+                # Boshlanish vaqti keldi va test hali faol emas
+                if now_time >= sstart and now_time < send and not is_active:
+                    test_db.set_test_active_status(test_id, 1)
+                    log.info(f"⏰ Test #{test_id} avtomatik faollashtirildi ({sstart})")
+                    try:
+                        await bot.send_message(
+                            chat_id=ADMIN_ID,
+                            text=(
+                                f"⏰ <b>Avtomatik: Test boshlandi!</b>\n\n"
+                                f"📖 <b>{t['title']}</b>\n"
+                                f"🕐 Boshlanish vaqti: <b>{sstart}</b>\n"
+                                f"🕕 Tugash vaqti: <b>{send}</b>\n\n"
+                                f"✅ Test endi faol — o'quvchilar javob bera oladi."
+                            )
+                        )
+                    except Exception:
+                        pass
+
+                # Tugash vaqti keldi va test hali faol
+                elif now_time >= send and is_active:
+                    test_db.set_test_active_status(test_id, 0)
+                    test_db.clear_test_schedule(test_id)
+                    log.info(f"⏰ Test #{test_id} avtomatik to'xtatildi ({send})")
+                    try:
+                        await bot.send_message(
+                            chat_id=ADMIN_ID,
+                            text=(
+                                f"⏰ <b>Avtomatik: Test tugadi!</b>\n\n"
+                                f"📖 <b>{t['title']}</b>\n"
+                                f"🕕 Tugash vaqti: <b>{send}</b>\n\n"
+                                f"🔴 Test to'xtatildi. O'quvchilar endi javob bera olmaydi.\n"
+                                f"📊 Natijalarni ko'rish uchun: /admin → Testlar"
+                            )
+                        )
+                    except Exception:
+                        pass
+
+        except Exception as e:
+            log.error(f"Schedule checker xatosi: {e}")
+
+        await asyncio.sleep(60)
+
+
 # ── ASOSIY ISHGA TUSHIRISH (MAIN) ─────────────────────
 async def main():
     global WEBAPP_URL
@@ -2936,6 +3191,9 @@ async def main():
 
     # 2. Fon rejimida HTTPS Tunnelni boshlash
     asyncio.create_task(maintain_tunnel(current_port))
+
+    # 2b. Avtomatik jadval tekshiruvchisini ishga tushirish
+    asyncio.create_task(schedule_checker())
 
     # 3. Telegram Botni ishga tushirish
     log.info("🤖 Telegram Bot Polling rejimida ishga tushmoqda...")
