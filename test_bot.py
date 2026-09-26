@@ -2303,7 +2303,7 @@ async def handle_create_test_api(request):
         title = data.get("title", "").strip() or "Matematika Milliy Sertifikat Testi"
         test_code = data.get("test_code", "").strip().upper()
         if not test_code:
-            test_code = f"MAT-{int(time.time()) % 10000:04d}"
+            test_code = test_db.get_next_test_code()
         
         subject = data.get("subject", "Matematika").strip() or "Matematika"
         answers = data.get("answers", {})
@@ -3090,6 +3090,14 @@ async def handle_app_broadcast(request):
         log.error(f"App Broadcast Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+async def handle_next_test_code_api(request):
+    """Keyingi navbatdagi ketma-ket unikal test kodini qaytarish."""
+    try:
+        next_code = test_db.get_next_test_code()
+        return web.json_response({"success": True, "next_code": next_code})
+    except Exception as e:
+        return web.json_response({"success": False, "next_code": "1", "message": str(e)})
+
 async def handle_rasch_evaluate_api(request):
     try:
         test_id = int(request.match_info.get('test_id', 0))
@@ -3129,6 +3137,7 @@ async def create_web_app():
     app.router.add_post('/api/app/update-user-status', handle_app_update_user_status)
     app.router.add_post('/api/app/restrict-all-users', handle_app_restrict_all_users)
     app.router.add_post('/api/app/broadcast', handle_app_broadcast)
+    app.router.add_get('/api/next-test-code', handle_next_test_code_api)
     app.router.add_get('/api/app/status', handle_app_status)
     app.router.add_get('/healthz', handle_app_status)
     app.router.add_get('/ping', handle_app_status)
@@ -3409,47 +3418,130 @@ async def adm_sched_end_time(message: Message, state: FSMContext):
 # ── BACKGROUND SCHEDULER (har 60 soniyada tekshiradi) ──────
 
 async def schedule_checker():
-    """Har 60 soniyada testlarning avtomatik vaqtini tekshiradi va faollashtiradi/to'xtatadi."""
+    """Har 60 soniyada testlarning avtomatik vaqtini tekshiradi va rejalashtirilgan xabarlarni tarqatadi hamda faollashtiradi/to'xtatadi."""
     log.info("⏰ Schedule Checker ishga tushdi")
     while True:
         try:
             now_uzb = datetime.now(UZB_TZ)
-            today_str = now_uzb.strftime("%d.%m.%Y")
-            now_time = now_uzb.strftime("%H:%M")
+            today_iso = now_uzb.strftime("%Y-%m-%d")
+            today_dot = now_uzb.strftime("%d.%m.%Y")
+            now_minutes = now_uzb.hour * 60 + now_uzb.minute
 
             tests = test_db.get_scheduled_tests()
             for t in tests:
-                sdate = t.get('scheduled_date') or ''
-                sstart = t.get('scheduled_start') or ''
-                send = t.get('scheduled_end') or ''
+                sdate = str(t.get('scheduled_date') or '').strip()
+                sstart = str(t.get('scheduled_start') or '').strip()
+                send = str(t.get('scheduled_end') or '').strip()
                 test_id = t['id']
+                test_code = t.get('test_code') or str(test_id)
+                code_display = f"#{test_code}" if not str(test_code).startswith("#") else str(test_code)
+                test_title = t.get('title') or "Matematika Testi"
                 is_active = (t.get('is_active', 1) == 1)
+                notified = str(t.get('auto_notified') or '')
 
                 if not sdate or not sstart or not send:
                     continue
-                if sdate != today_str:
+
+                # Sana tekshiruvi (YYYY-MM-DD yoki DD.MM.YYYY)
+                date_match = (sdate == today_iso or sdate == today_dot)
+                if not date_match:
+                    if "-" in sdate:
+                        parts = sdate.split("-")
+                        if len(parts) == 3 and len(parts[0]) == 4:
+                            date_match = (f"{int(parts[0]):04d}-{int(parts[1]):02d}-{int(parts[2]):02d}" == today_iso)
+                    elif "." in sdate:
+                        parts = sdate.split(".")
+                        if len(parts) == 3 and len(parts[2]) == 4:
+                            date_match = (f"{int(parts[2]):04d}-{int(parts[1]):02d}-{int(parts[0]):02d}" == today_iso)
+
+                if not date_match:
                     continue
 
-                # Boshlanish vaqti keldi va test hali faol emas
-                if now_time >= sstart and now_time < send and not is_active:
-                    test_db.set_test_active_status(test_id, 1)
-                    log.info(f"⏰ Test #{test_id} avtomatik faollashtirildi ({sstart})")
-                    try:
-                        await bot.send_message(
-                            chat_id=ADMIN_ID,
-                            text=(
-                                f"⏰ <b>Avtomatik: Test boshlandi!</b>\n\n"
-                                f"📖 <b>{t['title']}</b>\n"
-                                f"🕐 Boshlanish vaqti: <b>{sstart}</b>\n"
-                                f"🕕 Tugash vaqti: <b>{send}</b>\n\n"
-                                f"✅ Test endi faol — o'quvchilar javob bera oladi."
-                            )
-                        )
-                    except Exception:
-                        pass
+                try:
+                    sh, sm = map(int, sstart.split(":"))
+                    eh, em = map(int, send.split(":"))
+                    start_minutes = sh * 60 + sm
+                    end_minutes = eh * 60 + em
+                except Exception:
+                    continue
 
-                # Tugash vaqti keldi va test hali faol
-                elif now_time >= send and is_active:
+                # 1. ⏳ 30 daqiqa qoldi ogohlantirishi (start - 30 daqiqadan start - 10 daqiqagacha)
+                if (start_minutes - 30) <= now_minutes < (start_minutes - 10) and "30m" not in notified:
+                    test_db.mark_test_auto_notified(test_id, "30m")
+                    msg_30m = (
+                        "⏳ <b>Diqqat! Test boshlanishiga 30 daqiqa qoldi!</b>\n\n"
+                        "Internet aloqangizni tekshirib, qoralama qog'ozlarni tayyorlab oling.\n\n"
+                        f"📖 <b>Test:</b> {test_title}\n"
+                        f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n"
+                        f"🕐 <b>Boshlanish vaqti:</b> {sstart} (UZB)"
+                    )
+                    await send_broadcast_to_users(message_text=msg_30m)
+                    log.info(f"⏰ Test #{test_id} uchun 30 daqiqa qoldi xabari tarqatildi")
+
+                # 2. ⚠️ 10 daqiqa qoldi ogohlantirishi (start - 10 daqiqadan start gacha)
+                if (start_minutes - 10) <= now_minutes < start_minutes and "10m" not in notified:
+                    test_db.mark_test_auto_notified(test_id, "10m")
+                    msg_10m = (
+                        "⚠️ <b>Test boshlanishiga 10 daqiqa qoldi!</b>\n\n"
+                        "Mini ilovaga kirib, tayyor bo'lib turing.\n\n"
+                        f"📖 <b>Test:</b> {test_title}\n"
+                        f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n"
+                        f"🕐 <b>Boshlanish vaqti:</b> {sstart} (UZB)"
+                    )
+                    await send_broadcast_to_users(message_text=msg_10m)
+                    log.info(f"⏰ Test #{test_id} uchun 10 daqiqa qoldi xabari tarqatildi")
+
+                # 3. 🚀 Boshlanish vaqti keldi (start dan end gacha)
+                if start_minutes <= now_minutes < end_minutes:
+                    # Testni faollashtirish
+                    if not is_active:
+                        test_db.set_test_active_status(test_id, 1)
+                        is_active = True
+                        log.info(f"⏰ Test #{test_id} avtomatik faollashtirildi ({sstart})")
+
+                    # Avtomatik "🚀 Test boshlandi!" xabarini barcha o'quvchilarga tarqatish
+                    if "started" not in notified:
+                        test_db.mark_test_auto_notified(test_id, "started")
+                        msg_started = (
+                            "🚀 <b>Test boshlandi! Barchaga omad tilaymiz.</b>\n"
+                            "Belgilangan vaqt ichida javoblarni topshirishni unutmang.\n\n"
+                            f"📖 <b>Test nomi:</b> {test_title}\n"
+                            f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n"
+                            f"⏰ <b>Test vaqti:</b> {sstart} – {send} (UZB)\n\n"
+                            "<i>Mini ilovaga kirib, test topshirishingiz mumkin 👇</i>"
+                        )
+                        sent, fail = await send_broadcast_to_users(message_text=msg_started)
+                        log.info(f"⏰ Test #{test_id} boshlanganlik xabari {sent} nafar o'quvchiga avtomat tarqatildi")
+                        try:
+                            await bot.send_message(
+                                chat_id=ADMIN_ID,
+                                text=(
+                                    f"⏰ <b>Avtomatik: Test boshlandi va o'quvchilarga e'lon qilindi!</b>\n\n"
+                                    f"📖 <b>{test_title}</b>\n"
+                                    f"📌 Test kodi: <code>{code_display}</code>\n"
+                                    f"🕐 Vaqti: <b>{sstart}–{send}</b> (UZB)\n"
+                                    f"📨 <b>O'quvchilarga tarqatildi:</b> {sent} ta\n\n"
+                                    f"✅ Test faol — o'quvchilar javob topshirishi mumkin."
+                                )
+                            )
+                        except Exception:
+                            pass
+
+                # 4. ⏰ 15 daqiqa qoldi ogohlantirishi (end - 15 daqiqadan end gacha)
+                if (end_minutes - 15) <= now_minutes < end_minutes and "15m" not in notified and "started" in notified:
+                    test_db.mark_test_auto_notified(test_id, "15m")
+                    msg_15m = (
+                        "⏰ <b>Diqqat, test yakunlanishiga 15 daqiqa qoldi!</b>\n\n"
+                        "Qolgan javoblarni tekshirib, topshirishga shoshiling.\n\n"
+                        f"📖 <b>Test:</b> {test_title}\n"
+                        f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n"
+                        f"🕕 <b>Tugash vaqti:</b> {send} (UZB)"
+                    )
+                    await send_broadcast_to_users(message_text=msg_15m)
+                    log.info(f"⏰ Test #{test_id} yakunlanishiga 15 daqiqa qolganligi xabari tarqatildi")
+
+                # 5. 🔴 Tugash vaqti keldi va test hali faol bo'lsa
+                if now_minutes >= end_minutes and is_active:
                     test_db.set_test_active_status(test_id, 0)
                     test_db.clear_test_schedule(test_id)
                     log.info(f"⏰ Test #{test_id} avtomatik to'xtatildi ({send})")
@@ -3457,11 +3549,12 @@ async def schedule_checker():
                         await bot.send_message(
                             chat_id=ADMIN_ID,
                             text=(
-                                f"⏰ <b>Avtomatik: Test tugadi!</b>\n\n"
-                                f"📖 <b>{t['title']}</b>\n"
+                                f"⏰ <b>Avtomatik: Test yakunlandi!</b>\n\n"
+                                f"📖 <b>{test_title}</b>\n"
+                                f"📌 Test kodi: <code>{code_display}</code>\n"
                                 f"🕕 Tugash vaqti: <b>{send}</b>\n\n"
                                 f"🔴 Test to'xtatildi. O'quvchilar endi javob bera olmaydi.\n"
-                                f"📊 Natijalarni ko'rish uchun: /admin → Testlar"
+                                f"📊 Natijalarni e'lon qilish uchun: /admin → Testlar"
                             )
                         )
                     except Exception:
@@ -3471,6 +3564,7 @@ async def schedule_checker():
             log.error(f"Schedule checker xatosi: {e}")
 
         await asyncio.sleep(60)
+
 
 
 # ── ASOSIY ISHGA TUSHIRISH (MAIN) ─────────────────────

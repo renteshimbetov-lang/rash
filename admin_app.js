@@ -26,6 +26,23 @@ const AdminApp = {
         dateInput.value = `${yyyy}-${mm}-${dd}`;
       } catch (e) {}
     }
+
+    // Navbatdagi test kodini va nomini avtomatik to'ldirish (ketma-ketlik bo'yicha)
+    fetch('/api/next-test-code')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && data.next_code) {
+          const codeInput = document.getElementById('adm-test-code');
+          if (codeInput && !codeInput.value) {
+            codeInput.value = data.next_code;
+          }
+          const titleInput = document.getElementById('adm-test-title');
+          if (titleInput && !titleInput.value) {
+            titleInput.value = `Matematika Blok Test #${data.next_code}`;
+          }
+        }
+      })
+      .catch(() => {});
   },
 
   runIntroAnimation() {
@@ -308,7 +325,12 @@ const AdminApp = {
     const timeLimit = parseInt(document.getElementById('adm-test-time')?.value) || 0;
 
     if (!code) {
-      code = 'TEST-' + Math.floor(1000 + Math.random() * 9000);
+      try {
+        const res = await fetch('/api/next-test-code');
+        const data = await res.json();
+        if (data && data.next_code) code = data.next_code;
+      } catch (e) {}
+      if (!code) code = '1';
     }
 
     // 36a-45b savollarni to'g'ridan-to'g'ri DOM inputlaridan ham tekshirib olish (100% kafolat)

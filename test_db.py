@@ -303,6 +303,7 @@ def init_db():
             ("scheduled_end", "TEXT"),
             ("created_by", "BIGINT"),
             ("created_by_name", "TEXT"),
+            ("auto_notified", "TEXT"),
         ]:
             try:
                 cur.execute(f"ALTER TABLE tests ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT NULL")
@@ -316,6 +317,7 @@ def init_db():
             ("scheduled_end", "TEXT"),
             ("created_by", "INTEGER"),
             ("created_by_name", "TEXT"),
+            ("auto_notified", "TEXT"),
         ]:
             try:
                 cur.execute(f"ALTER TABLE tests ADD COLUMN {col} {coltype} DEFAULT NULL")
@@ -339,13 +341,34 @@ def set_test_schedule(test_id: int, scheduled_date: str, start_time: str, end_ti
     cur = conn.cursor()
     try:
         cur.execute(
-            f"UPDATE tests SET scheduled_date={_ph()}, scheduled_start={_ph()}, scheduled_end={_ph()} WHERE id={_ph()}",
+            f"UPDATE tests SET scheduled_date={_ph()}, scheduled_start={_ph()}, scheduled_end={_ph()}, auto_notified='' WHERE id={_ph()}",
             (scheduled_date, start_time, end_time, test_id)
         )
         _commit_and_close(conn)
         return True
     except Exception as e:
         print(f"Error set_test_schedule: {e}")
+        _close_conn(conn)
+        return False
+
+
+def mark_test_auto_notified(test_id: int, stage: str) -> bool:
+    """Belgilangan bosqich (30m, 10m, started, 15m) xabari yuborilganini belgilash."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(f"SELECT auto_notified FROM tests WHERE id = {_ph()}", (test_id,))
+        row = cur.fetchone()
+        cur_val = (row[0] if isinstance(row, (list, tuple)) else row.get('auto_notified')) if row else ""
+        cur_val = cur_val or ""
+        stages = set(s for s in cur_val.split(",") if s)
+        stages.add(stage)
+        new_val = ",".join(stages)
+        cur.execute(f"UPDATE tests SET auto_notified = {_ph()} WHERE id = {_ph()}", (new_val, test_id))
+        _commit_and_close(conn)
+        return True
+    except Exception as e:
+        print(f"Error mark_test_auto_notified: {e}")
         _close_conn(conn)
         return False
 
@@ -365,6 +388,34 @@ def clear_test_schedule(test_id: int) -> bool:
         print(f"Error clear_test_schedule: {e}")
         _close_conn(conn)
         return False
+
+
+def get_next_test_code() -> str:
+    """Mavjud testlar ketma-ketligiga qarab keyingi unikal test kodini avtomatik aniqlash."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT test_code FROM tests ORDER BY id ASC")
+        rows = cur.fetchall()
+        if not rows:
+            return "1"
+
+        codes = [str(r[0] if isinstance(r, (list, tuple)) else r['test_code']).strip() for r in rows if r]
+        int_codes = [int(c) for c in codes if c.isdigit()]
+        if int_codes:
+            return str(max(int_codes) + 1)
+
+        import re
+        latest_code = codes[-1] if codes else ""
+        match = re.match(r'^(.*?)(\d+)$', latest_code)
+        if match:
+            prefix, num_str = match.groups()
+            next_num = int(num_str) + 1
+            return f"{prefix}{next_num:0{len(num_str)}d}"
+
+        return str(len(codes) + 1)
+    finally:
+        _close_conn(conn)
 
 
 def get_scheduled_tests() -> List[Dict[str, Any]]:
