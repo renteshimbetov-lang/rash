@@ -919,12 +919,12 @@ function renderProfileTab() {
         adminChipHtml +
         statusChipHtml +
       '</div>' +
-      '<div style="display:flex;gap:8px;margin-top:12px;">' +
+      '<div style="display:flex;gap:8px;margin-top:10px;">' +
         '<button type="button" class="btn-hero-profile-action btn-hero-profile-info" onclick="toggleProfileDetails()">' +
-          '<span>📋 Ma\'lumotlar</span>' +
+          '<span class="hero-btn-icon">📋</span><span>Ma\'lumotlar</span>' +
         '</button>' +
         '<button type="button" class="btn-hero-profile-action btn-edit-profile-hero" onclick="openEditProfileModal()">' +
-          '<span>✏️ Tahrirlash</span>' +
+          '<span class="hero-btn-icon">✏️</span><span>Tahrirlash</span>' +
         '</button>' +
       '</div>' +
     '</div>' +
