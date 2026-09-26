@@ -12,14 +12,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="/css/app_style.css?v=20260926_mob" />
+  <link rel="stylesheet" href="/css/app_style.css?v=20260926_malumot1" />
   <script>
     (function () {
-      // Birinchi kirishda oq (light). Agar foydalanuvchi qora (dark) ga o'zgartirsa, o'sha saqlanadi
       var saved = localStorage.getItem('app_theme') || 'light';
       document.documentElement.setAttribute('data-theme', saved);
+      var bg = saved === 'dark' ? '#0a0b14' : '#f0f4ff';
       var metaTheme = document.querySelector('meta[name="theme-color"]');
-      if (metaTheme) metaTheme.setAttribute('content', saved === 'dark' ? '#0f172a' : '#f8fafc');
+      if (metaTheme) metaTheme.setAttribute('content', bg);
+      if (window.Telegram && window.Telegram.WebApp) {
+        var tg = window.Telegram.WebApp;
+        try {
+          if (tg.setHeaderColor) tg.setHeaderColor(bg);
+          if (tg.setBackgroundColor) tg.setBackgroundColor(bg);
+          if (tg.setBottomBarColor) tg.setBottomBarColor(bg);
+          tg.expand();
+        } catch (e) {}
+      }
     })();
   </script>
 </head>
@@ -274,7 +283,7 @@
   <!-- TOAST -->
   <div id="toast"></div>
 
-  <script src="/js/app.js?v=20260926_mob"></script>
+  <script src="/js/app.js?v=20260926_malumot1"></script>
 </body>
 
 </html>

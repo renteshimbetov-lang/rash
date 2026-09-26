@@ -684,31 +684,105 @@ async def show_profile(message: Message):
 
     text = (
         "👤 <b>SHAXSIY PROFILINGIZ</b>\n\n"
-        f"👤 <b>Ism va familiya:</b> {user['fullname']}\n"
-        f"📱 <b>Telefon raqam:</b> {phone_str}\n"
-        f"🆔 <b>Telegram ID:</b> <code>{message.from_user.id}</code>\n"
-        f"🔗 <b>Username:</b> {username_str}\n"
-        f"📅 <b>Ro'yxatdan o'tgan:</b> {dt}\n"
+        f"👤 <b>Foydalanuvchi:</b> {user['fullname']}\n"
         f"🔰 <b>Holat:</b> {st_text}\n\n"
         f"📊 <b>KO'RSATKICHLAR:</b>\n"
         f"• Ishlangan testlar: <b>{tests_count} ta</b>\n"
         f"• O'rtacha natija: <b>{avg_score} ball</b>\n"
         f"• Eng yuqori natija: <b>{max_score} ball</b>\n\n"
-        f"<i>Quyidagi tugmalar orqali ma'lumotlaringizni tahrirlashingiz mumkin 👇</i>"
+        f"<i>Batafsil ma'lumotlarni ko'rish yoki tahrirlash uchun quyidagi tugmalardan birini tanlang 👇</i>"
     )
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [make_webapp_button("📱 Shaxsiy profilni ochish (Mini App)", f"{WEBAPP_URL}/app.html?tg_id={message.from_user.id}")],
+        [InlineKeyboardButton(text="📋 Shaxsiy ma'lumotlar", callback_data="profile_show_details")],
         [
             InlineKeyboardButton(text="✏️ Ismni o'zgartirish", callback_data="profile_edit_name"),
             InlineKeyboardButton(text="📞 Raqamni o'zgartirish", callback_data="profile_edit_phone")
         ],
-        [
-            InlineKeyboardButton(text="🗑 Akkauntni o'chirish", callback_data="profile_delete_account")
-        ]
+        [make_webapp_button("📱 Shaxsiy profil (Mini App)", f"{WEBAPP_URL}/app.html?tg_id={message.from_user.id}")],
+        [InlineKeyboardButton(text="🗑 Akkauntni o'chirish", callback_data="profile_delete_account")]
     ])
 
     await message.answer(text, reply_markup=kb)
+
+@router.callback_query(F.data == "profile_show_details")
+async def profile_show_details_handler(call: CallbackQuery):
+    user = test_db.get_user(call.from_user.id)
+    if not user:
+        await call.answer("Foydalanuvchi topilmadi", show_alert=True)
+        return
+    submissions = test_db.get_user_submissions(call.from_user.id)
+    tests_count = len(submissions)
+    dt = format_uzb_time(user.get("registered_at"), "%d.%m.%Y %H:%M") if user.get("registered_at") else "Noma'lum"
+    phone_str = user.get('phone') or "Biriktirilmagan"
+    username_str = f"@{call.from_user.username}" if call.from_user.username else (f"@{user.get('username')}" if user.get('username') else "Mavjud emas")
+    st = (user.get("status") or "pending").lower()
+    st_text = "✅ Faol o'quvchi" if st == "approved" else ("⏳ Kutilmoqda" if st == "pending" else "⛔️ Bloklangan")
+
+    detail_text = (
+        "📋 <b>SHAXSIY AKKAUNT MA'LUMOTLARI</b>\n\n"
+        f"👤 <b>Ism va familiya:</b> {user['fullname']}\n"
+        f"📱 <b>Telefon raqam:</b> {phone_str}\n"
+        f"🆔 <b>Telegram ID:</b> <code>{call.from_user.id}</code>\n"
+        f"🔗 <b>Username:</b> {username_str}\n"
+        f"📅 <b>Ro'yxatdan o'tgan:</b> {dt}\n"
+        f"🔰 <b>Holat:</b> {st_text}\n"
+        f"📝 <b>Yechilgan testlar:</b> {tests_count} ta\n\n"
+        f"<i>Ma'lumotlarni tahrirlashingiz yoki menyuni yopishingiz mumkin 👇</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="▲ Ma'lumotlarni yashirish", callback_data="profile_hide_details")],
+        [
+            InlineKeyboardButton(text="✏️ Ismni o'zgartirish", callback_data="profile_edit_name"),
+            InlineKeyboardButton(text="📞 Raqamni o'zgartirish", callback_data="profile_edit_phone")
+        ],
+        [make_webapp_button("📱 Shaxsiy profil (Mini App)", f"{WEBAPP_URL}/app.html?tg_id={call.from_user.id}")],
+        [InlineKeyboardButton(text="🗑 Akkauntni o'chirish", callback_data="profile_delete_account")]
+    ])
+    try:
+        await call.message.edit_text(detail_text, reply_markup=kb)
+    except Exception:
+        pass
+    await call.answer()
+
+@router.callback_query(F.data == "profile_hide_details")
+async def profile_hide_details_handler(call: CallbackQuery):
+    user = test_db.get_user(call.from_user.id)
+    if not user:
+        await call.answer("Foydalanuvchi topilmadi", show_alert=True)
+        return
+    submissions = test_db.get_user_submissions(call.from_user.id)
+    tests_count = len(submissions)
+    scores = [float(s.get('score', s.get('correct_count', 0))) for s in submissions] if submissions else []
+    avg_score = f"{sum(scores)/len(scores):.1f}" if scores else "0.0"
+    max_score = f"{max(scores):.1f}" if scores else "0.0"
+    st = (user.get("status") or "pending").lower()
+    st_text = "✅ Faol o'quvchi" if st == "approved" else ("⏳ Kutilmoqda" if st == "pending" else "⛔️ Bloklangan")
+
+    text = (
+        "👤 <b>SHAXSIY PROFILINGIZ</b>\n\n"
+        f"👤 <b>Foydalanuvchi:</b> {user['fullname']}\n"
+        f"🔰 <b>Holat:</b> {st_text}\n\n"
+        f"📊 <b>KO'RSATKICHLAR:</b>\n"
+        f"• Ishlangan testlar: <b>{tests_count} ta</b>\n"
+        f"• O'rtacha natija: <b>{avg_score} ball</b>\n"
+        f"• Eng yuqori natija: <b>{max_score} ball</b>\n\n"
+        f"<i>Batafsil ma'lumotlarni ko'rish yoki tahrirlash uchun quyidagi tugmalardan birini tanlang 👇</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📋 Shaxsiy ma'lumotlar", callback_data="profile_show_details")],
+        [
+            InlineKeyboardButton(text="✏️ Ismni o'zgartirish", callback_data="profile_edit_name"),
+            InlineKeyboardButton(text="📞 Raqamni o'zgartirish", callback_data="profile_edit_phone")
+        ],
+        [make_webapp_button("📱 Shaxsiy profil (Mini App)", f"{WEBAPP_URL}/app.html?tg_id={call.from_user.id}")],
+        [InlineKeyboardButton(text="🗑 Akkauntni o'chirish", callback_data="profile_delete_account")]
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        pass
+    await call.answer()
 
 # ── PROFILNI TAHRIRLASH (BOT CHATIDA) ──────────────────
 @router.callback_query(F.data == "profile_edit_name")

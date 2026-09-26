@@ -1791,27 +1791,72 @@ body {
 /* ── TOAST ────────────────────────────────── */
 #toast {
   position: fixed;
-  bottom: calc(var(--nav-h) + 16px);
+  bottom: calc(var(--nav-h) + 20px);
   left: 50%;
   transform: translateX(-50%) translateY(20px);
-  background: rgba(30,30,50,0.95);
+  background: rgba(20, 24, 40, 0.94);
   backdrop-filter: blur(20px);
-  border: 1px solid var(--border);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-full);
-  padding: 10px 20px;
+  padding: 10px 22px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  z-index: 900;
+  font-weight: 700;
+  color: #ffffff;
+  z-index: 99999;
   opacity: 0;
-  transition: all 0.3s ease;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   white-space: nowrap;
   pointer-events: none;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme="light"] #toast {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #0f172a;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 #toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Profile Info Section Accordion */
+.profile-info-toggle-header:hover .profile-info-toggle-badge {
+  background: rgba(59, 130, 246, 0.22);
+}
+.profile-info-toggle-header:active {
+  opacity: 0.85;
+}
+.btn-hero-profile-action {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+.btn-hero-profile-info {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  color: var(--accent);
+}
+.btn-hero-profile-info:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+.btn-hero-profile-info:active {
+  transform: scale(0.97);
 }
 
 /* ── PULL-TO-REFRESH INDICATOR ────────────── */

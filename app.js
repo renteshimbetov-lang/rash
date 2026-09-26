@@ -109,6 +109,7 @@ function initApp() {
   var savedTheme = localStorage.getItem(LS_THEME) || 'light';
   document.documentElement.setAttribute('data-theme', savedTheme);
   updateThemeIcon(savedTheme);
+  syncTelegramTheme(savedTheme);
   updateLangLabel();
 
   try {
@@ -918,9 +919,12 @@ function renderProfileTab() {
         adminChipHtml +
         statusChipHtml +
       '</div>' +
-      '<div style="margin-top:10px;">' +
-        '<button type="button" class="btn-edit-profile-hero" onclick="openEditProfileModal()">' +
-          '<span>✏️ Profilni tahrirlash</span>' +
+      '<div style="display:flex;gap:8px;margin-top:12px;">' +
+        '<button type="button" class="btn-hero-profile-action btn-hero-profile-info" onclick="toggleProfileDetails()">' +
+          '<span>📋 Ma\'lumotlar</span>' +
+        '</button>' +
+        '<button type="button" class="btn-hero-profile-action btn-edit-profile-hero" onclick="openEditProfileModal()">' +
+          '<span>✏️ Tahrirlash</span>' +
         '</button>' +
       '</div>' +
     '</div>' +
@@ -943,38 +947,49 @@ function renderProfileTab() {
       '</div>' +
     '</div>' +
 
-    // ── 3. AKKAUNT MA'LUMOTLARI (iOS / Telegram sozlamalari uslubidagi karta) ──
-    '<div class="profile-section-card animate-in">' +
-      '<div class="profile-section-title">Akkaunt ma\'lumotlari</div>' +
-      '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + tgId + '\', \'Telegram ID nusxalandi!\')">' +
-        '<div class="profile-item-icon">🆔</div>' +
-        '<div class="profile-item-body">' +
-          '<div class="profile-item-label">Telegram ID (Bosganda nusxalanadi)</div>' +
-          '<div class="profile-item-value"><code>' + tgId + '</code></div>' +
+    // ── 3. SHAXSIY MA'LUMOTLAR BO'LIMI (Ko'rsatish / Yashirish) ──
+    '<div class="profile-section-card animate-in" id="profile-info-section" style="margin-top:12px;">' +
+      '<div class="profile-info-toggle-header" onclick="toggleProfileDetails()" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;cursor:pointer;user-select:none;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<div class="profile-item-icon" style="background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);font-size:17px;">📋</div>' +
+          '<div>' +
+            '<div class="profile-section-title" style="margin:0;font-size:14.5px;font-weight:800;color:var(--text);">Shaxsiy ma\'lumotlar</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);margin-top:1px;">ID, username, telefon, ro\'yxatdan o\'tgan sana</div>' +
+          '</div>' +
         '</div>' +
-        '<span class="profile-item-action-chip">📋 Nusxa</span>' +
+        '<span class="profile-info-toggle-badge" id="profile-info-toggle-badge" style="padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);transition:all 0.2s ease;">' + (window._profileDetailsOpen ? 'Yashirish ▲' : 'Ko\'rish ▼') + '</span>' +
       '</div>' +
-      '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + escHtml(username) + '\', \'Username nusxalandi!\')">' +
-        '<div class="profile-item-icon">🔗</div>' +
-        '<div class="profile-item-body">' +
-          '<div class="profile-item-label">Telegram Username</div>' +
-          '<div class="profile-item-value">' + escHtml(username) + '</div>' +
+      '<div id="profile-details-content" style="display:' + (window._profileDetailsOpen ? 'block' : 'none') + ';margin-top:10px;border-top:1px solid var(--border);padding-top:4px;">' +
+        '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + tgId + '\', \'Telegram ID nusxalandi!\')">' +
+          '<div class="profile-item-icon">🆔</div>' +
+          '<div class="profile-item-body">' +
+            '<div class="profile-item-label">Telegram ID (Bosganda nusxalanadi)</div>' +
+            '<div class="profile-item-value"><code>' + tgId + '</code></div>' +
+          '</div>' +
+          '<span class="profile-item-action-chip">📋 Nusxa</span>' +
         '</div>' +
-        '<span class="profile-item-action-chip">📋 Nusxa</span>' +
-      '</div>' +
-      '<div class="profile-item-row clickable" onclick="openEditProfileModal()">' +
-        '<div class="profile-item-icon">📱</div>' +
-        '<div class="profile-item-body">' +
-          '<div class="profile-item-label">Telefon raqami (Tahrirlash)</div>' +
-          '<div class="profile-item-value">' + escHtml(formattedPhone) + '</div>' +
+        '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + escHtml(username) + '\', \'Username nusxalandi!\')">' +
+          '<div class="profile-item-icon">🔗</div>' +
+          '<div class="profile-item-body">' +
+            '<div class="profile-item-label">Telegram Username</div>' +
+            '<div class="profile-item-value">' + escHtml(username) + '</div>' +
+          '</div>' +
+          '<span class="profile-item-action-chip">📋 Nusxa</span>' +
         '</div>' +
-        '<span class="profile-item-action-chip">✏️ O\'zgartirish</span>' +
-      '</div>' +
-      '<div class="profile-item-row" style="border-bottom:none;">' +
-        '<div class="profile-item-icon">📅</div>' +
-        '<div class="profile-item-body">' +
-          '<div class="profile-item-label">Roʻyxatdan oʻtgan vaqti</div>' +
-          '<div class="profile-item-value">' + regDateStr + '</div>' +
+        '<div class="profile-item-row clickable" onclick="openEditProfileModal()">' +
+          '<div class="profile-item-icon">📱</div>' +
+          '<div class="profile-item-body">' +
+            '<div class="profile-item-label">Telefon raqami (Tahrirlash)</div>' +
+            '<div class="profile-item-value">' + escHtml(formattedPhone) + '</div>' +
+          '</div>' +
+          '<span class="profile-item-action-chip">✏️ O\'zgartirish</span>' +
+        '</div>' +
+        '<div class="profile-item-row" style="border-bottom:none;">' +
+          '<div class="profile-item-icon">📅</div>' +
+          '<div class="profile-item-body">' +
+            '<div class="profile-item-label">Roʻyxatdan oʻtgan vaqti</div>' +
+            '<div class="profile-item-value">' + regDateStr + '</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -1016,6 +1031,27 @@ function renderProfileTab() {
         '<span>🗑 Akkauntni butunlay o\'chirish</span>' +
       '</button>' +
     '</div>';
+}
+
+function toggleProfileDetails() {
+  window._profileDetailsOpen = !window._profileDetailsOpen;
+  var content = document.getElementById('profile-details-content');
+  var badge = document.getElementById('profile-info-toggle-badge');
+  if (content) {
+    content.style.display = window._profileDetailsOpen ? 'block' : 'none';
+    if (window._profileDetailsOpen) {
+      setTimeout(function() {
+        var sec = document.getElementById('profile-info-section');
+        if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
+    }
+  }
+  if (badge) {
+    badge.textContent = window._profileDetailsOpen ? 'Yashirish ▲' : 'Ko\'rish ▼';
+  }
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try { window.Telegram.WebApp.HapticFeedback.selectionChanged(); } catch(e) {}
+  }
 }
 
 function openEditProfileModal() {
@@ -1791,12 +1827,29 @@ function changePinPrompt() {
 }
 
 // ── THEME ────────────────────────────────────────
+function syncTelegramTheme(theme) {
+  var t = theme || document.documentElement.getAttribute('data-theme') || 'light';
+  var bg = t === 'dark' ? '#0a0b14' : '#f0f4ff';
+  var metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.setAttribute('content', bg);
+  if (window.Telegram && window.Telegram.WebApp) {
+    var tg = window.Telegram.WebApp;
+    try {
+      if (tg.setHeaderColor) tg.setHeaderColor(bg);
+      if (tg.setBackgroundColor) tg.setBackgroundColor(bg);
+      if (tg.setBottomBarColor) tg.setBottomBarColor(bg);
+      if (typeof tg.expand === 'function') tg.expand();
+    } catch(e) {}
+  }
+}
+
 function toggleTheme() {
   var cur = document.documentElement.getAttribute('data-theme') || 'dark';
   var next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem(LS_THEME, next);
   updateThemeIcon(next);
+  syncTelegramTheme(next);
   var pTheme = document.getElementById('profile-theme-label');
   if (pTheme) {
     pTheme.textContent = next === 'dark' ? 'Tungi rejim (Dark)' : 'Kunduzgi rejim (Light)';
@@ -2231,9 +2284,14 @@ function escHtml(str) {
 function showToast(msg) {
   var toast = document.getElementById('toast');
   if (!toast) return;
-  toast.textContent = msg;
+  var displayMsg = msg || '';
+  if (!displayMsg.startsWith('✅') && !displayMsg.startsWith('⚠️') && !displayMsg.startsWith('❌')) {
+    displayMsg = '✅ ' + displayMsg;
+  }
+  toast.textContent = displayMsg;
   toast.classList.add('show');
-  setTimeout(function() { toast.classList.remove('show'); }, 2200);
+  clearTimeout(window._toastTimeout);
+  window._toastTimeout = setTimeout(function() { toast.classList.remove('show'); }, 2200);
 }
 
 function copyTextToClipboard(text, successMsg) {
