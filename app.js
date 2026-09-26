@@ -949,15 +949,14 @@ function renderProfileTab() {
 
     // ── 3. SHAXSIY MA'LUMOTLAR BO'LIMI (Ko'rsatish / Yashirish) ──
     '<div class="profile-section-card animate-in" id="profile-info-section" style="margin-top:12px;">' +
-      '<div class="profile-info-toggle-header" onclick="toggleProfileDetails()" style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;cursor:pointer;user-select:none;">' +
+      '<div class="profile-info-toggle-header" onclick="toggleProfileDetails()" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;cursor:pointer;user-select:none;">' +
         '<div style="display:flex;align-items:center;gap:10px;">' +
-          '<div class="profile-item-icon" style="background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);font-size:17px;">📋</div>' +
+          '<div class="profile-item-icon" style="background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);font-size:18px;">📋</div>' +
           '<div>' +
-            '<div class="profile-section-title" style="margin:0;font-size:14.5px;font-weight:800;color:var(--text);">Shaxsiy ma\'lumotlar</div>' +
-            '<div style="font-size:11px;color:var(--text-muted);margin-top:1px;">ID, username, telefon, ro\'yxatdan o\'tgan sana</div>' +
+            '<div class="profile-section-title" style="margin:0;font-size:15px;font-weight:800;color:var(--text);">Shaxsiy ma\'lumotlar</div>' +
           '</div>' +
         '</div>' +
-        '<span class="profile-info-toggle-badge" id="profile-info-toggle-badge" style="padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);transition:all 0.2s ease;">' + (window._profileDetailsOpen ? 'Yashirish ▲' : 'Ko\'rish ▼') + '</span>' +
+        '<span class="profile-info-toggle-badge" id="profile-info-toggle-badge" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:800;background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);transition:all 0.2s ease;">' + (window._profileDetailsOpen ? 'Yashirish ▲' : 'Ko\'rish ▼') + '</span>' +
       '</div>' +
       '<div id="profile-details-content" style="display:' + (window._profileDetailsOpen ? 'block' : 'none') + ';margin-top:10px;border-top:1px solid var(--border);padding-top:4px;">' +
         '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + tgId + '\', \'Telegram ID nusxalandi!\')">' +

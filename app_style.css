@@ -630,9 +630,18 @@ body {
   height: 100%;
   overflow-y: auto;
   padding: 14px 16px;
-  padding-bottom: calc(145px + env(safe-area-inset-bottom, 24px)); /* floating nav height + safe-area + clearance */
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 24px));
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
+}
+
+.tab-content::after {
+  content: '';
+  display: block;
+  height: calc(110px + env(safe-area-inset-bottom, 24px));
+  width: 100%;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
 .tab-content.active { display: block; }
@@ -647,13 +656,13 @@ body {
 .admin-subtabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 5px;
+  gap: 6px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 4px;
+  padding: 5px;
   margin-bottom: 16px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
 }
@@ -670,15 +679,16 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 7px 10px;
-  height: 38px;
+  gap: 7px;
+  padding: 8px 12px;
+  height: 42px;
+  min-height: 42px;
   border-radius: 12px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -1106,12 +1116,11 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 18px 16px 16px;
+  padding: 22px 16px 16px;
   text-align: center;
   margin-bottom: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
   position: relative;
-  overflow: hidden;
 }
 
 [data-theme="light"] .profile-hero-card {
@@ -1454,20 +1463,23 @@ body {
 
 .btn-delete-account {
   width: 100%;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: 12px 16px;
+  min-height: 46px;
+  border-radius: 14px;
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: #EF4444;
   font-family: var(--font);
-  font-size: 12.5px;
-  font-weight: 700;
+  font-size: 13.5px;
+  font-weight: 800;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   transition: all 0.18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-delete-account:active {
@@ -1835,17 +1847,19 @@ body {
 }
 .btn-hero-profile-action {
   flex: 1;
-  padding: 9px 12px;
-  border-radius: 12px;
-  font-size: 12.5px;
-  font-weight: 700;
+  padding: 12px 16px;
+  min-height: 46px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   transition: all 0.2s ease;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .btn-hero-profile-info {
   background: rgba(59, 130, 246, 0.12);
@@ -2554,17 +2568,20 @@ body {
   background: linear-gradient(135deg, #2563EB, #1D4ED8);
   color: #ffffff;
   border: none;
-  border-radius: 14px;
-  padding: 12px 16px;
-  font-size: 13.5px;
+  border-radius: 16px;
+  padding: 15px 20px;
+  min-height: 52px;
+  font-size: 15.5px;
   font-weight: 800;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35);
   transition: all 0.2s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .btn-send-broadcast:hover {
@@ -3089,19 +3106,320 @@ body {
   .subtabs-wrapper,
   .home-subtabs,
   .admin-subtabs {
-    gap: 3px;
+    gap: 5px;
+    padding: 4px;
+    margin-bottom: 12px;
   }
   .home-subtab,
   .admin-subtab {
-    padding: 4px 6px;
-    font-size: 11px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    height: 40px;
+    min-height: 40px;
   }
-  .quick-tmpl-btn .tmpl-text {
+  .admin-subtab-badge {
+    padding: 2px 7px;
     font-size: 10.5px;
   }
-  .btn-send-broadcast {
+
+  /* 3. Admin Panel Header Card */
+  .admin-header-card {
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    gap: 12px;
+    border-radius: 16px;
+  }
+  .admin-header-icon {
+    width: 42px;
+    height: 42px;
+    font-size: 20px;
+    border-radius: 12px;
+  }
+  .admin-header-title {
+    font-size: 15px;
+    font-weight: 800;
+  }
+  .admin-header-subtitle {
+    font-size: 11.5px;
+  }
+
+  /* 4. Admin Broadcast Card (O'quvchilarga xabar yuborish) */
+  .admin-broadcast-card {
+    margin-top: 6px;
+    margin-bottom: 14px;
+    padding: 14px 14px;
+    border-radius: 18px;
+  }
+  .admin-broadcast-header {
+    margin-bottom: 12px;
+  }
+  .admin-broadcast-icon-box {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    border-radius: 11px;
+  }
+  .admin-broadcast-title {
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .admin-broadcast-subtitle {
+    font-size: 11px;
+  }
+  .admin-broadcast-badge {
+    padding: 3px 9px;
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+  .quick-templates-section {
+    margin-bottom: 12px;
+  }
+  .quick-templates-label {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .quick-templates-grid {
+    gap: 8px;
+  }
+  .quick-tmpl-btn {
+    padding: 9px 12px;
+    gap: 8px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+  .quick-tmpl-btn .tmpl-icon {
+    font-size: 15px;
+  }
+  .quick-tmpl-btn .tmpl-text {
     font-size: 12.5px;
+    font-weight: 700;
+  }
+  .admin-broadcast-textarea {
+    min-height: 80px;
+    padding: 10px 13px;
+    font-size: 14px;
+    border-radius: 14px;
+    line-height: 1.45;
+  }
+  .broadcast-meta-row {
+    margin-top: 6px;
+  }
+  .broadcast-char-count {
+    font-size: 11px;
+  }
+  .btn-clear-broadcast {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  .btn-send-broadcast {
+    padding: 14px 20px;
+    font-size: 15.5px;
+    font-weight: 800;
+    min-height: 52px;
+    border-radius: 16px;
+    margin-top: 10px;
+    box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35);
+  }
+
+  /* 5. Foydalanuvchilar ro'yxati (Admin) */
+  .admin-search-input {
+    height: 42px;
+    font-size: 13px;
+    border-radius: 14px;
+  }
+  .admin-filter-pill {
+    padding: 6px 12px;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+  .admin-user-card {
+    padding: 12px 14px;
+    border-radius: 16px;
+    gap: 11px;
+  }
+  .admin-user-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+  }
+  .admin-user-name {
+    font-size: 13.5px;
+    font-weight: 800;
+  }
+  .admin-user-sub {
+    font-size: 11.5px;
+  }
+  .admin-btn-restrict-all {
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    min-height: 44px;
+    border-radius: 14px;
+  }
+
+  /* 6. Profil Sahifasi (Profile) */
+  .profile-hero-card {
+    padding: 20px 14px 14px;
+    border-radius: 18px;
+    margin-bottom: 12px;
+  }
+  .profile-avatar-box {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 8px;
+  }
+  .profile-avatar-circle {
+    width: 58px;
+    height: 58px;
+    font-size: 22px;
+  }
+  .profile-name-title {
+    font-size: 16.5px;
+    font-weight: 800;
+  }
+  .profile-phone-subtitle {
+    font-size: 12px;
+  }
+  .profile-role-badge {
+    padding: 3px 9px;
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+  .profile-stats-card {
+    padding: 12px 10px;
+    margin-bottom: 12px;
+    border-radius: 16px;
+  }
+  .profile-stat-val {
+    font-size: 17px;
+  }
+  .profile-stat-lbl {
+    font-size: 10.5px;
+  }
+  .profile-info-card {
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border-radius: 16px;
+  }
+  .profile-info-row {
+    padding: 9px 0;
+  }
+  .profile-info-val {
+    font-size: 12.5px;
+  }
+  .profile-danger-card {
+    padding: 13px 14px;
+    margin-bottom: 14px;
+    border-radius: 16px;
+  }
+  .btn-delete-acc-danger,
+  .btn-delete-account {
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 800;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  /* 7. Asosiy va Testlar kartochkalari */
+  .home-test-card {
+    padding: 13px 14px;
+    border-radius: 16px;
+    margin-bottom: 12px;
+  }
+  .home-test-title {
+    font-size: 14px;
+    font-weight: 800;
+  }
+  .home-test-meta-pill {
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .btn-take-test-direct,
+  .btn-test-analysis {
+    padding: 11px 15px;
+    font-size: 13px;
+    font-weight: 800;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+  .test-rich-actions {
+    gap: 8px;
+  }
+  .btn-rich-action {
+    padding: 11px 14px;
+    font-size: 12.5px;
+    font-weight: 800;
+    min-width: 110px;
+    min-height: 44px;
+    border-radius: 12px;
+  }
+
+  /* 8. Bottom Nav Floating Pill on Mobile */
+  .bottom-nav {
+    width: calc(100% - 20px);
+    max-width: 380px;
+    height: 56px;
+    padding: 3px 6px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .nav-icon-wrap {
+    width: 32px;
+    height: 32px;
+  }
+  .nav-icon-wrap svg {
+    width: 18px;
+    height: 18px;
+  }
+  .nav-label {
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+
+  /* 9. Modal Windows */
+  .profile-modal-card {
+    padding: 20px 18px;
+    border-radius: 20px;
+    max-width: 92%;
+  }
+}
+
+/* Kichikroq ekranlar (iPhone SE va ixcham telefonlar) */
+@media (max-width: 380px) {
+  .home-subtabs,
+  .admin-subtabs {
+    gap: 4px;
+    padding: 3px;
+  }
+  .home-subtab,
+  .admin-subtab {
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    height: 38px;
+    min-height: 38px;
+  }
+  .quick-tmpl-btn {
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+  .quick-tmpl-btn .tmpl-text {
+    font-size: 11.5px;
+  }
+  .btn-send-broadcast {
+    font-size: 14.5px;
+    padding: 13px 16px;
+    min-height: 48px;
+  }
+  .btn-take-test-direct,
+  .btn-test-analysis,
+  .btn-rich-action {
     padding: 10px 12px;
+    font-size: 12px;
+    min-height: 40px;
   }
 }
 
