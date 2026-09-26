@@ -295,7 +295,7 @@ def init_db():
         VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
         """)
 
-    # Jadval vaqt ustunlari migration (mavjud bo'lsa xato bermaydi)
+    # Jadval vaqt va qo'shimcha ustunlar migration (mavjud bo'lsa xato bermaydi)
     if USE_POSTGRES:
         for col, coltype in [
             ("scheduled_date", "TEXT"),
@@ -304,6 +304,7 @@ def init_db():
             ("created_by", "BIGINT"),
             ("created_by_name", "TEXT"),
             ("auto_notified", "TEXT"),
+            ("youtube_url", "TEXT"),
         ]:
             try:
                 cur.execute(f"ALTER TABLE tests ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT NULL")
@@ -318,6 +319,7 @@ def init_db():
             ("created_by", "INTEGER"),
             ("created_by_name", "TEXT"),
             ("auto_notified", "TEXT"),
+            ("youtube_url", "TEXT"),
         ]:
             try:
                 cur.execute(f"ALTER TABLE tests ADD COLUMN {col} {coltype} DEFAULT NULL")
@@ -388,6 +390,40 @@ def clear_test_schedule(test_id: int) -> bool:
         print(f"Error clear_test_schedule: {e}")
         _close_conn(conn)
         return False
+
+
+def set_test_youtube_url(test_id: int, url: str) -> bool:
+    """Test uchun YouTube video tahlil havolasini saqlash yoki o'chirish."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        val = url.strip() if url and url.strip() else None
+        cur.execute(
+            f"UPDATE tests SET youtube_url = {_ph()} WHERE id = {_ph()}",
+            (val, test_id)
+        )
+        _commit_and_close(conn)
+        return True
+    except Exception as e:
+        print(f"Error set_test_youtube_url: {e}")
+        _close_conn(conn)
+        return False
+
+
+def get_test_youtube_url(test_id: int) -> Optional[str]:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(f"SELECT youtube_url FROM tests WHERE id = {_ph()}", (test_id,))
+        row = cur.fetchone()
+        _close_conn(conn)
+        if row:
+            d = _row_to_dict(row)
+            return d.get("youtube_url")
+    except Exception as e:
+        print(f"Error get_test_youtube_url: {e}")
+        _close_conn(conn)
+    return None
 
 
 def get_next_test_code() -> str:
@@ -705,7 +741,8 @@ def get_users_count() -> Dict[str, int]:
 def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any],
                 pdf_file_id: Optional[str] = None, pdf_file_name: Optional[str] = None,
                 time_limit_min: int = 0, key_access_code: str = "",
-                created_by: int = 0, created_by_name: str = "") -> bool:
+                created_by: int = 0, created_by_name: str = "",
+                youtube_url: str = "") -> bool:
     conn = get_connection()
     cur = conn.cursor()
     now = int(time.time())
@@ -714,8 +751,8 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
             cur.execute("""
             INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name,
                                answers_json, total_questions, time_limit_min, is_active,
-                               key_access_code, results_published, created_at, created_by, created_by_name)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s, 0, %s, %s, %s)
+                               key_access_code, results_published, created_at, created_by, created_by_name, youtube_url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s, 0, %s, %s, %s, %s)
             ON CONFLICT (test_code) DO UPDATE SET
                 title = EXCLUDED.title,
                 subject = EXCLUDED.subject,
@@ -727,16 +764,17 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
                 is_active = 1,
                 results_published = 0,
                 created_by = COALESCE(EXCLUDED.created_by, tests.created_by),
-                created_by_name = COALESCE(EXCLUDED.created_by_name, tests.created_by_name)
+                created_by_name = COALESCE(EXCLUDED.created_by_name, tests.created_by_name),
+                youtube_url = COALESCE(NULLIF(EXCLUDED.youtube_url, ''), tests.youtube_url)
             """, (test_code, title, subject, pdf_file_id, pdf_file_name,
                   json.dumps(answers, ensure_ascii=False), 45, time_limit_min,
-                  key_access_code, now, created_by, created_by_name))
+                  key_access_code, now, created_by, created_by_name, youtube_url or None))
         else:
             cur.execute("""
             INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name,
                                answers_json, total_questions, time_limit_min, is_active,
-                               key_access_code, results_published, created_at, created_by, created_by_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?, ?, ?)
+                               key_access_code, results_published, created_at, created_by, created_by_name, youtube_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 0, ?, ?, ?, ?)
             ON CONFLICT(test_code) DO UPDATE SET
                 title=excluded.title,
                 subject=excluded.subject,
@@ -748,10 +786,11 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
                 is_active=1,
                 results_published=0,
                 created_by=COALESCE(excluded.created_by, tests.created_by),
-                created_by_name=COALESCE(excluded.created_by_name, tests.created_by_name)
+                created_by_name=COALESCE(excluded.created_by_name, tests.created_by_name),
+                youtube_url=COALESCE(NULLIF(excluded.youtube_url, ''), tests.youtube_url)
             """, (test_code, title, subject, pdf_file_id, pdf_file_name,
                   json.dumps(answers, ensure_ascii=False), 45, time_limit_min,
-                  key_access_code, now, created_by, created_by_name))
+                  key_access_code, now, created_by, created_by_name, youtube_url or None))
         _commit_and_close(conn)
         return True
     except Exception as e:
@@ -903,7 +942,7 @@ def get_test_submissions_with_users(test_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(f"""
-    SELECT s.*, t.title as test_title, t.test_code, t.results_published
+    SELECT s.*, t.title as test_title, t.test_code, t.results_published, t.youtube_url
     FROM submissions s
     JOIN tests t ON s.test_id = t.id
     WHERE s.test_id = {_ph()}

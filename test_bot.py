@@ -157,6 +157,9 @@ class ScheduleState(StatesGroup):
     waiting_start = State()
     waiting_end = State()
 
+class SetYoutubeState(StatesGroup):
+    waiting_for_url = State()
+
 # ── KEYBOARDS (TUGMALAR) ──────────────────────────────
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
     is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
@@ -1769,6 +1772,9 @@ async def admin_test_stats_detail(call: CallbackQuery):
     else:
         sched_badge = "➖ Belgilanmagan"
 
+    yt_url = (test.get('youtube_url') or '').strip()
+    yt_badge = f'<a href="{yt_url}">Mavjud (Ko\'rish 🎬)</a>' if yt_url else "❌ Kiritilmagan"
+
     creator_str = test.get('created_by_name') or ('Bosh Admin' if test.get('created_by') == ADMIN_ID else 'Admin')
     text = (
         f"📊 <b>Test natijalari va tahlil bo'limi:</b>\n\n"
@@ -1777,7 +1783,8 @@ async def admin_test_stats_detail(call: CallbackQuery):
         f"👤 <b>Yaratuvchi:</b> {creator_str}\n"
         f"📌 <b>Fani:</b> {test.get('subject', 'Matematika')}\n"
         f"🚦 <b>Holati:</b> {status_badge}\n"
-        f"📢 <b>Natijalar:</b> {pub_badge}\n\n"
+        f"📢 <b>Natijalar:</b> {pub_badge}\n"
+        f"🎬 <b>Video tahlil:</b> {yt_badge}\n\n"
         f"👥 <b>Topshirganlar soni:</b> <b>{count} nafar</b>\n"
         f"📈 <b>O'rtacha ball:</b> <b>{avg_score} ball</b>\n\n"
         f"<i>Hisoblash, tahlil qilish va natijalarni e'lon qilish usulini tanlang 👇</i>"
@@ -1800,7 +1807,11 @@ async def admin_test_stats_detail(call: CallbackQuery):
         InlineKeyboardButton(text="📄 Matn shaklida reyting", callback_data=f"adm_restxt_{test_id}"),
         InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
     ])
-    buttons.append([InlineKeyboardButton(text="🧮 Rasch modeli tahlil jadvali", callback_data=f"adm_rasch_{test_id}")])
+    yt_btn_text = "🎬 Video tahlil ✅" if yt_url else "🎬 Video tahlil ➕"
+    buttons.append([
+        InlineKeyboardButton(text="🧮 Rasch tahlil", callback_data=f"adm_rasch_{test_id}"),
+        InlineKeyboardButton(text=yt_btn_text, callback_data=f"adm_set_yt_{test_id}")
+    ])
     buttons.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")])
 
     try:
@@ -1811,6 +1822,82 @@ async def admin_test_stats_detail(call: CallbackQuery):
         await call.answer()
     except Exception:
         pass
+
+@router.callback_query(F.data.startswith("adm_set_yt_"))
+async def adm_set_yt_cb(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    await state.clear()
+    test_id = int(call.data.split("_")[3])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+    yt_url = (test.get("youtube_url") or "").strip()
+    status_text = f"🔗 <b>Joriy havola:</b> <code>{yt_url}</code>\n\n" if yt_url else "❌ <b>Hozircha havola kiritilmagan.</b>\n\n"
+    text = (
+        f"🎬 <b>YOUTUBE VIDEO TAHLIL SOZLAMALARI</b>\n\n"
+        f"📖 <b>Test:</b> {test['title']} (<code>#{test['test_code']}</code>)\n"
+        f"{status_text}"
+        f"Quyidagi amallardan birini tanlang:"
+    )
+    buttons = [
+        [InlineKeyboardButton(text="✍️ Havolani kiritish / Yangilash", callback_data=f"adm_input_yt_{test_id}")],
+    ]
+    if yt_url:
+        buttons.append([InlineKeyboardButton(text="🗑 Havolani o'chirish", callback_data=f"adm_del_yt_{test_id}")])
+    buttons.append([InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")])
+    
+    await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    await call.answer()
+
+@router.callback_query(F.data.startswith("adm_input_yt_"))
+async def adm_input_yt_cb(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[3])
+    await state.update_data(yt_test_id=test_id)
+    await state.set_state(SetYoutubeState.waiting_for_url)
+    await call.message.answer(
+        "🎬 <b>YouTube video tahlil havolasini (URL) yuboring:</b>\n\n"
+        "<i>Masalan: https://youtu.be/... yoki https://www.youtube.com/watch?v=...</i>\n\n"
+        "Bekor qilish uchun /cancel deb yozing."
+    )
+    await call.answer()
+
+@router.message(SetYoutubeState.waiting_for_url)
+async def adm_save_yt_msg(message: Message, state: FSMContext):
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        return
+    if message.text and message.text.strip().lower() == "/cancel":
+        await state.clear()
+        await message.answer("❌ Havola kiritish bekor qilindi.")
+        return
+    data = await state.get_data()
+    test_id = data.get("yt_test_id")
+    url = (message.text or "").strip()
+    if not ("youtube.com" in url or "youtu.be" in url or url.startswith("http")):
+        await message.answer("⚠️ Iltimos, to'g'ri YouTube havolasini (URL) yuboring (masalan: https://youtu.be/...):")
+        return
+    test_db.set_test_youtube_url(test_id, url)
+    await state.clear()
+    test = test_db.get_test_by_id(test_id)
+    title = test['title'] if test else f"#{test_id}"
+    await message.answer(
+        f"✅ <b>«{title}» testi uchun YouTube video tahlil havolasi muvaffaqiyatli saqlandi!</b>\n\n"
+        f"🔗 Havola: {url}\n\n"
+        f"<i>Natijalar e'lon qilinganda o'quvchilarga video tahlil tugmasi orqali ochiladi.</i>"
+    )
+
+@router.callback_query(F.data.startswith("adm_del_yt_"))
+async def adm_del_yt_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[3])
+    test_db.set_test_youtube_url(test_id, "")
+    await call.answer("🗑 Video tahlil havolasi o'chirildi!", show_alert=True)
+    call.data = f"adm_tstat_{test_id}"
+    await admin_test_stats_detail(call)
 
 # Testni o'chirishni tasdiqlash
 @router.callback_query(F.data.startswith("adm_del_test_prompt_"))
@@ -1923,6 +2010,105 @@ async def admin_eval_prompt_cb(call: CallbackQuery):
         await call.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await call.answer()
 
+def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch") -> tuple:
+    """O'quvchi uchun natija matni va video tahlil / mini ilova tugmalarini shakllantirish."""
+    name = sub.get("fullname") or "O'quvchi"
+    score = sub.get("score", 0.0)
+    grade = sub.get("grade") or test_db.calculate_grade(score)
+    corr = sub.get("correct_count", 0)
+    total = sub.get("total_count", 55) or 55
+    incorr = max(0, total - corr)
+    code = sub.get("test_code", test.get("test_code", ""))
+    test_title = test.get("title", "Matematika Testi")
+    yt_url = (test.get("youtube_url") or "").strip()
+
+    details = {}
+    raw_details = sub.get("details_json")
+    if isinstance(raw_details, dict):
+        details = raw_details
+    elif raw_details:
+        try:
+            details = json.loads(raw_details)
+        except Exception:
+            details = {}
+
+    def sort_key(k):
+        m = re.match(r"^(\d+)([ab]?)$", str(k).strip())
+        if m:
+            return (int(m.group(1)), m.group(2))
+        return (999, str(k))
+
+    correct_keys = []
+    incorrect_keys = []
+    unanswered_keys = []
+    for k in sorted(details.keys(), key=sort_key):
+        item = details[k]
+        st = item.get("status")
+        if st == "correct":
+            correct_keys.append(str(k))
+        elif st == "unanswered":
+            unanswered_keys.append(str(k))
+        else:
+            incorrect_keys.append(str(k))
+
+    corr_str = ", ".join(correct_keys) if correct_keys else "Mavjud emas"
+    incorr_str = ", ".join(incorrect_keys) if incorrect_keys else "Yo'q"
+
+    tahlil_block = (
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "📊 <b>Savollar tahlili:</b>\n"
+        f"✅ <b>To'g'ri ({len(correct_keys)} ta):</b>\n"
+        f"<code>{corr_str}</code>\n\n"
+        f"❌ <b>Noto'g'ri ({len(incorrect_keys)} ta):</b>\n"
+        f"<code>{incorr_str}</code>"
+    )
+    if unanswered_keys:
+        unans_str = ", ".join(unanswered_keys)
+        tahlil_block += f"\n\n⚪ <b>Belgilanmagan ({len(unanswered_keys)} ta):</b>\n<code>{unans_str}</code>"
+    tahlil_block += "\n━━━━━━━━━━━━━━━━━━━━"
+
+    if eval_type == "rasch":
+        msg_text = (
+            f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
+            f"Hurmatli <b>{name}</b>, sizning <b>«{test_title}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
+            f"🧮 <b>Baholash tizimi:</b> Rasch Modeli (JMLE)\n"
+            f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
+            f"✅ <b>To'g'ri ishlangan:</b> {corr} ta band\n"
+            f"❌ <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
+            f"📊 <b>Jami savollar:</b> {total} ta\n"
+            f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
+            f"{tahlil_block}\n\n"
+            f"💡 <i>Quyidagi tugmalar orqali video tahlilni ko'rishingiz yoki Mini ilovada to'liq kalitlarni tekshirishingiz mumkin:</i>\n\n"
+            f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
+        )
+    else:
+        msg_text = (
+            f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
+            f"Hurmatli <b>{name}</b>, sizning <b>«{test_title}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
+            f"📋 <b>Baholash turi:</b> Standart (To'g'ri javoblar soni)\n"
+            f"✅ <b>To'g'ri javoblar:</b> {corr} / {total} ta\n"
+            f"❌ <b>Noto'g'ri javoblar:</b> {incorr} ta\n"
+            f"🎯 <b>To'plangan ball:</b> {score} ball\n"
+            f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
+            f"{tahlil_block}\n\n"
+            f"💡 <i>Quyidagi tugmalar orqali video tahlilni ko'rishingiz yoki Mini ilovada to'liq kalitlarni tekshirishingiz mumkin:</i>\n\n"
+            f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
+        )
+
+    kb_rows = []
+    if yt_url:
+        kb_rows.append([InlineKeyboardButton(text="🎬 Video tahlilni ko'rish (YouTube)", url=yt_url)])
+    else:
+        kb_rows.append([InlineKeyboardButton(text="🎬 Video tahlil (mavjud emas)", callback_data="no_video_analysis")])
+
+    kb_rows.append([InlineKeyboardButton(text="📱 Mini ilovada to'liq ko'rish", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html?tab=tests"))])
+
+    return msg_text, InlineKeyboardMarkup(inline_keyboard=kb_rows)
+
+@router.callback_query(F.data == "no_video_analysis")
+async def no_video_analysis_cb(call: CallbackQuery):
+    await call.answer("⚠️ Ushbu test uchun video tahlil kiritilmagan.", show_alert=True)
+
 # 1. Rasch modeli bo'yicha e'lon qilish
 @router.callback_query(F.data.startswith("adm_broadcast_rasch_"))
 async def admin_broadcast_rasch_cb(call: CallbackQuery):
@@ -1959,29 +2145,9 @@ async def admin_broadcast_rasch_cb(call: CallbackQuery):
             uid = sub.get("user_tg_id")
             if not uid:
                 continue
-            user_info = test_db.get_user(uid)
-            name = user_info['fullname'] if user_info else "Foydalanuvchi"
-            score = sub.get("score", 0.0)
-            grade = sub.get("grade") or test_db.calculate_grade(score)
-            corr = sub.get("correct_count", 0)
-            total = sub.get("total_count", 55) or 55
-            incorr = max(0, total - corr)
-            code = sub.get("test_code", test["test_code"])
-
-            msg_text = (
-                f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
-                f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
-                f"🧮 <b>Baholash tizimi:</b> Rasch Modeli (JMLE)\n"
-                f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
-                f"✅ <b>To'g'ri ishlangan:</b> {corr} ta band\n"
-                f"❌ <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
-                f"📊 <b>Jami savollar:</b> {total} ta\n"
-                f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
-                f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
-                f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
-            )
+            msg_text, reply_kb = build_student_result_message(sub, test, eval_type="rasch")
             try:
-                await bot.send_message(chat_id=uid, text=msg_text)
+                await bot.send_message(chat_id=uid, text=msg_text, reply_markup=reply_kb)
                 sent_count += 1
                 await asyncio.sleep(0.05)
             except Exception as ex:
@@ -2036,27 +2202,9 @@ async def admin_broadcast_std_cb(call: CallbackQuery):
             uid = sub.get("user_tg_id")
             if not uid:
                 continue
-            user_info = test_db.get_user(uid)
-            name = user_info['fullname'] if user_info else "Foydalanuvchi"
-            score = sub.get("score", 0.0)
-            corr = sub.get("correct_count", 0)
-            total = sub.get("total_count", 55) or 55
-            incorr = max(0, total - corr)
-            code = sub.get("test_code", test["test_code"])
-
-            msg_text = (
-                f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
-                f"Hurmatli <b>{name}</b>, sizning <b>«{test['title']}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
-                f"📋 <b>Baholash turi:</b> Standart (To'g'ri javoblar soni)\n"
-                f"✅ <b>To'g'ri javoblar:</b> {corr} / {total} ta\n"
-                f"❌ <b>Noto'g'ri javoblar:</b> {incorr} ta\n"
-                f"🎯 <b>To'plangan ball:</b> {score} ball\n"
-                f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
-                f"💡 <i>Endi Mini ilovaga kirib, har bir savol bo'yicha to'liq tahlil va to'g'ri kalitlarni ko'rishingiz mumkin!</i>\n\n"
-                f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
-            )
+            msg_text, reply_kb = build_student_result_message(sub, test, eval_type="std")
             try:
-                await bot.send_message(chat_id=uid, text=msg_text)
+                await bot.send_message(chat_id=uid, text=msg_text, reply_markup=reply_kb)
                 sent_count += 1
                 await asyncio.sleep(0.05)
             except Exception as ex:
@@ -2277,22 +2425,12 @@ async def handle_submit_test_api(request):
         # Foydalanuvchiga Telegram bot orqali shaxsiy xabar yuborish
         if user_tg_id:
             if is_published:
-                grade = result.get('grade') or "C"
-                score_val = result.get('score', 0)
-                theta_val = result.get('rasch_theta', 0.0)
-                msg_user = (
-                    f"🎉 <b>Hurmatli {result['fullname']}, sizning natijangiz:</b>\n\n"
-                    f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
-                    f"🧮 <b>Rasch Modeli (JMLE) bo'yicha baholash:</b>\n"
-                    f"🎖 <b>Milliy Sertifikat darajasi:</b> <b>{grade}</b> ({score_val} ball)\n"
-                    f"📈 <b>Rasch qobiliyat parametri (θ):</b> <code>{theta_val:+.2f}</code> logit\n\n"
-                    f"✅ <b>To'g'ri javoblar:</b> {result['correct_count']} / 55 ta band\n"
-                    f"❌ <b>Noto'g'ri javoblar:</b> {result['incorrect_count']} ta\n"
-                    f"⚪ <b>Belgilanmagan:</b> {result['unanswered_count']} ta\n"
-                    f"🕒 <b>Vaqt:</b> {format_uzb_time()}\n\n"
-                    f"💡 <i>Eslatma: Savollar qiyinligi va yakuniy 100 ballik natija Rasch modeli tomonidan avtomatik hisoblandi.</i>\n\n"
-                    f"🏆 <i>Natijangiz tizimda muvaffaqiyatli qayd etildi!</i>"
-                )
+                test = test_db.get_test_by_id(test_id) or {"title": result.get('test_title', 'Test'), "test_code": result.get('test_code', '')}
+                msg_user, reply_kb = build_student_result_message(result, test, eval_type="rasch")
+                try:
+                    await bot.send_message(chat_id=user_tg_id, text=msg_user, reply_markup=reply_kb)
+                except Exception as ex:
+                    log.warning(f"Foydalanuvchiga xabar yuborishda xatolik: {ex}")
             else:
                 msg_user = (
                     f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
@@ -2340,6 +2478,7 @@ async def handle_create_test_api(request):
         answers = data.get("answers", {})
         time_limit_min = int(data.get("time_limit_min", 0))
         key_access_code = data.get("key_access_code", "").strip()
+        youtube_url = (data.get("youtube_url") or "").strip()
 
         creator_id = int(data.get("creator_tg_id", 0) or data.get("tg_id", 0))
         if not creator_id:
@@ -2374,7 +2513,8 @@ async def handle_create_test_api(request):
             time_limit_min=time_limit_min,
             key_access_code=key_access_code,
             created_by=creator_id,
-            created_by_name=creator_name
+            created_by_name=creator_name,
+            youtube_url=youtube_url
         )
 
         sched_date = data.get("scheduled_date", "").strip()
@@ -2390,8 +2530,12 @@ async def handle_create_test_api(request):
                 if sched_start and sched_end and test_id:
                     test_db.set_test_schedule(test_id, sched_date, sched_start, sched_end)
 
+                if youtube_url and test_id:
+                    test_db.set_test_youtube_url(test_id, youtube_url)
+
                 time_info = f"⏱ <b>Vaqt chegarasi:</b> {time_limit_min} daqiqa\n" if time_limit_min > 0 else ""
                 sched_info = f"⏰ <b>O'tkazilish vaqti:</b> {sched_date} {sched_start}–{sched_end} (UZB)\n" if (sched_start and sched_end) else ""
+                yt_info = f"🎬 <b>Video tahlil:</b> {youtube_url}\n" if youtube_url else ""
                 
                 kb = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="📥 Ha, PDF yuklayman", callback_data=f"ask_pdf_{test_id}")],
@@ -2941,7 +3085,16 @@ async def handle_app_active_tests(request):
                 td['already_submitted'] = bool(existing)
             else:
                 td['already_submitted'] = False
-            td['is_planned'] = False  # To'xtatilgan testlar 'planned' emas, ular alohida ko'rsatiladi
+            sdate = str(t.get('scheduled_date') or '').strip()
+            sstart = str(t.get('scheduled_start') or '').strip()
+            send = str(t.get('scheduled_end') or '').strip()
+            is_act = (t.get('is_active', 1) == 1)
+
+            # Agar test faol bo'lmasa, lekin rejalashtirilgan vaqti bo'lsa -> Kutilayotgan test!
+            is_upcoming = (not is_act and bool(sstart and (sdate or send)))
+            td['is_active'] = is_act
+            td['is_upcoming'] = is_upcoming
+            td['is_planned'] = is_upcoming
             result.append(td)
         return web.json_response({"success": True, "tests": result})
     except Exception as e:

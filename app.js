@@ -522,57 +522,175 @@ function switchTab(tabId) {
   else if (tabId === 'admin') { renderAdminTab(); loadAllUsers(); }
 }
 
-// ── HOME TAB (faqat faol testlar, planned YO'Q) ─
+function openTestSolving(testId) {
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  window.location.href = '/index.html?test_id=' + testId + '&tg_id=' + tgId;
+}
+
+function returnToTelegramChat() {
+  if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.close === 'function') {
+    window.Telegram.WebApp.close();
+  } else {
+    showToast('Telegram bot chatiga qaytildi');
+  }
+}
+
+function renderTestDetailCard(test, type) {
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  var isUpcoming = (type === 'upcoming');
+  var isActive = (type === 'active');
+  var isInactive = (type === 'inactive');
+  var done = Boolean(test.already_submitted);
+
+  var cardClass = isUpcoming ? 'test-card-upcoming' : (isActive ? 'test-card-active' : 'test-card-closed');
+  var badgeHtml = '';
+  if (isUpcoming) {
+    badgeHtml = '<span class="badge" style="background:rgba(245,158,11,0.15);color:#D97706;border:1px solid rgba(245,158,11,0.3);font-weight:800;">⏳ Kutilmoqda</span>';
+  } else if (isActive) {
+    if (done) {
+      badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#059669;border:1px solid rgba(16,185,129,0.3);font-weight:800;">✅ Topshirilgan</span>';
+    } else {
+      badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:800;">🟢 Hozir faol</span>';
+    }
+  } else {
+    badgeHtml = '<span class="badge badge-inactive">🔴 To\'xtatildi</span>';
+  }
+
+  var codeDisplay = test.test_code ? (String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code)) : '—';
+  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (isUpcoming ? 'Belgilangan vaqtda' : 'Bugun');
+  var startStr = test.scheduled_start ? (escHtml(test.scheduled_start) + ' (UZB)') : (isActive ? 'Boshlangan' : '—');
+  var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : 'Cheklanmagan';
+  var totalQuestions = (test.total_questions || 45) + ' ta savol (55 ta band)';
+  var timeLimit = test.time_limit_min ? (test.time_limit_min + ' daqiqa') : 'Cheksiz';
+  var ytUrl = (test.youtube_url || '').trim();
+  var ytStatus = ytUrl ? '<span style="color:#DC2626;font-weight:700;">Mavjud (YouTube) 🎬</span>' : '<span style="color:var(--text-muted);">Rejalashtirilmoqda</span>';
+
+  var html = '<div class="test-rich-card ' + cardClass + ' animate-in">' +
+    '<div class="test-rich-header">' +
+      '<div class="test-rich-icon ' + (isUpcoming ? 'amber' : (isActive ? 'green' : 'gray')) + '">' +
+        (isUpcoming ? '⏳' : (isActive ? '📝' : '🔒')) +
+      '</div>' +
+      '<div class="test-rich-title-box">' +
+        '<div class="test-rich-title">' + escHtml(test.title || 'Matematika Testi') + '</div>' +
+        '<div class="test-rich-subject">' + escHtml(test.subject || 'Matematika') + '</div>' +
+      '</div>' +
+      '<div>' + badgeHtml + '</div>' +
+    '</div>' +
+
+    // Qatorma-qator to'liq ma'lumotlar ro'yxati
+    '<div class="test-rich-info-grid">' +
+      '<div class="test-rich-info-row">' +
+        '<span class="test-rich-label">📌 Test kodi:</span>' +
+        '<span class="test-rich-val test-rich-code">' + escHtml(codeDisplay) + '</span>' +
+      '</div>' +
+      '<div class="test-rich-info-row">' +
+        '<span class="test-rich-label">📅 Belgilangan sana:</span>' +
+        '<span class="test-rich-val">' + dateStr + '</span>' +
+      '</div>' +
+      '<div class="test-rich-info-row">' +
+        '<span class="test-rich-label">🕐 Boshlanish vaqti:</span>' +
+        '<span class="test-rich-val">' + startStr + '</span>' +
+      '</div>' +
+      '<div class="test-rich-info-row">' +
+        '<span class="test-rich-label">🕕 Tugash vaqti:</span>' +
+        '<span class="test-rich-val">' + endStr + '</span>' +
+      '</div>' +
+      '<div class="test-rich-info-row">' +
+        '<span class="test-rich-label">❓ Savollar soni:</span>' +
+        '<span class="test-rich-val">' + totalQuestions + '</span>' +
+      '</div>' +
+      (test.time_limit_min ? (
+        '<div class="test-rich-info-row">' +
+          '<span class="test-rich-label">⏱ Vaqt chegarasi:</span>' +
+          '<span class="test-rich-val">' + timeLimit + '</span>' +
+        '</div>'
+      ) : '') +
+      '<div class="test-rich-info-row">' +
+        '<span class="test-rich-label">🎬 Video tahlil:</span>' +
+        '<span class="test-rich-val">' + ytStatus + '</span>' +
+      '</div>' +
+    '</div>';
+
+  // Tugmalar
+  html += '<div class="test-rich-actions">';
+  if (isUpcoming) {
+    html += '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
+      '<span>💬</span> Botga (chatga) qaytish' +
+    '</button>';
+  } else if (isActive) {
+    if (done) {
+      html += '<button type="button" class="btn-rich-action btn-rich-success" onclick="switchTab(\'tests\')">' +
+        '<span>✅</span> Natijani ko\'rish' +
+      '</button>' +
+      '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
+        '<span>💬</span> Chatga qaytish' +
+      '</button>';
+    } else {
+      html += '<button type="button" class="btn-rich-action btn-rich-primary" onclick="openTestSolving(' + test.id + ')">' +
+        '<span>✍️</span> Testni yechish' +
+      '</button>' +
+      '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
+        '<span>💬</span> Chatda ko\'rish' +
+      '</button>';
+    }
+  } else {
+    html += '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
+      '<span>💬</span> Chatga qaytish' +
+    '</button>';
+  }
+  html += '</div>';
+
+  html += '</div>';
+  return html;
+}
+
+// ── HOME TAB (kutilayotgan, faol va yakunlangan testlar) ─
 function renderHomeTab(tests) {
   var tab = document.getElementById('tab-home');
   if (!tab) return;
   var tgId = (state.tgUser && state.tgUser.id) || 0;
 
-  // Faqat faol testlar (is_planned=false, is_active=true), va faol bo'lmaganlar
-  var active = tests.filter(function(t) { return t.is_active && !t.is_planned; });
-  var inactive = tests.filter(function(t) { return !t.is_active && !t.is_planned; });
+  var upcoming = tests.filter(function(t) { return t.is_upcoming; });
+  var active = tests.filter(function(t) { return t.is_active && !t.is_upcoming; });
+  var inactive = tests.filter(function(t) { return !t.is_active && !t.is_upcoming; });
 
   var html = '<div class="section-header animate-in">' +
     '<div class="section-title">' + t('home_title') + '</div>' +
     '<div class="section-sub">' + t('home_sub') + '</div></div>';
 
-  if (active.length > 0) {
-    html += '<div class="section-sub" style="margin-bottom:10px;font-weight:700;color:var(--success);font-size:12px;">\u2705 ' + t('active_tests') + '</div>';
-    active.forEach(function(test, i) {
-      var done = test.already_submitted;
-      html += '<div class="card animate-in" style="animation-delay:' + (i * 0.06) + 's">' +
-        '<div class="card-header">' +
-        '<div class="card-icon blue">\uD83D\uDCD0</div>' +
-        '<div style="flex:1;min-width:0">' +
-        '<div class="card-title">' + escHtml(test.title) + '</div>' +
-        '<div class="card-meta"><span>' + escHtml(test.test_code) + '</span><span>\u2022</span><span>' + (test.total_questions || 45) + ' savol</span>' +
-        (test.time_limit_min ? '<span>\u2022</span><span>\u23F1 ' + test.time_limit_min + ' daq</span>' : '') + '</div>' +
-        '</div>' +
-        '<span class="badge ' + (done ? 'badge-inactive' : 'badge-active') + '">' + (done ? '\u2705 ' + t('already_done') : '\uD83D\uDFE2 Faol') + '</span>' +
-        '</div>';
-
-      if (done) {
-        html += '<div style="text-align:center;padding:8px 0 4px;font-size:13px;color:var(--text-muted);">\u2705 ' + t('already_done') + '</div>';
-      } else {
-        // Testni mini ilovada ochish o'rniga, faqat bot orqali ishlash haqida xabar
-        html += '<div style="text-align:center;padding:8px 0 4px;font-size:13px;color:var(--text-muted);font-weight:600;">Testni bot orqali ishlashingiz mumkin</div>';
-      }
-      html += '</div>';
+  // 1. Kutilayotgan testlar (Upcoming)
+  if (upcoming.length > 0) {
+    html += '<div class="section-sub" style="margin-bottom:12px;font-weight:800;color:#D97706;font-size:13px;display:flex;align-items:center;gap:6px;">' +
+      '<span>⏳</span> Kutilayotgan testlar (' + upcoming.length + ' ta):' +
+    '</div>';
+    upcoming.forEach(function(test) {
+      html += renderTestDetailCard(test, 'upcoming');
     });
   }
 
-  if (active.length === 0) {
-    html += '<div class="empty-state animate-in"><div class="empty-icon">\uD83D\uDCED</div><p>' + t('empty_active') + '</p></div>';
+  // 2. Hozir faol testlar (Active)
+  if (active.length > 0) {
+    html += '<div class="section-sub" style="margin:' + (upcoming.length > 0 ? '18px' : '0') + ' 0 12px;font-weight:800;color:var(--success);font-size:13px;display:flex;align-items:center;gap:6px;">' +
+      '<span>🟢</span> Hozir faol testlar (' + active.length + ' ta):' +
+    '</div>';
+    active.forEach(function(test) {
+      html += renderTestDetailCard(test, 'active');
+    });
   }
 
+  // Bo'sh holat
+  if (upcoming.length === 0 && active.length === 0) {
+    html += '<div class="empty-state animate-in"><div class="empty-icon">📫</div><p>' + t('empty_active') + '</p></div>';
+  }
+
+  // 3. Yakunlangan testlar (Closed)
   if (inactive.length > 0) {
-    html += '<div class="divider"></div><div class="section-sub" style="margin-bottom:10px;font-size:12px;color:var(--text-muted);">\uD83D\uDD12 ' + t('closed_tests') + '</div>';
+    html += '<div class="divider"></div>' +
+      '<div class="section-sub" style="margin-bottom:12px;font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px;">' +
+        '<span>🔒</span> Yakunlangan testlar:' +
+      '</div>';
     inactive.forEach(function(test) {
-      html += '<div class="card" style="opacity:0.55"><div class="card-header">' +
-        '<div class="card-icon red">\uD83D\uDD12</div>' +
-        '<div style="flex:1"><div class="card-title">' + escHtml(test.title) + '</div>' +
-        '<div class="card-meta">' + escHtml(test.test_code) + '</div></div>' +
-        '<span class="badge badge-inactive">To\'xtatildi</span></div></div>';
+      html += renderTestDetailCard(test, 'inactive');
     });
   }
 

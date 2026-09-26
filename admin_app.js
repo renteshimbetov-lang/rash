@@ -369,6 +369,7 @@ const AdminApp = {
     const schedDate = (document.getElementById('adm-test-sched-date')?.value || '').trim();
     const schedStart = (document.getElementById('adm-test-sched-start')?.value || '').trim();
     const schedEnd = (document.getElementById('adm-test-sched-end')?.value || '').trim();
+    const youtubeUrl = (document.getElementById('adm-test-youtube-url')?.value || '').trim();
 
     const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
     const urlParams = new URLSearchParams(window.location.search);
@@ -383,6 +384,7 @@ const AdminApp = {
       scheduled_date: schedDate,
       scheduled_start: schedStart,
       scheduled_end: schedEnd,
+      youtube_url: youtubeUrl,
       creator_tg_id: creatorId,
       answers: this.answers
     };
