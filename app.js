@@ -41,6 +41,9 @@ var I18N = {
     val_yt_available: 'Mavjud (YouTube) 🎬', val_yt_planning: 'Rejalashtirilmoqda',
     btn_return_bot: 'Botga (chatga) qaytish', btn_view_result: "Natijani ko'rish",
     btn_solve_test: 'Testni yechish', btn_test_ended: 'Test muddati tugagan',
+    code_hidden_until_start: 'Boshlanganda ochiladi',
+    btn_waiting_start: 'Boshlanishi kutilmoqda',
+    toast_test_not_started: 'Test hali boshlanmadi! Boshlanish vaqti:',
     my_tests_title: 'Mening testlarim', tests_count: 'ta test topshirildi',
     empty_tests: 'Hali hech qanday test topshirmadingiz',
     test_in_progress: '⏳ Test davom etmoqda', test_waiting_result: 'Kutilmoqda',
@@ -200,6 +203,9 @@ var I18N = {
     val_yt_available: 'Доступен (YouTube) 🎬', val_yt_planning: 'Планируется',
     btn_return_bot: 'Вернуться к боту (чат)', btn_view_result: 'Посмотреть результат',
     btn_solve_test: 'Решать тест', btn_test_ended: 'Срок теста истек',
+    code_hidden_until_start: 'Откроется при начале',
+    btn_waiting_start: 'Ожидается начало',
+    toast_test_not_started: 'Тест еще не начался! Время начала:',
     my_tests_title: 'Мои тесты', tests_count: 'тестов сдано',
     empty_tests: 'Вы еще не сдали ни одного теста',
     test_in_progress: '⏳ Тест продолжается', test_waiting_result: 'Ожидается',
@@ -359,6 +365,9 @@ var I18N = {
     val_yt_available: 'Available (YouTube) 🎬', val_yt_planning: 'In preparation',
     btn_return_bot: 'Return to bot (chat)', btn_view_result: 'View result',
     btn_solve_test: 'Solve test', btn_test_ended: 'Test has ended',
+    code_hidden_until_start: 'Unlocks at start',
+    btn_waiting_start: 'Waiting to start',
+    toast_test_not_started: "Test hasn't started yet! Start time:",
     my_tests_title: 'My Tests', tests_count: 'tests submitted',
     empty_tests: "You haven't submitted any tests yet",
     test_in_progress: '⏳ Test in progress', test_waiting_result: 'Pending',
@@ -1033,11 +1042,81 @@ function startTestInBot(testCode, testId) {
   }
 }
 
+function isTestUpcoming(test) {
+  if (!test) return false;
+  if (test.code_hidden || test.is_upcoming) return true;
+  if (!test.scheduled_start) return false;
+  try {
+    var now = new Date();
+    // Toshkent vaqti (UTC+5)
+    var utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    var uzbDate = new Date(utc + (3600000 * 5));
+
+    var sdate = (test.scheduled_date || '').trim();
+    if (sdate) {
+      var parts = sdate.split(/[-.]/);
+      var tYear, tMonth, tDay;
+      if (parts[0].length === 4) {
+        tYear = parseInt(parts[0], 10);
+        tMonth = parseInt(parts[1], 10) - 1;
+        tDay = parseInt(parts[2], 10);
+      } else {
+        tDay = parseInt(parts[0], 10);
+        tMonth = parseInt(parts[1], 10) - 1;
+        tYear = parseInt(parts[2], 10);
+      }
+      var todayYear = uzbDate.getFullYear();
+      var todayMonth = uzbDate.getMonth();
+      var todayDay = uzbDate.getDate();
+
+      var tDateOnly = new Date(tYear, tMonth, tDay);
+      var curDateOnly = new Date(todayYear, todayMonth, todayDay);
+      if (tDateOnly > curDateOnly) return true;
+      if (tDateOnly < curDateOnly) return false;
+    }
+
+    var startParts = test.scheduled_start.split(':');
+    var startMinutes = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
+    var nowMinutes = uzbDate.getHours() * 60 + uzbDate.getMinutes();
+
+    var endMinutes = null;
+    if (test.scheduled_end) {
+      try {
+        var endParts = test.scheduled_end.split(':');
+        endMinutes = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10);
+      } catch(e) {}
+    }
+
+    if (endMinutes !== null && endMinutes < startMinutes) {
+      // Yarim tun orqali o'tuvchi test (masalan 23:30 dan 00:30 gacha)
+      if (nowMinutes >= startMinutes || nowMinutes < endMinutes) {
+        return false;
+      } else {
+        return true;
+      }
+    } else {
+      if (nowMinutes < startMinutes) {
+        return true;
+      }
+    }
+  } catch(e) {}
+  return false;
+}
+
+function showTestNotStartedAlert(startStr) {
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
+    } catch(e) {}
+  }
+  showToast(t('toast_test_not_started') + ' ' + (startStr || '—'));
+}
+
 function renderTestDetailCard(test, type) {
   var tgId = (state.tgUser && state.tgUser.id) || 0;
-  var isUpcoming = (type === 'upcoming');
-  var isActive = (type === 'active');
-  var isInactive = (type === 'inactive');
+  var isUpcoming = (type === 'upcoming' || isTestUpcoming(test));
+  var isActive = (type === 'active' && !isUpcoming);
+  var isInactive = (type === 'inactive' && !isUpcoming);
   var done = Boolean(test.already_submitted);
 
   var cardClass = isUpcoming ? 'test-card-upcoming' : (isActive ? 'test-card-active' : 'test-card-closed');
@@ -1054,7 +1133,19 @@ function renderTestDetailCard(test, type) {
     badgeHtml = '<span class="badge badge-inactive">' + t('badge_stopped') + '</span>';
   }
 
-  var codeDisplay = test.test_code ? (String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code)) : '—';
+  var displayTitle = (test.title || t('default_test_title'));
+  if (isUpcoming) {
+    // Agar sarlavhada '#118' kabi test kodi bo'lsa, test boshlanguncha uni yashirish
+    displayTitle = displayTitle.replace(/\s*#[\w\d]+\b/g, '').trim();
+  }
+
+  var codeDisplay = '—';
+  if (isUpcoming) {
+    codeDisplay = '<span style="background:rgba(245,158,11,0.14);color:#D97706;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;">🔒 ' + t('code_hidden_until_start') + '</span>';
+  } else if (test.test_code) {
+    codeDisplay = String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code);
+  }
+
   var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (isUpcoming ? t('val_scheduled_soon') : t('val_today'));
   var startStr = test.scheduled_start ? (escHtml(test.scheduled_start) + ' (UZB)') : (isActive ? t('val_started') : '—');
   var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : t('val_unlimited');
@@ -1069,7 +1160,7 @@ function renderTestDetailCard(test, type) {
         (isUpcoming ? '⏳' : (isActive ? '📝' : '🔒')) +
       '</div>' +
       '<div class="test-rich-title-box">' +
-        '<div class="test-rich-title">' + escHtml(test.title || t('default_test_title')) + '</div>' +
+        '<div class="test-rich-title">' + escHtml(displayTitle) + '</div>' +
         '<div class="test-rich-subject">' + escHtml(test.subject || t('default_subject')) + '</div>' +
       '</div>' +
       '<div>' + badgeHtml + '</div>' +
@@ -1079,7 +1170,7 @@ function renderTestDetailCard(test, type) {
     '<div class="test-rich-info-grid">' +
       '<div class="test-rich-info-row">' +
         '<span class="test-rich-label">' + t('lbl_test_code') + '</span>' +
-        '<span class="test-rich-val test-rich-code">' + escHtml(codeDisplay) + '</span>' +
+        '<span class="test-rich-val test-rich-code">' + (isUpcoming ? codeDisplay : escHtml(codeDisplay)) + '</span>' +
       '</div>' +
       '<div class="test-rich-info-row">' +
         '<span class="test-rich-label">' + t('lbl_scheduled_date') + '</span>' +
@@ -1112,8 +1203,8 @@ function renderTestDetailCard(test, type) {
   // Tugmalar
   html += '<div class="test-rich-actions">';
   if (isUpcoming) {
-    html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%" onclick="returnToTelegramChat()">' +
-      '<span>💬</span> ' + t('btn_return_bot') +
+    html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%;cursor:pointer;" onclick="showTestNotStartedAlert(\'' + escHtml(startStr) + '\')">' +
+      '<span>⏳</span> ' + t('btn_waiting_start') + (test.scheduled_start ? (' (' + escHtml(test.scheduled_start) + ')') : '') +
     '</button>';
   } else if (isActive) {
     if (done) {
@@ -1149,9 +1240,9 @@ function renderHomeTab(tests) {
   window.availableActiveTests = tests || [];
   var currentSubtab = state.homeSubtab || 'active';
 
-  var upcoming = tests.filter(function(t) { return t.is_upcoming; });
-  var active = tests.filter(function(t) { return t.is_active && !t.is_upcoming; });
-  var inactive = tests.filter(function(t) { return !t.is_active && !t.is_upcoming; });
+  var upcoming = tests.filter(function(t) { return isTestUpcoming(t); });
+  var active = tests.filter(function(t) { return t.is_active && !isTestUpcoming(t); });
+  var inactive = tests.filter(function(t) { return !t.is_active && !isTestUpcoming(t); });
 
   var activeTotalCount = active.length + upcoming.length;
   var pastTotalCount = inactive.length;
@@ -1230,6 +1321,16 @@ function renderHomeTab(tests) {
 
   tab.innerHTML = html;
 }
+
+// Har 15 soniyada rejalashtirilgan testlar vaqtini tekshirib, boshlanish vaqti kelganda avtomatik ochish
+setInterval(function() {
+  if (state.activeTab === 'home' && window.availableActiveTests && window.availableActiveTests.length > 0) {
+    var hasScheduled = window.availableActiveTests.some(function(t) { return Boolean(t.scheduled_start); });
+    if (hasScheduled) {
+      renderHomeTab(window.availableActiveTests);
+    }
+  }
+}, 15000);
 
 // ── TESTS TAB (Boyitilgan Natijalar & Sertifikat Markazi) ──
 var _myTestsFilter = 'all';

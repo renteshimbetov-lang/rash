@@ -42,6 +42,121 @@ def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%
         dt = datetime.fromtimestamp(timestamp, tz=UZB_TZ)
     return dt.strftime(fmt)
 
+def get_test_schedule_status(test: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Testning joriy vaqtga (UZB_TZ) nisbatan aniq holatini hisoblaydi:
+    - is_upcoming: Test boshlanish vaqti hali kelmagan
+    - is_active: Test ayni paytda faol va yechish mumkin
+    - is_closed: Test vaqti tugagan yoki to'xtatilgan
+    """
+    now_uzb = datetime.now(UZB_TZ)
+    now_minutes = now_uzb.hour * 60 + now_uzb.minute
+    today_date = now_uzb.date()
+
+    sdate = str(test.get('scheduled_date') or '').strip()
+    sstart = str(test.get('scheduled_start') or '').strip()
+    send = str(test.get('scheduled_end') or '').strip()
+    raw_active = (test.get('is_active', 1) == 1)
+
+    # Agar jadval belgilanmagan bo'lsa
+    if not sstart:
+        return {
+            "is_upcoming": False,
+            "is_active": raw_active,
+            "is_closed": not raw_active,
+            "reason": "no_schedule"
+        }
+
+    # Sana tekshiruvi (agar sdate berilgan bo'lsa)
+    test_date_obj = None
+    if sdate:
+        for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d-%m-%Y", "%Y.%m.%d"):
+            try:
+                test_date_obj = datetime.strptime(sdate, fmt).date()
+                break
+            except Exception:
+                pass
+
+    if test_date_obj:
+        if test_date_obj > today_date:
+            return {
+                "is_upcoming": True,
+                "is_active": False,
+                "is_closed": False,
+                "reason": "future_date"
+            }
+        elif test_date_obj < today_date:
+            return {
+                "is_upcoming": False,
+                "is_active": False,
+                "is_closed": True,
+                "reason": "past_date"
+            }
+
+    # Bugungi kun bo'yicha start va end daqiqalarini tekshiramiz
+    start_minutes = None
+    end_minutes = None
+    try:
+        sh, sm = map(int, sstart.split(":"))
+        start_minutes = sh * 60 + sm
+    except Exception:
+        pass
+
+    if send:
+        try:
+            eh, em = map(int, send.split(":"))
+            end_minutes = eh * 60 + em
+        except Exception:
+            pass
+
+    if start_minutes is not None:
+        if end_minutes is not None and end_minutes < start_minutes:
+            # Yarim tun orqali o'tuvchi test (masalan 23:30 dan 00:30 gacha)
+            if now_minutes >= start_minutes or now_minutes < end_minutes:
+                return {
+                    "is_upcoming": False,
+                    "is_active": raw_active,
+                    "is_closed": not raw_active,
+                    "reason": "running_overnight"
+                }
+            else:
+                return {
+                    "is_upcoming": True,
+                    "is_active": False,
+                    "is_closed": False,
+                    "reason": "before_start_time"
+                }
+        else:
+            # Bir kunlik normal vaqt oralig'i
+            if now_minutes < start_minutes:
+                return {
+                    "is_upcoming": True,
+                    "is_active": False,
+                    "is_closed": False,
+                    "reason": "before_start_time"
+                }
+            elif end_minutes is not None and now_minutes >= end_minutes:
+                return {
+                    "is_upcoming": False,
+                    "is_active": False,
+                    "is_closed": True,
+                    "reason": "after_end_time"
+                }
+            else:
+                return {
+                    "is_upcoming": False,
+                    "is_active": raw_active,
+                    "is_closed": not raw_active,
+                    "reason": "running"
+                }
+
+    return {
+        "is_upcoming": False,
+        "is_active": raw_active,
+        "is_closed": not raw_active,
+        "reason": "default"
+    }
+
 # ── TUN REJIMI: 23:00 – 07:00 ────────────────────────────
 WORK_START_HOUR = 7   # 07:00 Toshkent
 WORK_END_HOUR   = 23  # 23:00 Toshkent
@@ -299,7 +414,25 @@ async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
                 log.warning(f"send_message error: {e}")
         return
 
-    if test.get("is_active", 1) == 0:
+    sched_stat = get_test_schedule_status(test)
+    if sched_stat["is_upcoming"] and not is_admin:
+        sdate = test.get('scheduled_date') or 'Bugun'
+        sstart = test.get('scheduled_start') or ''
+        try:
+            await bot.send_message(
+                chat_id=user_tg_id,
+                text=(
+                    f"⏳ <b>«{test['title']}» testi hali boshlanmagan!</b>\n\n"
+                    f"📅 Belgilangan sana: <b>{sdate}</b>\n"
+                    f"⏰ Boshlanish vaqti: <b>{sstart} (UZB)</b>\n\n"
+                    f"<i>Test belgilangan vaqtda avtomatik boshlanadi va test kodi hamda savollar ochiladi. Ungacha kuting!</i>"
+                )
+            )
+        except Exception as e:
+            log.warning(f"send_message error: {e}")
+        return
+
+    if (test.get("is_active", 1) == 0 or sched_stat["is_closed"]) and not is_admin:
         try:
             await bot.send_message(
                 chat_id=user_tg_id,
@@ -589,6 +722,13 @@ async def solve_test_cb(call: CallbackQuery):
     t = test_db.get_test_by_id(test_id)
     if not t:
         await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    sched_stat = get_test_schedule_status(t)
+    if sched_stat["is_upcoming"] and not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        sstart = t.get('scheduled_start') or ''
+        sdate = t.get('scheduled_date') or 'Bugun'
+        await call.answer(f"⏳ Test hali boshlanmagan! Boshlanish vaqti: {sdate} {sstart} (UZB)", show_alert=True)
         return
     
     existing_sub = test_db.get_user_submission_for_test(test_id, call.from_user.id)
@@ -2816,6 +2956,17 @@ async def handle_submit_test_api(request):
         user_tg_id = data.get("user_tg_id")
         user_answers = data.get("answers", {})
 
+        test_obj = test_db.get_test_by_id(test_id)
+        if test_obj:
+            sched_stat = get_test_schedule_status(test_obj)
+            if sched_stat["is_upcoming"] and not test_db.is_admin(user_tg_id, ADMIN_ID):
+                sdate = test_obj.get('scheduled_date') or 'Bugun'
+                sstart = test_obj.get('scheduled_start') or ''
+                return web.json_response({
+                    "success": False,
+                    "message": f"Test hali boshlanmagan! Boshlanish vaqti: {sdate} {sstart} (UZB)"
+                }, status=400)
+
         # Bazada tekshirish va saqlash
         result = test_db.check_and_save_submission(test_id, user_tg_id, user_answers)
 
@@ -3508,22 +3659,35 @@ async def handle_app_active_tests(request):
         for t in all_tests:
             td = dict(t)
             td.pop('answers_json', None)  # Javoblarni yashirish
+
             # Foydalanuvchi allaqachon topshirganmi?
             if tg_id:
                 existing = test_db.get_user_submission_for_test(t['id'], tg_id)
                 td['already_submitted'] = bool(existing)
             else:
                 td['already_submitted'] = False
-            sdate = str(t.get('scheduled_date') or '').strip()
-            sstart = str(t.get('scheduled_start') or '').strip()
-            send = str(t.get('scheduled_end') or '').strip()
-            is_act = (t.get('is_active', 1) == 1)
 
-            # Agar test faol bo'lmasa, lekin rejalashtirilgan vaqti bo'lsa -> Kutilayotgan test!
-            is_upcoming = (not is_act and bool(sstart and (sdate or send)))
+            sched_stat = get_test_schedule_status(t)
+            is_upcoming = sched_stat['is_upcoming']
+            is_act = sched_stat['is_active']
+            is_closed = sched_stat['is_closed']
+
             td['is_active'] = is_act
             td['is_upcoming'] = is_upcoming
             td['is_planned'] = is_upcoming
+            td['is_closed'] = is_closed
+
+            # Agar test boshlanish vaqti kelmagan bo'lsa (is_upcoming):
+            # Test kodini foydalanuvchilarga ko'rsatmaymiz (faqat vaqti kelganda ochiladi)
+            if is_upcoming:
+                td['code_hidden'] = True
+                td['test_code'] = '🔒 Boshlanganda ochiladi'
+                if td.get('title'):
+                    # Sarlavhadagi '#118' kabi test kodlarini ham yashirish
+                    td['title'] = re.sub(r'\s*#[\w\d]+\s*$', '', td['title']).strip()
+            else:
+                td['code_hidden'] = False
+
             result.append(td)
         return web.json_response({"success": True, "tests": result})
     except Exception as e:
@@ -3832,6 +3996,15 @@ async def handle_app_trigger_solve(request):
 
         if not test:
             return web.json_response({"ok": False, "error": "Test topilmadi"}, status=404)
+
+        sched_stat = get_test_schedule_status(test)
+        if sched_stat["is_upcoming"] and not test_db.is_admin(tg_id, ADMIN_ID):
+            sdate = test.get('scheduled_date') or 'Bugun'
+            sstart = test.get('scheduled_start') or ''
+            return web.json_response({
+                "ok": False, 
+                "error": f"Test hali boshlanmagan! Boshlanish vaqti: {sdate} {sstart} (UZB)"
+            }, status=400)
 
         # Telegram chatga testni taqdim etish (asinxron)
         asyncio.create_task(send_test_card_to_user_chat(tg_id, test))
