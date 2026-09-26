@@ -1304,12 +1304,8 @@ function renderTestDetailCard(test, type) {
       badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:800;">' + t('badge_active_now') + '</span>';
     }
   } else {
-    // Inactive / Past test
-    if (done) {
-      badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#059669;border:1px solid rgba(16,185,129,0.3);font-weight:800;">✅ ' + t('user_status_participated') + '</span>';
-    } else {
-      badgeHtml = '<span class="badge" style="background:rgba(239,68,68,0.12);color:#DC2626;border:1px solid rgba(239,68,68,0.25);font-weight:800;">❌ ' + t('user_status_not_participated') + '</span>';
-    }
+    // Inactive / Past test: tepadagi badge shart emas, chunki pastdagi alohida banner aniq ko'rsatib turadi
+    badgeHtml = '';
   }
 
   var displayTitle = (test.title || t('default_test_title'));
@@ -1324,7 +1320,7 @@ function renderTestDetailCard(test, type) {
     codeDisplay = String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code);
   }
 
-  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (isUpcoming ? t('val_scheduled_soon') : (test.created_at ? formatDate(test.created_at) : t('val_today')));
+  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (isUpcoming ? t('val_scheduled_soon') : (test.created_at ? formatDateOnly(test.created_at) : t('val_today')));
   var startStr = test.scheduled_start ? (escHtml(test.scheduled_start) + ' (UZB)') : (isActive ? t('val_started') : '—');
   var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : (isInactive ? '22:00 (UZB)' : t('val_unlimited'));
   var totalQuestions = (test.total_questions || 45) + ' ' + t('val_questions_format');
@@ -1493,7 +1489,7 @@ function showPastTestEndedModal(testId) {
   var test = (window.availableActiveTests || []).find(function(t) { return t.id === testId; });
   if (!test) return;
 
-  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (test.created_at ? formatDate(test.created_at) : t('val_today'));
+  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (test.created_at ? formatDateOnly(test.created_at) : t('val_today'));
   var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : '22:00 (UZB)';
   var title = test.title || t('default_test_title');
   var code = test.test_code ? (String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code)) : '—';
@@ -3510,6 +3506,14 @@ function formatDate(ts) {
   var d = new Date(ts * 1000);
   return d.toLocaleDateString(locale, { timeZone: 'Asia/Tashkent', day:'2-digit', month:'2-digit', year:'numeric' }) +
     ' ' + d.toLocaleTimeString(locale, { timeZone: 'Asia/Tashkent', hour:'2-digit', minute:'2-digit', hour12: false });
+}
+
+function formatDateOnly(ts) {
+  if (!ts) return '\u2014';
+  var lang = localStorage.getItem(LS_LANG) || 'uz';
+  var locale = lang === 'ru' ? 'ru-RU' : (lang === 'en' ? 'en-US' : 'uz-UZ');
+  var d = new Date(ts * 1000);
+  return d.toLocaleDateString(locale, { timeZone: 'Asia/Tashkent', day:'2-digit', month:'2-digit', year:'numeric' });
 }
 
 function escHtml(str) {
