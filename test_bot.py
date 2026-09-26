@@ -3333,6 +3333,13 @@ async def handle_static_file(request):
 async def handle_app_profile(request):
     """Foydalanuvchi profili va statistikasi (Asosiy Mini App uchun)."""
     try:
+        bot_user = ""
+        try:
+            me = await bot.get_me()
+            bot_user = me.username or ""
+        except Exception:
+            pass
+
         tg_id = int(request.rel_url.query.get('tg_id', 0))
         if not tg_id or tg_id == 0:
             return web.json_response({
@@ -3341,7 +3348,8 @@ async def handle_app_profile(request):
                     "tg_id": 0,
                     "fullname": "Mehmon",
                     "phone": "—",
-                    "status": "guest",
+                    "status": "not_registered",
+                    "is_registered": False,
                     "registered_at": int(time.time()),
                     "tests_count": 0,
                     "avg_score": 0,
@@ -3349,7 +3357,8 @@ async def handle_app_profile(request):
                     "has_pin": False
                 },
                 "is_admin": False,
-                "pending_users": 0
+                "pending_users": 0,
+                "bot_username": bot_user
             })
 
         user = test_db.get_user(tg_id)
@@ -3373,20 +3382,33 @@ async def handle_app_profile(request):
             except Exception:
                 pass
 
-        user_data = dict(user) if user else {
-            'tg_id': tg_id, 'fullname': 'Foydalanuvchi', 'phone': '—',
-            'status': 'pending', 'registered_at': int(time.time())
-        }
-        user_data['tests_count'] = len(submissions)
-        user_data['avg_score'] = round(avg_score, 1)
-        user_data['max_score'] = max_score_val
-        user_data['has_pin'] = bool(user and user.get('pin_code'))
+        if not user:
+            user_data = {
+                'tg_id': tg_id,
+                'fullname': 'Foydalanuvchi',
+                'phone': '—',
+                'status': 'not_registered',
+                'is_registered': False,
+                'registered_at': int(time.time()),
+                'tests_count': 0,
+                'avg_score': 0,
+                'max_score': 0,
+                'has_pin': False
+            }
+        else:
+            user_data = dict(user)
+            user_data['is_registered'] = True
+            user_data['tests_count'] = len(submissions)
+            user_data['avg_score'] = round(avg_score, 1)
+            user_data['max_score'] = max_score_val
+            user_data['has_pin'] = bool(user and user.get('pin_code'))
 
         return web.json_response({
             "success": True,
             "user": user_data,
             "is_admin": is_admin,
-            "pending_users": pending_users
+            "pending_users": pending_users,
+            "bot_username": bot_user
         })
     except Exception as e:
         log.error(f"App Profile API Error: {e}", exc_info=True)
@@ -3408,10 +3430,17 @@ async def handle_app_set_pin(request):
 async def handle_app_status(request):
     """Bot va server holatini (online/active) tekshirish."""
     import time
+    bot_user = ""
+    try:
+        me = await bot.get_me()
+        bot_user = me.username or ""
+    except Exception:
+        pass
     return web.json_response({
         "success": True,
         "status": "online",
         "bot_active": True,
+        "bot_username": bot_user,
         "server_time": int(time.time()),
         "uptime": int(time.time())
     }, headers={"Access-Control-Allow-Origin": "*"})

@@ -152,7 +152,23 @@ var I18N = {
     admin_alert_deleted: "🗑 Foydalanuvchi muvaffaqiyatli o'chirildi!",
     admin_alert_approved: "✅ Foydalanuvchiga ruxsat berildi!",
     admin_alert_blocked: "⛔️ Foydalanuvchi bloklandi!",
-    admin_alert_pending: "⏳ Foydalanuvchi kutilmoqda holatiga o'tkazildi!"
+    admin_alert_pending: "⏳ Foydalanuvchi kutilmoqda holatiga o'tkazildi!",
+    unreg_title: "Iltimos, roʻyxatdan oʻting!",
+    unreg_desc: "Tizimdan toʻliq foydalanish, testlarni yechish va natijalarni saqlash uchun avval botda roʻyxatdan oʻting.",
+    unreg_btn: "Roʻyxatdan oʻtish 🚀",
+    tests_hero_title: "Test natijalari & Sertifikat",
+    tests_accuracy: "To'g'ri javoblar ulushi",
+    tests_filter_all: "Barchasi",
+    tests_filter_top: "A'lo (A/A+)",
+    tests_filter_good: "Yaxshi (B/B+)",
+    tests_filter_checking: "Tekshirilmoqda",
+    tests_empty_title: "Hali hech qanday test topshirmagansiz",
+    tests_empty_desc: "O'z bilimingizni sinab ko'ring, Rasch modeli bo'yicha baholaning va Milliy sertifikat darajangizni oling!",
+    tests_empty_btn: "Testlarni boshlash 🚀",
+    tests_card_btn_analysis: "Tahlil & Kalitlar",
+    tests_stat_correct: "ta to'g'ri",
+    tests_stat_incorrect: "ta noto'g'ri",
+    tests_stat_efficiency: "samaradorlik"
   },
   ru: {
     tab_home: 'Главная', tab_tests: 'Тесты', tab_profile: 'Профиль', tab_admin: 'Админ',
@@ -295,7 +311,23 @@ var I18N = {
     admin_alert_deleted: '🗑 Пользователь успешно удален!',
     admin_alert_approved: '✅ Пользователю предоставлен доступ!',
     admin_alert_blocked: '⛔️ Пользователь заблокирован!',
-    admin_alert_pending: '⏳ Пользователь переведен в статус ожидания!'
+    admin_alert_pending: '⏳ Пользователь переведен в статус ожидания!',
+    unreg_title: 'Пожалуйста, зарегистрируйтесь!',
+    unreg_desc: 'Чтобы проходить тесты и сохранять результаты, пожалуйста, пройдите регистрацию в боте.',
+    unreg_btn: 'Зарегистрироваться 🚀',
+    tests_hero_title: 'Результаты тестов и Сертификат',
+    tests_accuracy: 'Доля правильных ответов',
+    tests_filter_all: 'Все',
+    tests_filter_top: 'Отлично (A/A+)',
+    tests_filter_good: 'Хорошо (B/B+)',
+    tests_filter_checking: 'На проверке',
+    tests_empty_title: 'Вы еще не сдали ни одного теста',
+    tests_empty_desc: 'Проверьте свои знания, оценитесь по модели Раша и получите уровень Национального сертификата!',
+    tests_empty_btn: 'Начать тест 🚀',
+    tests_card_btn_analysis: 'Анализ и Ключи',
+    tests_stat_correct: 'правильно',
+    tests_stat_incorrect: 'неверно',
+    tests_stat_efficiency: 'эффективность'
   },
   en: {
     tab_home: 'Home', tab_tests: 'Tests', tab_profile: 'Profile', tab_admin: 'Admin',
@@ -438,7 +470,23 @@ var I18N = {
     admin_alert_deleted: '🗑 User successfully deleted!',
     admin_alert_approved: '✅ User approved and activated!',
     admin_alert_blocked: '⛔️ User blocked!',
-    admin_alert_pending: '⏳ User moved to pending status!'
+    admin_alert_pending: '⏳ User moved to pending status!',
+    unreg_title: 'Please register first!',
+    unreg_desc: 'To take tests, submit answers, and save your results, please complete registration in the bot first.',
+    unreg_btn: 'Register Now 🚀',
+    tests_hero_title: 'Test Results & Certificate',
+    tests_accuracy: 'Accuracy Rate',
+    tests_filter_all: 'All',
+    tests_filter_top: 'Top (A/A+)',
+    tests_filter_good: 'Good (B/B+)',
+    tests_filter_checking: 'Checking',
+    tests_empty_title: "You haven't taken any tests yet",
+    tests_empty_desc: 'Test your knowledge, get evaluated using the Rasch model, and achieve your National Certificate level!',
+    tests_empty_btn: 'Start Tests 🚀',
+    tests_card_btn_analysis: 'Analysis & Keys',
+    tests_stat_correct: 'correct',
+    tests_stat_incorrect: 'incorrect',
+    tests_stat_efficiency: 'efficiency'
   }
 };
 
@@ -534,8 +582,9 @@ function runSplash() {
     setTimeout(function() {
       if (splash) splash.style.display = 'none';
 
-      // Kirish animatsiyasi 100% tugagachgina tugmalar va dizayn yo'riqnomasini ochish
-      if (!localStorage.getItem('onboarding_nav_tour_seen')) {
+      // Kirish animatsiyasi 100% tugagachgina tekshirish
+      var isUnreg = checkRegistrationStatus();
+      if (!isUnreg && !localStorage.getItem('onboarding_nav_tour_seen')) {
         setTimeout(function() {
           openOnboardingModal();
         }, 350);
@@ -746,6 +795,7 @@ async function checkBotServerStatus() {
 
     if (res.ok) {
       var data = await res.json();
+      if (data.bot_username) window.BOT_USERNAME = data.bot_username;
       if (data.bot_active || data.status === 'online') {
         pill.className = 'server-status-pill online';
         txt.textContent = 'Faol';
@@ -795,13 +845,18 @@ async function loadUserProfile() {
       state.tgUser = tg.initDataUnsafe.user;
     }
   }
-  if (!tgId) return;
+  if (!tgId || tgId === 0) {
+    checkRegistrationStatus();
+    return;
+  }
   try {
     var data = await apiGet('/api/app/profile?tg_id=' + tgId);
     if (data.success) {
+      if (data.bot_username) window.BOT_USERNAME = data.bot_username;
       state.userInfo = data.user;
       state.isAdmin = data.is_admin;
       localStorage.setItem(LS_USER, JSON.stringify(data.user));
+      checkRegistrationStatus();
       var adminTab = document.getElementById('nav-admin');
       if (adminTab) adminTab.style.display = state.isAdmin ? 'flex' : 'none';
       if (state.isAdmin && data.pending_users > 0) {
@@ -811,8 +866,17 @@ async function loadUserProfile() {
       if (urlParams.get('tab') === 'admin' && state.isAdmin) {
         switchTab('admin');
       }
+    } else {
+      state.userInfo = { status: 'not_registered', is_registered: false };
+      checkRegistrationStatus();
     }
-  } catch (e) { console.warn('loadUserProfile err:', e); }
+  } catch (e) {
+    console.warn('loadUserProfile err:', e);
+    if (!state.userInfo) {
+      state.userInfo = { status: 'not_registered', is_registered: false };
+    }
+    checkRegistrationStatus();
+  }
 }
 
 async function loadActiveTests() {
@@ -1167,44 +1231,226 @@ function renderHomeTab(tests) {
   tab.innerHTML = html;
 }
 
-// ── TESTS TAB (faqat topshirilgan, bosilsa natija) ─
+// ── TESTS TAB (Boyitilgan Natijalar & Sertifikat Markazi) ──
+var _myTestsFilter = 'all';
+
+function filterMyTests(filterType) {
+  _myTestsFilter = filterType;
+  if (window._myResults) {
+    renderTestsTab(window._myResults);
+  } else {
+    loadMyResults();
+  }
+}
+
 function renderTestsTab(results) {
   var tab = document.getElementById('tab-tests');
-  var html = '<div class="section-header animate-in">' +
-    '<div class="section-title">' + t('my_tests_title') + '</div>' +
-    '<div class="section-sub">' + results.length + ' ' + t('tests_count') + '</div></div>';
+  if (!tab) return;
+  window._myResults = results || [];
 
-  if (results.length === 0) {
-    html += '<div class="empty-state animate-in"><div class="empty-icon">\uD83D\uDCED</div><p>' + t('empty_tests') + '</p></div>';
+  if (!results || results.length === 0) {
+    tab.innerHTML =
+      '<div class="section-header animate-in">' +
+        '<div class="section-title">' + t('my_tests_title') + '</div>' +
+        '<div class="section-sub">0 ' + t('tests_count') + '</div>' +
+      '</div>' +
+      '<div class="empty-tests-hero animate-in">' +
+        '<div class="empty-tests-icon">🎯</div>' +
+        '<h3 class="empty-tests-title">' + t('tests_empty_title') + '</h3>' +
+        '<p class="empty-tests-desc">' + t('tests_empty_desc') + '</p>' +
+        '<button type="button" class="empty-tests-btn" onclick="switchTab(\'home\')">' +
+          '<span>' + t('tests_empty_btn') + '</span>' +
+        '</button>' +
+      '</div>';
+    return;
+  }
+
+  // Calculate statistics across published results
+  var publishedList = results.filter(function(r) { return Boolean(r.results_published); });
+  var totalCompleted = publishedList.length;
+  var sumScore = 0;
+  var maxScoreVal = 0;
+  var totalCorrect = 0;
+  var totalQ = 0;
+
+  publishedList.forEach(function(r) {
+    var sc = Number(r.score != null ? r.score : 0);
+    sumScore += sc;
+    if (sc > maxScoreVal) maxScoreVal = sc;
+    totalCorrect += Number(r.correct_count || 0);
+    totalQ += Number(r.total_count || 45);
+  });
+
+  var avgScore = totalCompleted > 0 ? (sumScore / totalCompleted).toFixed(1) : '0.0';
+  var accuracyPct = totalQ > 0 ? Math.min(100, Math.round((totalCorrect / totalQ) * 100)) : 0;
+
+  // National certificate level based on average score
+  var numAvg = parseFloat(avgScore);
+  var certLevel = 'A+ Daraja';
+  var certClass = 'cert-a';
+  if (numAvg >= 75) {
+    certLevel = 'A+ Daraja';
+    certClass = 'cert-a';
+  } else if (numAvg >= 70) {
+    certLevel = 'A Daraja';
+    certClass = 'cert-a';
+  } else if (numAvg >= 65) {
+    certLevel = 'B+ Daraja';
+    certClass = 'cert-b';
+  } else if (numAvg >= 60) {
+    certLevel = 'B Daraja';
+    certClass = 'cert-b';
+  } else if (numAvg >= 50) {
+    certLevel = 'C Daraja';
+    certClass = 'cert-c';
+  } else if (totalCompleted === 0) {
+    certLevel = t('test_waiting_result');
+    certClass = 'cert-c';
   } else {
-    window._myResults = results;
-    results.forEach(function(r, i) {
+    certLevel = 'Boshlang\'ich';
+    certClass = 'cert-c';
+  }
+
+  var html =
+    '<div class="section-header animate-in">' +
+      '<div class="section-title">' + t('my_tests_title') + '</div>' +
+      '<div class="section-sub">' + results.length + ' ' + t('tests_count') + '</div>' +
+    '</div>' +
+
+    // Top Summary Hero Card
+    '<div class="tests-hero-card animate-in">' +
+      '<div class="tests-hero-top">' +
+        '<div class="tests-hero-badge">' +
+          '<span>🎖</span> <span>' + t('tests_hero_title') + '</span>' +
+        '</div>' +
+        '<div class="tests-cert-chip ' + certClass + '">' +
+          '<span>★</span> ' + certLevel +
+        '</div>' +
+      '</div>' +
+      '<div class="tests-hero-stats">' +
+        '<div class="tests-stat-box">' +
+          '<div class="tests-stat-val">' + results.length + '</div>' +
+          '<div class="tests-stat-lbl">' + t('stat_tests') + '</div>' +
+        '</div>' +
+        '<div class="tests-stat-box">' +
+          '<div class="tests-stat-val" style="color:var(--primary,#3b82f6);">' + avgScore + '</div>' +
+          '<div class="tests-stat-lbl">' + t('stat_avg') + ' (' + t('test_score_unit') + ')</div>' +
+        '</div>' +
+        '<div class="tests-stat-box">' +
+          '<div class="tests-stat-val" style="color:#10b981;">' + maxScoreVal + '</div>' +
+          '<div class="tests-stat-lbl">' + t('stat_max') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="tests-progress-wrap">' +
+        '<div class="tests-progress-header">' +
+          '<span>' + t('tests_accuracy') + '</span>' +
+          '<span style="font-weight:800;color:var(--text);">' + accuracyPct + '%</span>' +
+        '</div>' +
+        '<div class="tests-progress-bar">' +
+          '<div class="tests-progress-fill" style="width:' + accuracyPct + '%;"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Filter Chips
+    '<div class="tests-filter-bar animate-in">' +
+      '<button type="button" class="tests-filter-chip ' + (_myTestsFilter === 'all' ? 'active' : '') + '" onclick="filterMyTests(\'all\')">' + t('tests_filter_all') + ' (' + results.length + ')</button>' +
+      '<button type="button" class="tests-filter-chip ' + (_myTestsFilter === 'top' ? 'active' : '') + '" onclick="filterMyTests(\'top\')">' + t('tests_filter_top') + '</button>' +
+      '<button type="button" class="tests-filter-chip ' + (_myTestsFilter === 'good' ? 'active' : '') + '" onclick="filterMyTests(\'good\')">' + t('tests_filter_good') + '</button>' +
+      '<button type="button" class="tests-filter-chip ' + (_myTestsFilter === 'checking' ? 'active' : '') + '" onclick="filterMyTests(\'checking\')">' + t('tests_filter_checking') + '</button>' +
+    '</div>';
+
+  // Apply Filter
+  var filtered = results.filter(function(r) {
+    var isPub = Boolean(r.results_published);
+    var maxScore = r.max_score || 100;
+    var score = Number(r.score != null ? r.score : 0);
+    var grade = r.grade || getGradeFromScore(score, maxScore);
+
+    if (_myTestsFilter === 'top') return isPub && (grade === 'A+' || grade === 'A' || grade === '5');
+    if (_myTestsFilter === 'good') return isPub && (grade === 'B+' || grade === 'B' || grade === '4');
+    if (_myTestsFilter === 'checking') return !isPub;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    html += '<div class="empty-state animate-in"><div class="empty-icon">🔍</div><p>' + t('admin_no_match') + '</p></div>';
+  } else {
+    filtered.forEach(function(r, idx) {
+      var origIndex = results.indexOf(r);
       var isPub = Boolean(r.results_published);
       var maxScore = r.max_score || 100;
       var date = formatDate(r.submitted_at);
+      var totalQues = r.total_count || 45;
+      var correct = r.correct_count || 0;
+      var incorrect = r.incorrect_count != null ? r.incorrect_count : Math.max(0, totalQues - correct);
 
       if (isPub) {
-        var score = (r.score != null) ? r.score : 0;
+        var score = Number(r.score != null ? r.score : 0);
         var grade = r.grade || getGradeFromScore(score, maxScore);
-        var gradeClass = gradeToClass(grade);
-        html += '<div class="history-card animate-in" style="animation-delay:' + (i * 0.05) + 's;cursor:pointer" onclick="showResultModal(window._myResults[' + i + '])">' +
-          '<div class="history-info" style="padding-left:12px">' +
-          '<div class="history-title">' + escHtml(r.test_title || r.title || 'Test') + '</div>' +
-          '<div class="history-meta"><span class="badge ' + gradeClass + '" style="margin-right:6px;font-weight:800;padding:2px 8px;border-radius:6px;font-size:11px;">' + grade + '</span> 📅 ' + date + ' • ✅ ' + r.correct_count + '/' + (r.total_count || 55) + '</div>' +
-          '</div>' +
-          '<div class="history-score"><div class="history-score-val" style="color:var(--primary);font-weight:800;">' + score + '</div><div class="history-score-sub">' + t('test_score_unit') + '</div></div>' +
+        var gradeClass = 'good';
+        var borderClass = 'grade-good';
+        if (grade === 'A+' || grade === 'A' || grade === '5') {
+          gradeClass = 'top';
+          borderClass = 'grade-top';
+        } else if (grade === 'C' || grade === '3' || grade === '2') {
+          gradeClass = 'pass';
+          borderClass = 'grade-pass';
+        }
+
+        var pct = totalQues > 0 ? Math.min(100, Math.round((correct / totalQues) * 100)) : 0;
+
+        html +=
+          '<div class="test-card-modern ' + borderClass + ' animate-in" style="animation-delay:' + (idx * 0.04) + 's;" onclick="showResultModal(window._myResults[' + origIndex + '])">' +
+            '<div class="test-card-top-row">' +
+              '<div class="test-card-title">' + escHtml(r.test_title || r.title || t('default_test_title')) + '</div>' +
+              '<div class="test-card-date">📅 ' + date + '</div>' +
+            '</div>' +
+            '<div class="test-card-middle-row">' +
+              '<div class="test-score-box ' + gradeClass + '">' +
+                '<span class="test-score-num">' + score + '</span>' +
+                '<span class="test-score-rank">' + grade + '</span>' +
+              '</div>' +
+              '<div class="test-metrics-grid">' +
+                '<span class="test-metric-tag" style="color:#10b981;">✅ ' + correct + ' ' + t('tests_stat_correct') + '</span>' +
+                '<span class="test-metric-tag" style="color:#ef4444;">❌ ' + incorrect + ' ' + t('tests_stat_incorrect') + '</span>' +
+                '<span class="test-metric-tag" style="color:var(--primary,#3b82f6);">⚡️ ' + pct + '% ' + t('tests_stat_efficiency') + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="test-card-bottom-row">' +
+              '<button type="button" class="btn-test-action-quick">' +
+                '<span>🔍 ' + t('tests_card_btn_analysis') + '</span>' +
+              '</button>' +
+              '<span style="color:var(--text-muted);font-size:14px;font-weight:800;">➔</span>' +
+            '</div>' +
           '</div>';
       } else {
-        html += '<div class="history-card animate-in" style="animation-delay:' + (i * 0.05) + 's;cursor:pointer" onclick="showResultModal(window._myResults[' + i + '])">' +
-          '<div class="history-info" style="padding-left:12px">' +
-          '<div class="history-title">' + escHtml(r.test_title || r.title || 'Test') + '</div>' +
-          '<div class="history-meta"><span class="badge" style="margin-right:6px;font-weight:800;padding:2px 8px;border-radius:6px;font-size:11px;background:rgba(245,158,11,0.15);color:#F59E0B;">' + t('test_in_progress') + '</span> 📅 ' + date + '</div>' +
-          '</div>' +
-          '<div class="history-score"><div class="history-score-val" style="color:#F59E0B;font-weight:800;font-size:13px;">' + t('test_waiting_result') + '</div><div class="history-score-sub">' + t('test_result_sub') + '</div></div>' +
+        html +=
+          '<div class="test-card-modern grade-pending animate-in" style="animation-delay:' + (idx * 0.04) + 's;" onclick="showResultModal(window._myResults[' + origIndex + '])">' +
+            '<div class="test-card-top-row">' +
+              '<div class="test-card-title">' + escHtml(r.test_title || r.title || t('default_test_title')) + '</div>' +
+              '<div class="test-card-date">📅 ' + date + '</div>' +
+            '</div>' +
+            '<div class="test-card-middle-row">' +
+              '<div class="test-score-box pending">' +
+                '<span style="font-size:16px;">⏳</span>' +
+                '<span class="test-score-rank" style="font-size:10px;">' + t('test_waiting_result') + '</span>' +
+              '</div>' +
+              '<div class="test-metrics-grid">' +
+                '<span class="test-metric-tag" style="color:#f59e0b;">⏳ ' + t('test_in_progress') + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="test-card-bottom-row">' +
+              '<button type="button" class="btn-test-action-quick" style="color:#f59e0b;">' +
+                '<span>' + t('btn_view_result') + '</span>' +
+              '</button>' +
+              '<span style="color:var(--text-muted);font-size:14px;font-weight:800;">➔</span>' +
+            '</div>' +
           '</div>';
       }
     });
   }
+
   tab.innerHTML = html;
 }
 
@@ -2220,7 +2466,7 @@ var _themeSwitching = false;
 function toggleTheme(event) {
   if (_themeSwitching) return;
   _themeSwitching = true;
-  setTimeout(function() { _themeSwitching = false; }, 650);
+  setTimeout(function() { _themeSwitching = false; }, 850);
 
   var cur = document.documentElement.getAttribute('data-theme') || 'dark';
   var next = cur === 'dark' ? 'light' : 'dark';
@@ -2277,8 +2523,8 @@ function toggleTheme(event) {
             ]
           },
           {
-            duration: 520,
-            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            duration: 720,
+            easing: 'cubic-bezier(0.18, 0.89, 0.32, 1)',
             pseudoElement: '::view-transition-new(root)'
           }
         );
@@ -2318,10 +2564,40 @@ function runThemeRippleFallback(x, y, maxRadius, nextTheme, callback) {
         circle.classList.add('fading');
         setTimeout(function() {
           if (circle.parentNode) circle.parentNode.removeChild(circle);
-        }, 260);
-      }, 70);
-    }, 300);
+        }, 360);
+      }, 140);
+    }, 400);
   });
+}
+
+function checkRegistrationStatus() {
+  var u = state.userInfo;
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  var isUnreg = (!tgId || tgId === 0 || (u && (u.status === 'not_registered' || u.is_registered === false)));
+  var modal = document.getElementById('unregistered-modal');
+  if (modal) {
+    modal.style.display = isUnreg ? 'flex' : 'none';
+  }
+  return !!isUnreg;
+}
+
+function goToBotRegister() {
+  var botUser = window.BOT_USERNAME || 'bm_testbot';
+  if (window.Telegram && window.Telegram.WebApp) {
+    var tg = window.Telegram.WebApp;
+    if (botUser) {
+      try {
+        tg.openTelegramLink('https://t.me/' + botUser + '?start=start');
+      } catch(e) {}
+    }
+    try {
+      tg.close();
+    } catch(e) {}
+  } else if (botUser) {
+    window.location.href = 'https://t.me/' + botUser + '?start=start';
+  } else {
+    window.location.href = 'https://t.me/share/url?url=start';
+  }
 }
 
 function updateThemeIcon(theme) {
