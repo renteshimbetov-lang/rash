@@ -100,6 +100,7 @@ var state = {
   pinFirst: '',
   activeTab: 'home',
   homeSubtab: 'active',
+  adminSubtab: 'users',
 };
 
 // ── INIT ────────────────────────────────────────
@@ -948,15 +949,19 @@ function applyQuickTemplate(type) {
 function updateBroadcastCharCount() {
   var textarea = document.getElementById('admin-broadcast-text');
   var countEl = document.getElementById('broadcast-char-count');
-  if (!textarea || !countEl) return;
-  var len = (textarea.value || '').length;
-  countEl.textContent = len + ' belgi';
+  if (!textarea) return;
+  window._cachedBroadcastText = textarea.value || '';
+  if (countEl) {
+    var len = (textarea.value || '').length;
+    countEl.textContent = len + ' belgi';
+  }
 }
 
 function clearBroadcastText() {
   var textarea = document.getElementById('admin-broadcast-text');
   if (textarea) {
     textarea.value = '';
+    window._cachedBroadcastText = '';
     updateBroadcastCharCount();
     textarea.focus();
   }
@@ -1003,6 +1008,7 @@ async function sendAdminBroadcast() {
     if (data.success) {
       alert("✅ Xabar muvaffaqiyatli tarqatildi!\n\n📨 Yetkazildi: " + (data.sent || 0) + " ta o'quvchiga" + (data.fail ? "\n⚠️ Yetkazilmadi: " + data.fail + " ta" : ""));
       textarea.value = '';
+      window._cachedBroadcastText = '';
       updateBroadcastCharCount();
     } else {
       alert("⚠️ Xatolik yuz berdi: " + (data.message || "Xabar yuborib bo'lmadi"));
@@ -1018,10 +1024,49 @@ async function sendAdminBroadcast() {
   }
 }
 
+function switchAdminSubtab(subtab) {
+  if (state.adminSubtab === subtab) return;
+
+  var currentText = document.getElementById('admin-broadcast-text');
+  if (currentText) {
+    window._cachedBroadcastText = currentText.value;
+  }
+
+  state.adminSubtab = subtab;
+
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try {
+      window.Telegram.WebApp.HapticFeedback.selectionChanged();
+    } catch(e) {}
+  }
+
+  renderAdminTab();
+
+  if (subtab === 'users') {
+    if (window.currentAdminUsers) {
+      renderUsersSection(window.currentAdminUsers, window.currentAdminStats);
+    } else {
+      loadAllUsers();
+    }
+  } else if (subtab === 'broadcast') {
+    var ta = document.getElementById('admin-broadcast-text');
+    if (ta && window._cachedBroadcastText) {
+      ta.value = window._cachedBroadcastText;
+      updateBroadcastCharCount();
+    }
+  }
+}
+
 function renderAdminTab() {
   var tab = document.getElementById('tab-admin');
   if (!tab) return;
-  tab.innerHTML =
+  var currentSubtab = state.adminSubtab || 'users';
+  var usersCount = window.currentAdminUsers ? window.currentAdminUsers.length : 0;
+
+  var usersIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+  var broadcastIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+
+  var html =
     '<div class="admin-header-card animate-in">' +
       '<div class="admin-header-icon">⚙️</div>' +
       '<div>' +
@@ -1030,96 +1075,116 @@ function renderAdminTab() {
       '</div>' +
     '</div>' +
 
-    // Statistika konteyneri (JS to'ldiradi)
-    '<div id="admin-stats-container" class="animate-in" style="margin-top:12px"></div>' +
+    // ── ADMIN SUBTABS SWITCHER (Bo'limlarga ajratish) ──
+    '<div class="admin-subtabs animate-in" style="margin-top:12px;margin-bottom:14px;">' +
+      '<button type="button" class="admin-subtab ' + (currentSubtab === 'users' ? 'active' : '') + '" onclick="switchAdminSubtab(\'users\')">' +
+        '<span class="admin-subtab-icon">' + usersIcon + '</span>' +
+        '<span class="admin-subtab-text">Foydalanuvchilar</span>' +
+        '<span class="admin-subtab-badge" id="admin-subtab-users-count">' + usersCount + '</span>' +
+      '</button>' +
+      '<button type="button" class="admin-subtab ' + (currentSubtab === 'broadcast' ? 'active' : '') + '" onclick="switchAdminSubtab(\'broadcast\')">' +
+        '<span class="admin-subtab-icon">' + broadcastIcon + '</span>' +
+        '<span class="admin-subtab-text">Xabar yuborish</span>' +
+        '<span class="admin-subtab-badge">⚡️</span>' +
+      '</button>' +
+    '</div>';
 
+  if (currentSubtab === 'users') {
+    html +=
+      // Statistika konteyneri (JS to'ldiradi)
+      '<div id="admin-stats-container" class="animate-in"></div>' +
+
+      // Foydalanuvchilar kartasi
+      '<div class="card animate-in" style="margin-top:0">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+          '<div style="font-size:13.5px;font-weight:800;color:var(--text)">👥 Foydalanuvchilar ro\'yxati</div>' +
+          '<div id="admin-users-badge-count" style="font-size:11.5px;font-weight:700;color:var(--text-muted)">0 ta</div>' +
+        '</div>' +
+
+        // Qidiruv paneli
+        '<div class="admin-search-box">' +
+          '<span class="admin-search-icon">🔍</span>' +
+          '<input type="text" id="admin-user-search-input" class="admin-search-input" placeholder="Ism, telefon yoki Telegram ID..." oninput="handleAdminUserSearch(this.value)">' +
+        '</div>' +
+
+        // Filtr tugmalari
+        '<div class="admin-filter-tabs">' +
+          '<button class="admin-filter-btn active" id="btn-flt-all" onclick="setAdminUserFilter(\'all\')">Barchasi</button>' +
+          '<button class="admin-filter-btn" id="btn-flt-approved" onclick="setAdminUserFilter(\'approved\')">✅ Faol</button>' +
+          '<button class="admin-filter-btn" id="btn-flt-pending" onclick="setAdminUserFilter(\'pending\')">⏳ Kutilmoqda</button>' +
+          '<button class="admin-filter-btn" id="btn-flt-blocked" onclick="setAdminUserFilter(\'blocked\')">⛔️ Bloklangan</button>' +
+        '</div>' +
+
+        // Ro'yxat
+        '<div id="users-list">' +
+          '<div class="skeleton skeleton-card" style="height:50px"></div>' +
+          '<div class="skeleton skeleton-card" style="height:50px;margin-top:8px"></div>' +
+        '</div>' +
+      '</div>' +
+
+      // Barchani cheklash tugmasi
+      '<button class="admin-btn-restrict-all animate-in" style="margin-top:14px;" onclick="restrictAllUsersFromApp()">' +
+        '🔒 Barcha o\'quvchilarni cheklash (qayta so\'rov)' +
+      '</button>';
+  } else {
     // 📢 O'quvchilarga xabar yuborish (Tezkor shablonlar + Textarea)
-    '<div class="admin-broadcast-card animate-in">' +
-      '<div class="admin-broadcast-header">' +
-        '<div class="admin-broadcast-title-wrap">' +
-          '<div class="admin-broadcast-icon-box">📢</div>' +
-          '<div>' +
-            '<div class="admin-broadcast-title">O\'quvchilarga xabar yuborish</div>' +
-            '<div class="admin-broadcast-subtitle">Barcha faol o\'quvchilarga tezkor xabarnoma tarqatish</div>' +
+    html +=
+      '<div class="admin-broadcast-card animate-in">' +
+        '<div class="admin-broadcast-header">' +
+          '<div class="admin-broadcast-title-wrap">' +
+            '<div class="admin-broadcast-icon-box">📢</div>' +
+            '<div>' +
+              '<div class="admin-broadcast-title">O\'quvchilarga xabar yuborish</div>' +
+              '<div class="admin-broadcast-subtitle">Barcha faol o\'quvchilarga tezkor xabarnoma tarqatish</div>' +
+            '</div>' +
+          '</div>' +
+          '<span class="admin-broadcast-badge">⚡️ Tezkor</span>' +
+        '</div>' +
+
+        // Tezkor tayyor shablonlar
+        '<div class="quick-templates-section">' +
+          '<div class="quick-templates-label"><span>⚡️</span> Tezkor tayyor shablonlar:</div>' +
+          '<div class="quick-templates-grid">' +
+            '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-30m" onclick="applyQuickTemplate(\'30m\')">' +
+              '<span class="tmpl-icon">⏳</span>' +
+              '<span class="tmpl-text">30 daqiqa qoldi</span>' +
+            '</button>' +
+            '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-10m" onclick="applyQuickTemplate(\'10m\')">' +
+              '<span class="tmpl-icon">⚠️</span>' +
+              '<span class="tmpl-text">10 daqiqa qoldi</span>' +
+            '</button>' +
+            '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-started" onclick="applyQuickTemplate(\'started\')">' +
+              '<span class="tmpl-icon">🚀</span>' +
+              '<span class="tmpl-text">Test boshlandi</span>' +
+            '</button>' +
+            '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-15m" onclick="applyQuickTemplate(\'15m\')">' +
+              '<span class="tmpl-icon">⏰</span>' +
+              '<span class="tmpl-text">15 daqiqa qoldi</span>' +
+            '</button>' +
+            '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-ended" onclick="applyQuickTemplate(\'ended\')">' +
+              '<span class="tmpl-icon">🛑</span>' +
+              '<span class="tmpl-text">Test yakunlandi</span>' +
+            '</button>' +
           '</div>' +
         '</div>' +
-        '<span class="admin-broadcast-badge">⚡️ Tezkor</span>' +
-      '</div>' +
 
-      // Tezkor tayyor shablonlar
-      '<div class="quick-templates-section">' +
-        '<div class="quick-templates-label"><span>⚡️</span> Tezkor tayyor shablonlar:</div>' +
-        '<div class="quick-templates-grid">' +
-          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-30m" onclick="applyQuickTemplate(\'30m\')">' +
-            '<span class="tmpl-icon">⏳</span>' +
-            '<span class="tmpl-text">30 daqiqa qoldi</span>' +
-          '</button>' +
-          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-10m" onclick="applyQuickTemplate(\'10m\')">' +
-            '<span class="tmpl-icon">⚠️</span>' +
-            '<span class="tmpl-text">10 daqiqa qoldi</span>' +
-          '</button>' +
-          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-started" onclick="applyQuickTemplate(\'started\')">' +
-            '<span class="tmpl-icon">🚀</span>' +
-            '<span class="tmpl-text">Test boshlandi</span>' +
-          '</button>' +
-          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-15m" onclick="applyQuickTemplate(\'15m\')">' +
-            '<span class="tmpl-icon">⏰</span>' +
-            '<span class="tmpl-text">15 daqiqa qoldi</span>' +
-          '</button>' +
-          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-ended" onclick="applyQuickTemplate(\'ended\')">' +
-            '<span class="tmpl-icon">🛑</span>' +
-            '<span class="tmpl-text">Test yakunlandi</span>' +
-          '</button>' +
+        // Xabar matni maydoni (textarea)
+        '<div class="broadcast-textarea-wrap">' +
+          '<textarea id="admin-broadcast-text" class="admin-broadcast-textarea" rows="4" placeholder="Xabar matnini kiriting yoki yuqoridagi tayyor shablonlardan birini bosing..." oninput="updateBroadcastCharCount()">' + escHtml(window._cachedBroadcastText || '') + '</textarea>' +
+          '<div class="broadcast-meta-row">' +
+            '<span id="broadcast-char-count" class="broadcast-char-count">' + (window._cachedBroadcastText ? window._cachedBroadcastText.length : 0) + ' belgi</span>' +
+            '<button type="button" class="btn-clear-broadcast" onclick="clearBroadcastText()">✕ Tozalash</button>' +
+          '</div>' +
         '</div>' +
-      '</div>' +
 
-      // Xabar matni maydoni (textarea)
-      '<div class="broadcast-textarea-wrap">' +
-        '<textarea id="admin-broadcast-text" class="admin-broadcast-textarea" rows="4" placeholder="Xabar matnini kiriting yoki yuqoridagi tayyor shablonlardan birini bosing..." oninput="updateBroadcastCharCount()"></textarea>' +
-        '<div class="broadcast-meta-row">' +
-          '<span id="broadcast-char-count" class="broadcast-char-count">0 belgi</span>' +
-          '<button type="button" class="btn-clear-broadcast" onclick="clearBroadcastText()">✕ Tozalash</button>' +
-        '</div>' +
-      '</div>' +
+        // Yuborish tugmasi
+        '<button type="button" class="btn-send-broadcast" id="btn-send-broadcast" onclick="sendAdminBroadcast()">' +
+          '<span>🚀 Barcha o\'quvchilarga yuborish</span>' +
+        '</button>' +
+      '</div>';
+  }
 
-      // Yuborish tugmasi
-      '<button type="button" class="btn-send-broadcast" id="btn-send-broadcast" onclick="sendAdminBroadcast()">' +
-        '<span>🚀 Barcha o\'quvchilarga yuborish</span>' +
-      '</button>' +
-    '</div>' +
-
-    // Barchani cheklash tugmasi
-    '<button class="admin-btn-restrict-all animate-in" onclick="restrictAllUsersFromApp()">' +
-      '🔒 Barcha o\'quvchilarni cheklash (qayta so\'rov)' +
-    '</button>' +
-
-    // Foydalanuvchilar kartasi
-    '<div class="card animate-in" style="margin-top:0">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-        '<div style="font-size:13.5px;font-weight:800;color:var(--text)">👥 Foydalanuvchilar ro\'yxati</div>' +
-        '<div id="admin-users-badge-count" style="font-size:11.5px;font-weight:700;color:var(--text-muted)">0 ta</div>' +
-      '</div>' +
-
-      // Qidiruv paneli
-      '<div class="admin-search-box">' +
-        '<span class="admin-search-icon">🔍</span>' +
-        '<input type="text" id="admin-user-search-input" class="admin-search-input" placeholder="Ism, telefon yoki Telegram ID..." oninput="handleAdminUserSearch(this.value)">' +
-      '</div>' +
-
-      // Filtr tugmalari
-      '<div class="admin-filter-tabs">' +
-        '<button class="admin-filter-btn active" id="btn-flt-all" onclick="setAdminUserFilter(\'all\')">Barchasi</button>' +
-        '<button class="admin-filter-btn" id="btn-flt-approved" onclick="setAdminUserFilter(\'approved\')">✅ Faol</button>' +
-        '<button class="admin-filter-btn" id="btn-flt-pending" onclick="setAdminUserFilter(\'pending\')">⏳ Kutilmoqda</button>' +
-        '<button class="admin-filter-btn" id="btn-flt-blocked" onclick="setAdminUserFilter(\'blocked\')">⛔️ Bloklangan</button>' +
-      '</div>' +
-
-      // Ro'yxat
-      '<div id="users-list">' +
-        '<div class="skeleton skeleton-card" style="height:50px"></div>' +
-        '<div class="skeleton skeleton-card" style="height:50px;margin-top:8px"></div>' +
-      '</div>' +
-    '</div>';
+  tab.innerHTML = html;
 }
 
 function handleAdminUserSearch(query) {
@@ -1138,8 +1203,15 @@ function setAdminUserFilter(filter) {
 
 function renderUsersSection(users, stats) {
   window.currentAdminUsers = users || [];
+  window.currentAdminStats = stats || null;
   window.adminCurrentFilter = window.adminCurrentFilter || 'all';
   window.adminSearchQuery = window.adminSearchQuery || '';
+
+  // Admin subtabdagi foydalanuvchilar soni
+  var subtabBadge = document.getElementById('admin-subtab-users-count');
+  if (subtabBadge) {
+    subtabBadge.textContent = window.currentAdminUsers.length;
+  }
 
   // 1. Statistikani yangilash
   var statsContainer = document.getElementById('admin-stats-container');
