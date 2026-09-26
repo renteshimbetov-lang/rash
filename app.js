@@ -99,6 +99,7 @@ var state = {
   pinMode: 'enter',
   pinFirst: '',
   activeTab: 'home',
+  homeSubtab: 'active',
 };
 
 // ── INIT ────────────────────────────────────────
@@ -510,6 +511,25 @@ async function loadAllUsers() {
 // ── TAB NAVIGATION ──────────────────────────────
 function switchTab(tabId) {
   state.activeTab = tabId;
+
+  // Telegram Haptic feedback
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    } catch(e) {}
+  }
+
+  // Animate clicked nav button with spring pop
+  var activeBtn = document.getElementById('nav-' + tabId);
+  if (activeBtn) {
+    activeBtn.classList.remove('nav-tap-pop');
+    void activeBtn.offsetWidth; // trigger reflow
+    activeBtn.classList.add('nav-tap-pop');
+    setTimeout(function() {
+      activeBtn.classList.remove('nav-tap-pop');
+    }, 450);
+  }
+
   document.querySelectorAll('.nav-item').forEach(function(el) {
     el.classList.toggle('active', el.dataset.tab === tabId);
   });
@@ -520,6 +540,23 @@ function switchTab(tabId) {
   else if (tabId === 'tests') loadMyResults();
   else if (tabId === 'profile') renderProfileTab();
   else if (tabId === 'admin') { renderAdminTab(); loadAllUsers(); }
+}
+
+function switchHomeSubtab(subtab) {
+  if (state.homeSubtab === subtab) return;
+  state.homeSubtab = subtab;
+
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try {
+      window.Telegram.WebApp.HapticFeedback.selectionChanged();
+    } catch(e) {}
+  }
+
+  if (window.availableActiveTests) {
+    renderHomeTab(window.availableActiveTests);
+  } else {
+    loadActiveTests();
+  }
 }
 
 function openTestSolving(testId) {
@@ -674,55 +711,88 @@ function renderTestDetailCard(test, type) {
   return html;
 }
 
-// ── HOME TAB (kutilayotgan, faol va muddati tugagan testlar) ─
+// ── HOME TAB (Faol va Oldingi testlar - 2 ta bo'lim) ─
 function renderHomeTab(tests) {
   var tab = document.getElementById('tab-home');
   if (!tab) return;
-  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  window.availableActiveTests = tests || [];
+  var currentSubtab = state.homeSubtab || 'active';
 
   var upcoming = tests.filter(function(t) { return t.is_upcoming; });
   var active = tests.filter(function(t) { return t.is_active && !t.is_upcoming; });
   var inactive = tests.filter(function(t) { return !t.is_active && !t.is_upcoming; });
 
+  var activeTotalCount = active.length + upcoming.length;
+  var pastTotalCount = inactive.length;
+
   var html = '<div class="section-header animate-in">' +
     '<div class="section-title">' + t('home_title') + '</div>' +
     '<div class="section-sub">' + t('home_sub') + '</div></div>';
 
-  // 1. Kutilayotgan testlar (Upcoming)
-  if (upcoming.length > 0) {
-    html += '<div class="section-sub" style="margin-bottom:12px;font-weight:800;color:#D97706;font-size:13px;display:flex;align-items:center;gap:6px;">' +
-      '<span>⏳</span> Kutilayotgan testlar (' + upcoming.length + ' ta):' +
-    '</div>';
-    upcoming.forEach(function(test) {
-      html += renderTestDetailCard(test, 'upcoming');
-    });
-  }
+  // ── SUBTABS (2 ta bo'lim: Faol va Oldingi) ──
+  html += '<div class="home-subtabs animate-in">' +
+    '<button type="button" class="home-subtab ' + (currentSubtab === 'active' ? 'active' : '') + '" onclick="switchHomeSubtab(\'active\')">' +
+      '<span class="home-subtab-icon">⚡️</span>' +
+      '<span>Faol testlar</span>' +
+      '<span class="home-subtab-badge">' + activeTotalCount + '</span>' +
+    '</button>' +
+    '<button type="button" class="home-subtab ' + (currentSubtab === 'past' ? 'active' : '') + '" onclick="switchHomeSubtab(\'past\')">' +
+      '<span class="home-subtab-icon">📁</span>' +
+      '<span>Oldingi testlar</span>' +
+      '<span class="home-subtab-badge">' + pastTotalCount + '</span>' +
+    '</button>' +
+  '</div>';
 
-  // 2. Faol testlar (Active)
-  if (active.length > 0) {
-    html += '<div class="section-sub" style="margin:' + (upcoming.length > 0 ? '18px' : '0') + ' 0 12px;font-weight:800;color:var(--success);font-size:13px;display:flex;align-items:center;gap:6px;">' +
-      '<span>🟢</span> Faol testlar (' + active.length + ' ta):' +
-    '</div>';
-    active.forEach(function(test) {
-      html += renderTestDetailCard(test, 'active');
-    });
-  }
+  // ── SUBTAB MAZMUNI ──
+  html += '<div class="home-subtab-content animate-in">';
 
-  // Bo'sh holat
-  if (upcoming.length === 0 && active.length === 0) {
-    html += '<div class="empty-state animate-in"><div class="empty-icon">📫</div><p>' + t('empty_active') + '</p></div>';
-  }
-
-  // 3. Muddati tugagan testlar (Closed)
-  if (inactive.length > 0) {
-    html += '<div class="divider"></div>' +
-      '<div class="section-sub" style="margin-bottom:12px;font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px;">' +
-        '<span>🔒</span> Muddati tugagan testlar (' + inactive.length + ' ta):' +
+  if (currentSubtab === 'active') {
+    // 1. Kutilayotgan testlar (Upcoming)
+    if (upcoming.length > 0) {
+      html += '<div class="section-sub" style="margin-bottom:12px;font-weight:800;color:#D97706;font-size:13px;display:flex;align-items:center;gap:6px;">' +
+        '<span>⏳</span> Kutilayotgan testlar (' + upcoming.length + ' ta):' +
       '</div>';
-    inactive.forEach(function(test) {
-      html += renderTestDetailCard(test, 'inactive');
-    });
+      upcoming.forEach(function(test) {
+        html += renderTestDetailCard(test, 'upcoming');
+      });
+    }
+
+    // 2. Faol testlar (Active)
+    if (active.length > 0) {
+      if (upcoming.length > 0) {
+        html += '<div class="section-sub" style="margin:16px 0 12px;font-weight:800;color:var(--success);font-size:13px;display:flex;align-items:center;gap:6px;">' +
+          '<span>🟢</span> Hozir faol testlar (' + active.length + ' ta):' +
+        '</div>';
+      }
+      active.forEach(function(test) {
+        html += renderTestDetailCard(test, 'active');
+      });
+    }
+
+    // Bo'sh holat
+    if (activeTotalCount === 0) {
+      html += '<div class="empty-state animate-in" style="padding:44px 16px;">' +
+        '<div class="empty-icon" style="font-size:42px;margin-bottom:12px;">📫</div>' +
+        '<div style="font-weight:800;font-size:16px;margin-bottom:6px;color:var(--text)">Hozircha faol test yo\'q</div>' +
+        '<p style="font-size:13px;color:var(--text-muted);margin:0;max-width:280px;line-height:1.5;">Yangi testlar rejalashtirilganda yoki boshlanganda shu yerda ko\'rinadi.</p>' +
+      '</div>';
+    }
+  } else {
+    // 3. Oldingi / Muddati tugagan testlar (Closed)
+    if (inactive.length > 0) {
+      inactive.forEach(function(test) {
+        html += renderTestDetailCard(test, 'inactive');
+      });
+    } else {
+      html += '<div class="empty-state animate-in" style="padding:44px 16px;">' +
+        '<div class="empty-icon" style="font-size:42px;margin-bottom:12px;">📁</div>' +
+        '<div style="font-weight:800;font-size:16px;margin-bottom:6px;color:var(--text)">Oldingi testlar mavjud emas</div>' +
+        '<p style="font-size:13px;color:var(--text-muted);margin:0;max-width:280px;line-height:1.5;">Muddati tugagan yoki yakunlangan testlar arxivi shu yerda saqlanadi.</p>' +
+      '</div>';
+    }
   }
+
+  html += '</div>';
 
   tab.innerHTML = html;
 }

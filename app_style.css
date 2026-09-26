@@ -642,9 +642,97 @@ body {
 .tab-content::-webkit-scrollbar-track { background: transparent; }
 .tab-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
+/* ── HOME SUBTABS (Faol testlar / Oldingi testlar) ── */
+.home-subtabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 5px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .home-subtabs {
+  background: rgba(0, 0, 0, 0.04);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.home-subtab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.home-subtab:active {
+  transform: scale(0.95);
+}
+
+.home-subtab.active {
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  color: #FFFFFF;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.home-subtab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  transition: transform 0.25s ease;
+}
+
+.home-subtab.active .home-subtab-icon {
+  transform: scale(1.15);
+}
+
+.home-subtab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  transition: all 0.25s ease;
+}
+
+[data-theme="light"] .home-subtab-badge {
+  background: rgba(0, 0, 0, 0.08);
+  color: #4B5563;
+}
+
+.home-subtab.active .home-subtab-badge {
+  background: rgba(255, 255, 255, 0.28);
+  color: #FFFFFF;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
 /* ── BOTTOM NAV — FLOATING PILL ──────────── */
 .bottom-nav {
-  /* floating above content */
   position: absolute;
   bottom: 16px;
   left: 50%;
@@ -654,15 +742,22 @@ body {
   height: 64px;
   display: flex;
   align-items: center;
-  background: rgba(18, 20, 35, 0.72);
-  backdrop-filter: blur(28px) saturate(1.6);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
-  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(18, 20, 35, 0.78);
+  backdrop-filter: blur(28px) saturate(1.8);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 6px 8px;
   padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06);
+  box-shadow: 0 10px 36px rgba(0,0,0,0.5), 0 2px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1);
   z-index: 50;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+[data-theme="light"] .bottom-nav {
+  background: rgba(255,255,255,0.88);
+  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 10px 36px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.95);
 }
 
 .nav-item {
@@ -675,22 +770,84 @@ body {
   padding: 6px 4px;
   cursor: pointer;
   border-radius: 999px;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
   border: none;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font);
   min-width: 0;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-item:active {
+  transform: scale(0.86);
 }
 
 .nav-item.active {
-  color: var(--accent);
+  color: #3B82F6;
+}
+
+[data-theme="light"] .nav-item.active {
+  color: #2563EB;
 }
 
 .nav-item.active .nav-icon-wrap {
-  background: rgba(27,86,219,0.18);
-  box-shadow: 0 0 14px rgba(27,86,219,0.2);
+  background: linear-gradient(135deg, rgba(37,99,235,0.30), rgba(99,102,241,0.22));
+  box-shadow: 0 4px 18px rgba(37,99,235,0.48), inset 0 1px 0 rgba(255,255,255,0.3);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: #FFFFFF;
+}
+
+[data-theme="light"] .nav-item.active .nav-icon-wrap {
+  background: linear-gradient(135deg, rgba(37,99,235,0.16), rgba(99,102,241,0.10));
+  box-shadow: 0 4px 14px rgba(37,99,235,0.25), inset 0 1px 0 rgba(255,255,255,0.9);
+  border: 1px solid rgba(37,99,235,0.25);
+  color: #2563EB;
+}
+
+.nav-item.active .nav-icon-wrap svg {
+  stroke: #60A5FA;
+  filter: drop-shadow(0 2px 6px rgba(59, 130, 246, 0.6));
+}
+
+[data-theme="light"] .nav-item.active .nav-icon-wrap svg {
+  stroke: #2563EB;
+  filter: drop-shadow(0 2px 4px rgba(37, 99, 235, 0.3));
+}
+
+/* Active bottom glowing indicator dot / bar */
+.nav-item::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563EB, #60A5FA);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.85);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.nav-item.active::after {
+  width: 14px;
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* Pop spring animation on click */
+.nav-item.nav-tap-pop .nav-icon-wrap {
+  animation: navPopSpring 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes navPopSpring {
+  0% { transform: scale(0.82) translateY(0); }
+  35% { transform: scale(1.26) translateY(-4px); }
+  68% { transform: scale(0.96) translateY(1px); }
+  100% { transform: scale(1) translateY(0); }
 }
 
 .nav-icon-wrap {
@@ -700,8 +857,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
   font-size: 19px;
+}
+
+.nav-icon-wrap svg {
+  transition: all 0.25s ease;
 }
 
 .nav-label {
@@ -709,6 +870,13 @@ body {
   font-weight: 700;
   letter-spacing: 0.2px;
   white-space: nowrap;
+  transition: all 0.25s ease;
+}
+
+.nav-item.active .nav-label {
+  font-weight: 800;
+  transform: translateY(-1px);
+  letter-spacing: 0.3px;
 }
 
 .nav-badge {
