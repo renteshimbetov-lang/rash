@@ -535,6 +535,36 @@ function returnToTelegramChat() {
   }
 }
 
+function startTestInBot(testCode, testId) {
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  if (!tgId && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+    tgId = window.Telegram.WebApp.initDataUnsafe.user.id;
+  }
+
+  if (tgId) {
+    var url = '/api/app/trigger-solve?tg_id=' + encodeURIComponent(tgId) + 
+              '&test_code=' + encodeURIComponent(testCode || '') + 
+              '&test_id=' + encodeURIComponent(testId || '');
+    try {
+      fetch(url, { keepalive: true }).catch(function(e) { console.error(e); });
+    } catch(e) {
+      console.error("Trigger solve error:", e);
+    }
+  }
+
+  if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.close === 'function' && window.Telegram.WebApp.initData) {
+    if (window.Telegram.WebApp.HapticFeedback && window.Telegram.WebApp.HapticFeedback.notificationOccurred) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+    }
+    setTimeout(function() {
+      window.Telegram.WebApp.close();
+    }, 120);
+  } else {
+    // Brauzerda test rejimida ochilganda bevosita yechish oynasiga o'tish
+    openTestSolving(testId);
+  }
+}
+
 function renderTestDetailCard(test, type) {
   var tgId = (state.tgUser && state.tgUser.id) || 0;
   var isUpcoming = (type === 'upcoming');
@@ -614,29 +644,29 @@ function renderTestDetailCard(test, type) {
   // Tugmalar
   html += '<div class="test-rich-actions">';
   if (isUpcoming) {
-    html += '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
+    html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%" onclick="returnToTelegramChat()">' +
       '<span>💬</span> Botga (chatga) qaytish' +
     '</button>';
   } else if (isActive) {
     if (done) {
-      html += '<button type="button" class="btn-rich-action btn-rich-success" onclick="switchTab(\'tests\')">' +
+      html += '<button type="button" class="btn-rich-action btn-rich-success" style="width:100%" onclick="switchTab(\'tests\')">' +
         '<span>✅</span> Natijani ko\'rish' +
-      '</button>' +
-      '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
-        '<span>💬</span> Chatga qaytish' +
       '</button>';
     } else {
-      html += '<button type="button" class="btn-rich-action btn-rich-primary" onclick="openTestSolving(' + test.id + ')">' +
+      html += '<button type="button" class="btn-rich-action btn-rich-primary" style="width:100%" onclick="startTestInBot(\'' + (test.test_code || '') + '\', ' + test.id + ')">' +
         '<span>✍️</span> Testni yechish' +
-      '</button>' +
-      '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
-        '<span>💬</span> Chatda ko\'rish' +
       '</button>';
     }
   } else {
-    html += '<button type="button" class="btn-rich-action btn-rich-secondary" onclick="returnToTelegramChat()">' +
-      '<span>💬</span> Chatga qaytish' +
-    '</button>';
+    if (done) {
+      html += '<button type="button" class="btn-rich-action btn-rich-success" style="width:100%" onclick="switchTab(\'tests\')">' +
+        '<span>✅</span> Natijani ko\'rish' +
+      '</button>';
+    } else {
+      html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%" onclick="returnToTelegramChat()">' +
+        '<span>🔒</span> Test muddati tugagan' +
+      '</button>';
+    }
   }
   html += '</div>';
 
@@ -644,7 +674,7 @@ function renderTestDetailCard(test, type) {
   return html;
 }
 
-// ── HOME TAB (kutilayotgan, faol va yakunlangan testlar) ─
+// ── HOME TAB (kutilayotgan, faol va muddati tugagan testlar) ─
 function renderHomeTab(tests) {
   var tab = document.getElementById('tab-home');
   if (!tab) return;
@@ -668,10 +698,10 @@ function renderHomeTab(tests) {
     });
   }
 
-  // 2. Hozir faol testlar (Active)
+  // 2. Faol testlar (Active)
   if (active.length > 0) {
     html += '<div class="section-sub" style="margin:' + (upcoming.length > 0 ? '18px' : '0') + ' 0 12px;font-weight:800;color:var(--success);font-size:13px;display:flex;align-items:center;gap:6px;">' +
-      '<span>🟢</span> Hozir faol testlar (' + active.length + ' ta):' +
+      '<span>🟢</span> Faol testlar (' + active.length + ' ta):' +
     '</div>';
     active.forEach(function(test) {
       html += renderTestDetailCard(test, 'active');
@@ -683,11 +713,11 @@ function renderHomeTab(tests) {
     html += '<div class="empty-state animate-in"><div class="empty-icon">📫</div><p>' + t('empty_active') + '</p></div>';
   }
 
-  // 3. Yakunlangan testlar (Closed)
+  // 3. Muddati tugagan testlar (Closed)
   if (inactive.length > 0) {
     html += '<div class="divider"></div>' +
       '<div class="section-sub" style="margin-bottom:12px;font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px;">' +
-        '<span>🔒</span> Yakunlangan testlar:' +
+        '<span>🔒</span> Muddati tugagan testlar (' + inactive.length + ' ta):' +
       '</div>';
     inactive.forEach(function(test) {
       html += renderTestDetailCard(test, 'inactive');

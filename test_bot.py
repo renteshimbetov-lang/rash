@@ -160,6 +160,9 @@ class ScheduleState(StatesGroup):
 class SetYoutubeState(StatesGroup):
     waiting_for_url = State()
 
+class StudentTahlilState(StatesGroup):
+    waiting_for_code = State()
+
 # ── KEYBOARDS (TUGMALAR) ──────────────────────────────
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
     is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
@@ -250,8 +253,8 @@ def make_webapp_button(text: str, url: str, fallback_cb: str = "open_webapp_info
         return InlineKeyboardButton(text=text, callback_data=fallback_cb)
 
 # ── TEST KARTASINI FOYDALANUVCHIGA YUBORISH (BIR MARTALIK TEKSHIRUV BILAN) ──
-async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_id: int):
-    """Test ma'lumotlari, PDF va WebApp tugmasini yuboradi. Agar foydalanuvchi allaqachon topshirgan bo'lsa qayta topshirish taqiqlanadi."""
+async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
+    """Test ma'lumotlari, PDF va WebApp tugmasini foydalanuvchining chatiga yuboradi. Agar foydalanuvchi allaqachon topshirgan bo'lsa qayta topshirish taqiqlanadi."""
     existing_sub = test_db.get_user_submission_for_test(test["id"], user_tg_id)
     is_admin = test_db.is_admin(user_tg_id, ADMIN_ID)
     
@@ -268,8 +271,15 @@ async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_
                 f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score_val} ball)\n"
                 f"✅ <b>To'g'ri javoblar:</b> {corr_val} ta\n"
                 f"🕒 <b>Topshirilgan vaqt:</b> {dt}\n\n"
-                f"💡 <i>To'liq savollar tahlili va natijalaringizni asosiy ilovadan ko'rishingiz mumkin.</i>"
+                f"💡 <i>Test tahlilini ko'rish uchun quyidagi tugmani bosing:</i>"
             )
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📊 Test tahlili", callback_data=f"user_req_tahlil_{test['id']}")]
+            ])
+            try:
+                await bot.send_message(chat_id=user_tg_id, text=text, reply_markup=kb)
+            except Exception as e:
+                log.warning(f"send_message error: {e}")
         else:
             text = (
                 f"⏳ <b>Siz ushbu testni topshirgansiz!</b>\n\n"
@@ -279,13 +289,20 @@ async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_
                 f"ℹ️ <i>Test hozirda davom etmoqda. Admin testni to'xtatib, Rasch tahlilini e'lon qilgandan so'ng, "
                 f"to'g'ri javoblar soni, yakuniy ball va Milliy sertifikat darajangiz bot orqali shaxsiy xabar qilib yuboriladi!</i>"
             )
-        await target_message.answer(text)
+            try:
+                await bot.send_message(chat_id=user_tg_id, text=text)
+            except Exception as e:
+                log.warning(f"send_message error: {e}")
         return
 
     if test.get("is_active", 1) == 0:
-        await target_message.answer(
-            f"⛔️ <b>«{test['title']}» testi to'xtatilgan!</b>\nAdmin tomonidan javoblar qabul qilish yopilgan."
-        )
+        try:
+            await bot.send_message(
+                chat_id=user_tg_id,
+                text=f"⛔️ <b>«{test['title']}» testi to'xtatilgan!</b>\nAdmin tomonidan javoblar qabul qilish yopilgan."
+            )
+        except Exception as e:
+            log.warning(f"send_message error: {e}")
         return
 
     params = {
@@ -313,7 +330,8 @@ async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_
     sent = False
     if test.get("pdf_file_id"):
         try:
-            await target_message.answer_document(
+            await bot.send_document(
+                chat_id=user_tg_id,
                 document=test["pdf_file_id"],
                 caption=caption,
                 reply_markup=inline_kb
@@ -324,10 +342,12 @@ async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_
 
     if not sent:
         try:
-            await target_message.answer(caption, reply_markup=inline_kb)
+            await bot.send_message(chat_id=user_tg_id, text=caption, reply_markup=inline_kb)
         except Exception as e:
             log.error(f"Xabar yuborishda xatolik: {e}")
-            await target_message.answer(caption)
+
+async def send_test_card(target_message: Message, test: Dict[str, Any], user_tg_id: int):
+    await send_test_card_to_user_chat(user_tg_id, test)
 
 # ── BOT HANDLERLARI (FOYDALANUVCHI QISMI) ──────────────
 
@@ -616,10 +636,23 @@ async def admin_webapp_info_cb(call: CallbackQuery):
 @router.message(F.text == "📊 Mening natijalarim")
 @router.message(Command("results"))
 async def show_my_results(message: Message):
+    subs = test_db.get_user_submissions(message.from_user.id)
+    pub_subs = [s for s in subs if s.get("results_published")]
+
+    kb_rows = []
+    if pub_subs:
+        for s in pub_subs[:5]:
+            t_title = s.get("test_title", "Test")
+            t_code = s.get("test_code", "")
+            btn_title = f"📊 #{t_code} tahlili" if t_code else f"📊 {t_title[:20]} tahlili"
+            kb_rows.append([InlineKeyboardButton(text=btn_title, callback_data=f"user_req_tahlil_{s['test_id']}")])
+
+    kb_rows.append([make_webapp_button("📱 Barcha natijalar va tahlillar (Mini App)", f"{WEBAPP_URL}/app.html?tab=tests")])
+
     await message.answer(
-        "📊 <b>Barcha test natijalaringiz, to'liq tahlil va to'g'ri kalitlarni asosiy ilovadan ko'rishingiz mumkin.</b>\n\n"
-        "Ilovani ochish uchun quyidagi tugmani bosing 👇",
-        reply_markup=results_webapp_kb()
+        "📊 <b>Mening natijalarim va tahlillar</b>\n\n"
+        "Quyidagi tugmalar orqali topshirgan testlaringiz tahlilini ko'rishingiz yoki Mini ilovani ochishingiz mumkin 👇",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows)
     )
 
 # 3. 👤 Profil
@@ -2010,8 +2043,8 @@ async def admin_eval_prompt_cb(call: CallbackQuery):
         await call.message.answer(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await call.answer()
 
-def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch") -> tuple:
-    """O'quvchi uchun natija matni va video tahlil / mini ilova tugmalarini shakllantirish."""
+def build_detailed_tahlil_text(sub: dict, test: dict) -> str:
+    """O'quvchi uchun to'g'ri va noto'g'ri ishlangan savollar tahlili matni."""
     name = sub.get("fullname") or "O'quvchi"
     score = sub.get("score", 0.0)
     grade = sub.get("grade") or test_db.calculate_grade(score)
@@ -2054,18 +2087,37 @@ def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch"
     corr_str = ", ".join(correct_keys) if correct_keys else "Mavjud emas"
     incorr_str = ", ".join(incorrect_keys) if incorrect_keys else "Yo'q"
 
-    tahlil_block = (
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "📊 <b>Savollar tahlili:</b>\n"
-        f"✅ <b>To'g'ri ({len(correct_keys)} ta):</b>\n"
+    text = (
+        f"📊 <b>SAVOLLAR TAHLILI — «{test_title}»</b> (<code>#{code}</code>)\n\n"
+        f"👤 <b>O'quvchi:</b> {name}\n"
+        f"🎖 <b>Milliy Sertifikat darajasi:</b> <b>{grade}</b> ({score} ball)\n"
+        f"✅ <b>To'g'ri ishlangan:</b> {corr} / {total} ta band\n"
+        f"❌ <b>Noto'g'ri / qoldirilgan:</b> {incorr} ta\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"✅ <b>TO'G'RI ISHLANGAN SAVOLLAR ({len(correct_keys)} ta):</b>\n"
         f"<code>{corr_str}</code>\n\n"
-        f"❌ <b>Noto'g'ri ({len(incorrect_keys)} ta):</b>\n"
+        f"❌ <b>NOTO'G'RI ISHLANGAN SAVOLLAR ({len(incorrect_keys)} ta):</b>\n"
         f"<code>{incorr_str}</code>"
     )
     if unanswered_keys:
         unans_str = ", ".join(unanswered_keys)
-        tahlil_block += f"\n\n⚪ <b>Belgilanmagan ({len(unanswered_keys)} ta):</b>\n<code>{unans_str}</code>"
-    tahlil_block += "\n━━━━━━━━━━━━━━━━━━━━"
+        text += f"\n\n⚪ <b>BELGILANMAGAN SAVOLLAR ({len(unanswered_keys)} ta):</b>\n<code>{unans_str}</code>"
+    text += "\n━━━━━━━━━━━━━━━━━━━━"
+    if yt_url:
+        text += f"\n\n🎬 <b>Video tahlil:</b> <a href=\"{yt_url}\">YouTube orqali ko'rish</a>"
+    return text
+
+def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch") -> tuple:
+    """O'quvchi uchun natija matni va video tahlil / mini ilova tugmalarini shakllantirish."""
+    name = sub.get("fullname") or "O'quvchi"
+    score = sub.get("score", 0.0)
+    grade = sub.get("grade") or test_db.calculate_grade(score)
+    corr = sub.get("correct_count", 0)
+    total = sub.get("total_count", 55) or 55
+    incorr = max(0, total - corr)
+    code = sub.get("test_code", test.get("test_code", ""))
+    test_title = test.get("title", "Matematika Testi")
+    yt_url = (test.get("youtube_url") or "").strip()
 
     if eval_type == "rasch":
         msg_text = (
@@ -2077,8 +2129,7 @@ def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch"
             f"❌ <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
             f"📊 <b>Jami savollar:</b> {total} ta\n"
             f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
-            f"{tahlil_block}\n\n"
-            f"💡 <i>Quyidagi tugmalar orqali video tahlilni ko'rishingiz yoki Mini ilovada to'liq kalitlarni tekshirishingiz mumkin:</i>\n\n"
+            f"💡 <i>Qaysi savollaringiz to'g'ri yoki noto'g'ri ekanligini ko'rish uchun quyidagi <b>«📊 Test tahlili»</b> tugmasini bosing:</i>\n\n"
             f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
         )
     else:
@@ -2090,12 +2141,13 @@ def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch"
             f"❌ <b>Noto'g'ri javoblar:</b> {incorr} ta\n"
             f"🎯 <b>To'plangan ball:</b> {score} ball\n"
             f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
-            f"{tahlil_block}\n\n"
-            f"💡 <i>Quyidagi tugmalar orqali video tahlilni ko'rishingiz yoki Mini ilovada to'liq kalitlarni tekshirishingiz mumkin:</i>\n\n"
+            f"💡 <i>Qaysi savollaringiz to'g'ri yoki noto'g'ri ekanligini ko'rish uchun quyidagi <b>«📊 Test tahlili»</b> tugmasini bosing:</i>\n\n"
             f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
         )
 
-    kb_rows = []
+    kb_rows = [
+        [InlineKeyboardButton(text="📊 Test tahlili", callback_data=f"user_req_tahlil_{test['id']}")]
+    ]
     if yt_url:
         kb_rows.append([InlineKeyboardButton(text="🎬 Video tahlilni ko'rish (YouTube)", url=yt_url)])
     else:
@@ -2108,6 +2160,129 @@ def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch"
 @router.callback_query(F.data == "no_video_analysis")
 async def no_video_analysis_cb(call: CallbackQuery):
     await call.answer("⚠️ Ushbu test uchun video tahlil kiritilmagan.", show_alert=True)
+
+# ── FOYDALANUVCHI TEST TAHLILI HANDLERLARI (KOD SO'RASH VA TAHLILNI MATN QILIB YUBORISH) ──
+@router.callback_query(F.data.startswith("user_req_tahlil_"))
+async def user_req_tahlil_cb(call: CallbackQuery, state: FSMContext):
+    test_id = int(call.data.split("_")[3])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    sub = test_db.get_user_submission_for_test(test_id, call.from_user.id)
+    if not sub:
+        await call.answer("Siz ushbu testni topshirmagansiz!", show_alert=True)
+        return
+
+    await state.set_state(StudentTahlilState.waiting_for_code)
+    await state.update_data(tahlil_test_id=test_id)
+
+    cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_tahlil_code")]
+    ])
+    await call.message.answer(
+        f"🔐 <b>«{test['title']}» (<code>#{test.get('test_code', '')}</code>) testi tahlili</b>\n\n"
+        f"Savollar tahlilini ko'rish uchun test kodini yoki admin tomonidan berilgan maxsus parolni kiriting:\n\n"
+        f"<i>(Masalan: <code>{test.get('test_code', '101')}</code>)</i>",
+        reply_markup=cancel_kb
+    )
+    await call.answer()
+
+@router.callback_query(F.data == "cancel_tahlil_code")
+async def cancel_tahlil_code_cb(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    try:
+        await call.message.edit_text("❌ Tahlil kodini kiritish bekor qilindi.")
+    except Exception:
+        pass
+    await call.answer()
+
+@router.message(StudentTahlilState.waiting_for_code)
+async def process_tahlil_code(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+    if not text:
+        return
+
+    menu_cmds = [
+        "🔢 Test kodini kiritish", "📊 Mening natijalarim", "👤 Profilim",
+        "ℹ️ Yordam", "ℹ️ Bot haqida", "⚙️ Admin Panel",
+        "➕ Yangi test yaratish", "📊 Test natijalari va reyting", "📋 Testlarni boshqarish"
+    ]
+    if text in menu_cmds:
+        await state.clear()
+        if text == "📊 Mening natijalarim":
+            await show_my_results(message)
+        elif text == "👤 Profilim":
+            await show_profile(message)
+        elif text in ["ℹ️ Yordam", "ℹ️ Bot haqida"]:
+            await show_help(message)
+        elif text == "⚙️ Admin Panel":
+            await admin_panel_handler(message)
+        elif text == "➕ Yangi test yaratish":
+            await admin_create_test_text_handler(message)
+        elif text == "📊 Test natijalari va reyting":
+            await admin_leaderboard_text_handler(message)
+        elif text == "📋 Testlarni boshqarish":
+            await admin_manage_tests_text_handler(message)
+        elif text == "🔢 Test kodini kiritish":
+            await enter_test_code_prompt(message, state)
+        return
+
+    data = await state.get_data()
+    test_id = data.get("tahlil_test_id")
+    if not test_id:
+        await state.clear()
+        await message.answer("Test ma'lumotlari topilmadi. Qaytadan urinib ko'ring.")
+        return
+
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await state.clear()
+        await message.answer("Test topilmadi.")
+        return
+
+    sub = test_db.get_user_submission_for_test(test_id, message.from_user.id)
+    if not sub:
+        await state.clear()
+        await message.answer("Siz ushbu testni topshirmagansiz.")
+        return
+
+    entered_norm = text.upper().replace("#", "").strip()
+    test_code_norm = str(test.get("test_code", "")).upper().replace("#", "").strip()
+    key_code_norm = str(test.get("key_access_code", "")).upper().replace("#", "").strip()
+
+    code_matches = False
+    if key_code_norm and entered_norm == key_code_norm:
+        code_matches = True
+    elif test_code_norm and entered_norm == test_code_norm:
+        code_matches = True
+
+    if not code_matches:
+        cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="cancel_tahlil_code")]
+        ])
+        await message.answer(
+            f"❌ <b>Kiritilgan kod noto'g'ri!</b>\n\n"
+            f"«{text}» kodi ushbu testga to'g'ri kelmadi. Iltimos, to'g'ri kodni kiriting yoki bekor qilish tugmasini bosing:",
+            reply_markup=cancel_kb
+        )
+        return
+
+    await state.clear()
+    tahlil_text = build_detailed_tahlil_text(sub, test)
+
+    kb_rows = []
+    yt_url = (test.get("youtube_url") or "").strip()
+    if yt_url:
+        kb_rows.append([InlineKeyboardButton(text="🎬 Video tahlilni ko'rish (YouTube)", url=yt_url)])
+    kb_rows.append([InlineKeyboardButton(text="📱 Mini ilovada to'liq ko'rish", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html?tab=tests"))])
+
+    await message.answer(
+        tahlil_text,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows),
+        disable_web_page_preview=False
+    )
 
 # 1. Rasch modeli bo'yicha e'lon qilish
 @router.callback_query(F.data.startswith("adm_broadcast_rasch_"))
@@ -3302,6 +3477,56 @@ async def handle_rasch_evaluate_api(request):
     except Exception as e:
         return web.json_response({"success": False, "message": str(e)}, status=500)
 
+async def handle_app_trigger_solve(request):
+    """Mini ilovadan 'Testni yechish' bosilganda Telegram chatga test kartasini yuborish."""
+    try:
+        tg_id = 0
+        test_code = ""
+        test_id_str = ""
+
+        if request.query.get("tg_id"):
+            try:
+                tg_id = int(request.query.get("tg_id", 0))
+            except Exception:
+                pass
+        test_code = request.query.get("test_code", "").strip()
+        test_id_str = request.query.get("test_id", "").strip()
+
+        if not tg_id and request.method == "POST":
+            try:
+                if request.content_type == "application/json":
+                    body = await request.json()
+                else:
+                    body = await request.post()
+                if body.get("tg_id"):
+                    tg_id = int(body.get("tg_id"))
+                if not test_code:
+                    test_code = str(body.get("test_code", "")).strip()
+                if not test_id_str:
+                    test_id_str = str(body.get("test_id", "")).strip()
+            except Exception:
+                pass
+
+        if not tg_id:
+            return web.json_response({"ok": False, "error": "Foydalanuvchi ID si topilmadi"}, status=400)
+
+        test = None
+        if test_code:
+            code_clean = test_code.upper().replace("#", "")
+            test = test_db.get_test_by_code(code_clean)
+        if not test and test_id_str and test_id_str.isdigit():
+            test = test_db.get_test_by_id(int(test_id_str))
+
+        if not test:
+            return web.json_response({"ok": False, "error": "Test topilmadi"}, status=404)
+
+        # Telegram chatga testni taqdim etish (asinxron)
+        asyncio.create_task(send_test_card_to_user_chat(tg_id, test))
+        return web.json_response({"ok": True, "message": "Test chatga yuborildi"})
+    except Exception as e:
+        log.error(f"handle_app_trigger_solve xatolik: {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
 async def create_web_app():
     app = web.Application()
     app.router.add_get('/', handle_index)
@@ -3317,6 +3542,8 @@ async def create_web_app():
     app.router.add_get('/api/app/profile', handle_app_profile)
     app.router.add_get('/api/app/active-tests', handle_app_active_tests)
     app.router.add_get('/api/app/my-results', handle_app_my_results)
+    app.router.add_get('/api/app/trigger-solve', handle_app_trigger_solve)
+    app.router.add_post('/api/app/trigger-solve', handle_app_trigger_solve)
     app.router.add_get('/api/app/users', handle_app_users)
     app.router.add_post('/api/app/update-user-status', handle_app_update_user_status)
     app.router.add_post('/api/app/restrict-all-users', handle_app_restrict_all_users)
