@@ -1829,11 +1829,60 @@ body {
 }
 
 /* Profile Info Section Accordion */
+.profile-info-toggle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 13px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
 .profile-info-toggle-header:hover .profile-info-toggle-badge {
   background: rgba(59, 130, 246, 0.22);
 }
 .profile-info-toggle-header:active {
-  opacity: 0.85;
+  background: var(--bg-card-hover, rgba(255, 255, 255, 0.05));
+  opacity: 0.9;
+}
+
+/* ── THEME TRANSITION CIRCULAR REVEAL ── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 999999;
+}
+
+#theme-ripple-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999999;
+  overflow: hidden;
+}
+
+.theme-circle-ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  opacity: 1;
+  transition: transform 0.48s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.24s ease;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.theme-circle-ripple.expanding {
+  transform: scale(1);
+}
+
+.theme-circle-ripple.fading {
+  opacity: 0;
 }
 .btn-hero-profile-action {
   flex: 1;

@@ -1311,21 +1311,21 @@ function renderProfileTab() {
 
     // ── 3. SHAXSIY MA'LUMOTLAR BO'LIMI (Ko'rsatish / Yashirish) ──
     '<div class="profile-section-card animate-in" id="profile-info-section" style="margin-top:12px;">' +
-      '<div class="profile-info-toggle-header" onclick="toggleProfileDetails()" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;cursor:pointer;user-select:none;">' +
-        '<div style="display:flex;align-items:center;gap:11px;">' +
-          '<div class="profile-item-icon" style="background:rgba(37,99,235,0.12);color:#2563EB;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
-            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<div class="profile-info-toggle-header" onclick="toggleProfileDetails()">' +
+        '<div style="display:flex;align-items:center;gap:12px;min-width:0;">' +
+          '<div class="profile-item-icon" style="background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+            '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
               '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>' +
               '<circle cx="12" cy="7" r="4"></circle>' +
             '</svg>' +
           '</div>' +
           '<div style="flex:1;min-width:0;">' +
-            '<div class="profile-section-title" style="margin:0;font-size:14.5px;font-weight:800;color:var(--text);white-space:nowrap;">' + t('profile_personal_info') + '</div>' +
+            '<div style="margin:0;font-size:14px;font-weight:700;color:var(--text);letter-spacing:0.2px;">' + t('profile_personal_info') + '</div>' +
           '</div>' +
         '</div>' +
-        '<span class="profile-info-toggle-badge" id="profile-info-toggle-badge" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:800;background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);transition:all 0.2s ease;">' + (window._profileDetailsOpen ? t('toggle_hide') : t('toggle_show')) + '</span>' +
+        '<span class="profile-info-toggle-badge" id="profile-info-toggle-badge" style="padding:6px 13px;border-radius:16px;font-size:12px;font-weight:700;background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);transition:all 0.2s ease;flex-shrink:0;margin-left:8px;">' + (window._profileDetailsOpen ? t('toggle_hide') : t('toggle_show')) + '</span>' +
       '</div>' +
-      '<div id="profile-details-content" style="display:' + (window._profileDetailsOpen ? 'block' : 'none') + ';margin-top:10px;border-top:1px solid var(--border);padding-top:4px;">' +
+      '<div id="profile-details-content" style="display:' + (window._profileDetailsOpen ? 'block' : 'none') + ';border-top:1px solid var(--border);">' +
         '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + tgId + '\', \'' + t('toast_copied') + '\')">' +
           '<div class="profile-item-icon">🆔</div>' +
           '<div class="profile-item-body">' +
@@ -1363,7 +1363,7 @@ function renderProfileTab() {
     // ── 4. SOZLAMALAR VA QO'LLANMA ──
     '<div class="profile-section-card animate-in" style="margin-top:10px;">' +
       '<div class="profile-section-title">' + t('sec_settings_guide') + '</div>' +
-      '<div class="profile-item-row clickable" onclick="toggleTheme()">' +
+      '<div class="profile-item-row clickable" onclick="toggleTheme(event)">' +
         '<div class="profile-item-icon">🌓</div>' +
         '<div class="profile-item-body">' +
           '<div class="profile-item-label">' + t('lbl_app_theme') + '</div>' +
@@ -2215,17 +2215,113 @@ function syncTelegramTheme(theme) {
   }
 }
 
-function toggleTheme() {
+var _themeSwitching = false;
+
+function toggleTheme(event) {
+  if (_themeSwitching) return;
+  _themeSwitching = true;
+  setTimeout(function() { _themeSwitching = false; }, 650);
+
   var cur = document.documentElement.getAttribute('data-theme') || 'dark';
   var next = cur === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem(LS_THEME, next);
-  updateThemeIcon(next);
-  syncTelegramTheme(next);
-  var pTheme = document.getElementById('profile-theme-label');
-  if (pTheme) {
-    pTheme.textContent = next === 'dark' ? t('theme_dark_lbl') : t('theme_light_lbl');
+
+  // Origin coordinates: from click position or top-right theme button
+  var x, y;
+  if (event && typeof event.clientX === 'number' && event.clientX > 0) {
+    x = event.clientX;
+    y = event.clientY;
+  } else {
+    var btn = document.getElementById('theme-btn');
+    if (btn) {
+      var rect = btn.getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.top + rect.height / 2;
+    } else {
+      x = window.innerWidth - 32;
+      y = 32;
+    }
   }
+
+  // Calculate radius to furthest screen corner
+  var maxRadius = Math.hypot(
+    Math.max(x, window.innerWidth - x),
+    Math.max(y, window.innerHeight - y)
+  ) + 30;
+
+  function applyThemeChange() {
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem(LS_THEME, next);
+    updateThemeIcon(next);
+    syncTelegramTheme(next);
+    var pTheme = document.getElementById('profile-theme-label');
+    if (pTheme) {
+      pTheme.textContent = next === 'dark' ? t('theme_dark_lbl') : t('theme_light_lbl');
+    }
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
+    }
+  }
+
+  // Modern browsers: View Transitions API
+  if (typeof document.startViewTransition === 'function') {
+    try {
+      var transition = document.startViewTransition(function() {
+        applyThemeChange();
+      });
+      transition.ready.then(function() {
+        document.documentElement.animate(
+          {
+            clipPath: [
+              'circle(0px at ' + Math.round(x) + 'px ' + Math.round(y) + 'px)',
+              'circle(' + Math.round(maxRadius) + 'px at ' + Math.round(x) + 'px ' + Math.round(y) + 'px)'
+            ]
+          },
+          {
+            duration: 520,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            pseudoElement: '::view-transition-new(root)'
+          }
+        );
+      }).catch(function() {});
+      return;
+    } catch(err) {}
+  }
+
+  // Universal circular expansion fallback (Safari / WebViews without View Transition)
+  runThemeRippleFallback(x, y, maxRadius, next, applyThemeChange);
+}
+
+function runThemeRippleFallback(x, y, maxRadius, nextTheme, callback) {
+  var overlay = document.getElementById('theme-ripple-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'theme-ripple-overlay';
+    document.body.appendChild(overlay);
+  }
+
+  var circle = document.createElement('div');
+  circle.className = 'theme-circle-ripple';
+  var diameter = Math.round(maxRadius * 2);
+  circle.style.width = diameter + 'px';
+  circle.style.height = diameter + 'px';
+  circle.style.left = Math.round(x - maxRadius) + 'px';
+  circle.style.top = Math.round(y - maxRadius) + 'px';
+  circle.style.background = nextTheme === 'dark' ? '#0a0b14' : '#f0f4ff';
+
+  overlay.appendChild(circle);
+
+  requestAnimationFrame(function() {
+    circle.classList.add('expanding');
+    setTimeout(function() {
+      callback();
+      setTimeout(function() {
+        circle.classList.add('fading');
+        setTimeout(function() {
+          if (circle.parentNode) circle.parentNode.removeChild(circle);
+        }, 260);
+      }, 70);
+    }, 300);
+  });
 }
 
 function updateThemeIcon(theme) {
