@@ -1432,7 +1432,7 @@ function renderAdminTab() {
 
         // Xabar matni maydoni (textarea)
         '<div class="broadcast-textarea-wrap">' +
-          '<textarea id="admin-broadcast-text" class="admin-broadcast-textarea" rows="4" placeholder="Xabar matnini kiriting yoki yuqoridagi tayyor shablonlardan birini bosing..." oninput="updateBroadcastCharCount()">' + escHtml(window._cachedBroadcastText || '') + '</textarea>' +
+          '<textarea id="admin-broadcast-text" class="admin-broadcast-textarea" rows="3" placeholder="Xabar matnini kiriting yoki yuqoridagi tayyor shablonlardan birini bosing..." oninput="updateBroadcastCharCount()">' + escHtml(window._cachedBroadcastText || '') + '</textarea>' +
           '<div class="broadcast-meta-row">' +
             '<span id="broadcast-char-count" class="broadcast-char-count">' + (window._cachedBroadcastText ? window._cachedBroadcastText.length : 0) + ' belgi</span>' +
             '<button type="button" class="btn-clear-broadcast" onclick="clearBroadcastText()">✕ Tozalash</button>' +
