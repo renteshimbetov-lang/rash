@@ -163,6 +163,10 @@ class SetYoutubeState(StatesGroup):
 class StudentTahlilState(StatesGroup):
     waiting_for_code = State()
 
+class EditProfileState(StatesGroup):
+    waiting_new_name = State()
+    waiting_new_phone = State()
+
 # ── KEYBOARDS (TUGMALAR) ──────────────────────────────
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
     is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
@@ -655,7 +659,7 @@ async def show_my_results(message: Message):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows)
     )
 
-# 3. 👤 Profil
+# 3. 👤 Profil (Bot chatida ko'rish va tahrirlash)
 @router.message(F.text == "👤 Profilim")
 @router.message(Command("profile"))
 async def show_profile(message: Message):
@@ -666,16 +670,163 @@ async def show_profile(message: Message):
 
     submissions = test_db.get_user_submissions(message.from_user.id)
     tests_count = len(submissions)
-    dt = format_uzb_time(user["registered_at"], "%d.%m.%Y")
+    dt = format_uzb_time(user.get("registered_at"), "%d.%m.%Y") if user.get("registered_at") else "Noma'lum"
 
-    await message.answer(
-        f"👤 <b>{user['fullname']}</b>\n"
-        f"📱 {user['phone']}\n"
-        f"📋 Ishlangan testlar: <b>{tests_count} ta</b>\n"
-        f"📅 Ro'yxatdan: {dt}\n\n"
-        f"📲 <i>Batafsil ma'lumot uchun shaxsiy profilni oching:</i>",
-        reply_markup=profile_webapp_kb(message.from_user.id)
+    scores = [float(s.get('score', s.get('correct_count', 0))) for s in submissions] if submissions else []
+    avg_score = f"{sum(scores)/len(scores):.1f}" if scores else "0.0"
+    max_score = f"{max(scores):.1f}" if scores else "0.0"
+
+    st = (user.get("status") or "pending").lower()
+    st_text = "✅ Faol o'quvchi" if st == "approved" else ("⏳ Kutilmoqda" if st == "pending" else "⛔️ Bloklangan")
+
+    phone_str = user.get('phone') or "Biriktirilmagan"
+    username_str = f"@{message.from_user.username}" if message.from_user.username else (f"@{user.get('username')}" if user.get('username') else "Mavjud emas")
+
+    text = (
+        "👤 <b>SHAXSIY PROFILINGIZ</b>\n\n"
+        f"👤 <b>Ism va familiya:</b> {user['fullname']}\n"
+        f"📱 <b>Telefon raqam:</b> {phone_str}\n"
+        f"🆔 <b>Telegram ID:</b> <code>{message.from_user.id}</code>\n"
+        f"🔗 <b>Username:</b> {username_str}\n"
+        f"📅 <b>Ro'yxatdan o'tgan:</b> {dt}\n"
+        f"🔰 <b>Holat:</b> {st_text}\n\n"
+        f"📊 <b>KO'RSATKICHLAR:</b>\n"
+        f"• Ishlangan testlar: <b>{tests_count} ta</b>\n"
+        f"• O'rtacha natija: <b>{avg_score} ball</b>\n"
+        f"• Eng yuqori natija: <b>{max_score} ball</b>\n\n"
+        f"<i>Quyidagi tugmalar orqali ma'lumotlaringizni tahrirlashingiz mumkin 👇</i>"
     )
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [make_webapp_button("📱 Shaxsiy profilni ochish (Mini App)", f"{WEBAPP_URL}/app.html?tg_id={message.from_user.id}")],
+        [
+            InlineKeyboardButton(text="✏️ Ismni o'zgartirish", callback_data="profile_edit_name"),
+            InlineKeyboardButton(text="📞 Raqamni o'zgartirish", callback_data="profile_edit_phone")
+        ],
+        [
+            InlineKeyboardButton(text="🗑 Akkauntni o'chirish", callback_data="profile_delete_account")
+        ]
+    ])
+
+    await message.answer(text, reply_markup=kb)
+
+# ── PROFILNI TAHRIRLASH (BOT CHATIDA) ──────────────────
+@router.callback_query(F.data == "profile_edit_name")
+async def profile_edit_name_handler(call: CallbackQuery, state: FSMContext):
+    await state.set_state(EditProfileState.waiting_new_name)
+    cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="cancel_edit_profile")]
+    ])
+    await call.message.answer(
+        "✏️ <b>Ismni o'zgartirish</b>\n\n"
+        "Iltimos, yangi ism va familiyangizni yozib yuboring:\n"
+        "<i>(Masalan: Ali Valiyev)</i>",
+        reply_markup=cancel_kb
+    )
+    await call.answer()
+
+@router.message(EditProfileState.waiting_new_name)
+async def process_new_profile_name(message: Message, state: FSMContext):
+    new_name = (message.text or "").strip()
+    if not new_name or len(new_name) < 3 or len(new_name) > 60:
+        await message.answer("⚠️ Iltimos, haqiqiy ism va familiyangizni to'liq kiriting (kamida 3 ta belgi):")
+        return
+    
+    test_db.update_user_profile(message.from_user.id, fullname=new_name)
+    await state.clear()
+    await message.answer(f"✅ Ismingiz muvaffaqiyatli yangilandi: <b>{new_name}</b>")
+    await show_profile(message)
+
+@router.callback_query(F.data == "profile_edit_phone")
+async def profile_edit_phone_handler(call: CallbackQuery, state: FSMContext):
+    await state.set_state(EditProfileState.waiting_new_phone)
+    kb = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📱 Telefon raqamni yuborish", request_contact=True)],
+            [KeyboardButton(text="🔙 Bekor qilish")]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    await call.message.answer(
+        "📞 <b>Telefon raqamni o'zgartirish</b>\n\n"
+        "Iltimos, pastdagi <b>'📱 Telefon raqamni yuborish'</b> tugmasini bosing yoki yangi raqamingizni yozing (Masalan: +998901234567):",
+        reply_markup=kb
+    )
+    await call.answer()
+
+@router.message(EditProfileState.waiting_new_phone, F.contact)
+async def process_new_profile_phone_contact(message: Message, state: FSMContext):
+    contact = message.contact
+    if not contact:
+        await message.answer("Raqam aniqlanmadi.")
+        return
+    phone = contact.phone_number
+    if not phone.startswith("+"):
+        phone = "+" + phone
+    test_db.update_user_profile(message.from_user.id, phone=phone)
+    await state.clear()
+    await message.answer(
+        f"✅ Telefon raqamingiz muvaffaqiyatli yangilandi: <b>{phone}</b>",
+        reply_markup=main_menu_kb(message.from_user.id)
+    )
+    await show_profile(message)
+
+@router.message(EditProfileState.waiting_new_phone)
+async def process_new_profile_phone_text(message: Message, state: FSMContext):
+    text = (message.text or "").strip()
+    if text == "🔙 Bekor qilish":
+        await state.clear()
+        await message.answer("Amal bekor qilindi.", reply_markup=main_menu_kb(message.from_user.id))
+        await show_profile(message)
+        return
+
+    import re
+    cleaned = re.sub(r'[^\d+]', '', text)
+    if len(cleaned.replace("+", "")) < 9:
+        await message.answer("⚠️ Noto'g'ri telefon raqam formati. Masalan: +998901234567")
+        return
+    if not cleaned.startswith("+"):
+        cleaned = "+" + cleaned
+
+    test_db.update_user_profile(message.from_user.id, phone=cleaned)
+    await state.clear()
+    await message.answer(
+        f"✅ Telefon raqamingiz muvaffaqiyatli yangilandi: <b>{cleaned}</b>",
+        reply_markup=main_menu_kb(message.from_user.id)
+    )
+    await show_profile(message)
+
+@router.callback_query(F.data == "cancel_edit_profile")
+async def cancel_edit_profile_handler(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await call.message.delete()
+    await call.answer("Tahrirlash bekor qilindi")
+
+@router.callback_query(F.data == "profile_delete_account")
+async def profile_delete_account_confirm(call: CallbackQuery):
+    confirm_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚠️ Ha, butunlay o'chirilsin", callback_data="do_delete_my_account")],
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="cancel_edit_profile")]
+    ])
+    await call.message.answer(
+        "⚠️ <b>DIQQAT! AKKAUNTNI O'CHIRISH</b>\n\n"
+        "Haqiqatan ham akkauntingizni va barcha ishlangan test natijalaringizni butunlay o'chirib tashlamoqchimisiz?\n\n"
+        "<i>Bu amalni ortga qaytarib bo'lmaydi!</i>",
+        reply_markup=confirm_kb
+    )
+    await call.answer()
+
+@router.callback_query(F.data == "do_delete_my_account")
+async def do_delete_my_account_handler(call: CallbackQuery, state: FSMContext):
+    await state.clear()
+    test_db.delete_user(call.from_user.id)
+    await call.message.answer(
+        "🗑 <b>Akkauntingiz va barcha natijalaringiz butunlay o'chirildi.</b>\n\n"
+        "Qaytadan ro'yxatdan o'tish uchun /start buyrug'ini bosing.",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    await call.answer()
 
 # 4. ℹ️ Yordam va murojaat
 @router.message(F.text == "ℹ️ Yordam")
@@ -3398,6 +3549,65 @@ async def handle_app_update_user_status(request):
         log.error(f"App Update User Status Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+async def handle_app_update_profile(request):
+    """Foydalanuvchi o'z ism va telefon raqamini tahrirlashi uchun API."""
+    try:
+        data = await request.json()
+        tg_id = int(data.get('tg_id', 0))
+        fullname = str(data.get('fullname', '')).strip()
+        phone = str(data.get('phone', '')).strip()
+
+        if not tg_id:
+            init_data = data.get('init_data', '') or request.headers.get('X-Telegram-Init-Data', '')
+            import urllib.parse, json
+            try:
+                parsed = dict(urllib.parse.parse_qsl(init_data))
+                if 'user' in parsed:
+                    u_dict = json.loads(parsed['user'])
+                    if u_dict and u_dict.get('id'):
+                        tg_id = int(u_dict['id'])
+            except Exception:
+                pass
+
+        if not tg_id:
+            return web.json_response({"success": False, "message": "Foydalanuvchi aniqlanmadi"}, status=400)
+
+        if not fullname:
+            return web.json_response({"success": False, "message": "Ism kiritilmadi"}, status=400)
+
+        ok = test_db.update_user_profile(tg_id, fullname=fullname, phone=phone if phone else None)
+        return web.json_response({"success": ok})
+    except Exception as e:
+        log.error(f"App Update Profile Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=400)
+
+async def handle_app_delete_my_account(request):
+    """Foydalanuvchi o'z akkauntini o'chirish uchun API."""
+    try:
+        data = await request.json()
+        tg_id = int(data.get('tg_id', 0))
+
+        if not tg_id:
+            init_data = data.get('init_data', '') or request.headers.get('X-Telegram-Init-Data', '')
+            import urllib.parse, json
+            try:
+                parsed = dict(urllib.parse.parse_qsl(init_data))
+                if 'user' in parsed:
+                    u_dict = json.loads(parsed['user'])
+                    if u_dict and u_dict.get('id'):
+                        tg_id = int(u_dict['id'])
+            except Exception:
+                pass
+
+        if not tg_id:
+            return web.json_response({"success": False, "message": "Foydalanuvchi aniqlanmadi"}, status=400)
+
+        ok = test_db.delete_user(tg_id)
+        return web.json_response({"success": ok})
+    except Exception as e:
+        log.error(f"App Delete My Account Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=400)
+
 async def handle_app_restrict_all_users(request):
     """Admin tomonidan barcha oddiy foydalanuvchilarni kutilmoqda (pending) holatiga o'tkazish."""
     try:
@@ -3540,6 +3750,8 @@ async def create_web_app():
     app.router.add_post('/api/set-gemini-key', handle_set_gemini_key_api)
     # Asosiy Mini App API
     app.router.add_get('/api/app/profile', handle_app_profile)
+    app.router.add_post('/api/app/update-profile', handle_app_update_profile)
+    app.router.add_post('/api/app/delete-my-account', handle_app_delete_my_account)
     app.router.add_get('/api/app/active-tests', handle_app_active_tests)
     app.router.add_get('/api/app/my-results', handle_app_my_results)
     app.router.add_get('/api/app/trigger-solve', handle_app_trigger_solve)

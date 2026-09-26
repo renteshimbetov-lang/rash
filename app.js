@@ -918,6 +918,11 @@ function renderProfileTab() {
         adminChipHtml +
         statusChipHtml +
       '</div>' +
+      '<div style="margin-top:10px;">' +
+        '<button type="button" class="btn-edit-profile-hero" onclick="openEditProfileModal()">' +
+          '<span>✏️ Profilni tahrirlash</span>' +
+        '</button>' +
+      '</div>' +
     '</div>' +
 
     // ── 2. METRIKALAR PANELCHASI (3 ta ustunli qulay va ixcham lenta) ──
@@ -944,24 +949,26 @@ function renderProfileTab() {
       '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + tgId + '\', \'Telegram ID nusxalandi!\')">' +
         '<div class="profile-item-icon">🆔</div>' +
         '<div class="profile-item-body">' +
-          '<div class="profile-item-label">Telegram ID</div>' +
+          '<div class="profile-item-label">Telegram ID (Bosganda nusxalanadi)</div>' +
           '<div class="profile-item-value"><code>' + tgId + '</code></div>' +
         '</div>' +
         '<span class="profile-item-action-chip">📋 Nusxa</span>' +
       '</div>' +
-      '<div class="profile-item-row">' +
+      '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + escHtml(username) + '\', \'Username nusxalandi!\')">' +
         '<div class="profile-item-icon">🔗</div>' +
         '<div class="profile-item-body">' +
           '<div class="profile-item-label">Telegram Username</div>' +
           '<div class="profile-item-value">' + escHtml(username) + '</div>' +
         '</div>' +
+        '<span class="profile-item-action-chip">📋 Nusxa</span>' +
       '</div>' +
-      '<div class="profile-item-row">' +
+      '<div class="profile-item-row clickable" onclick="openEditProfileModal()">' +
         '<div class="profile-item-icon">📱</div>' +
         '<div class="profile-item-body">' +
-          '<div class="profile-item-label">Bog\'langan telefon</div>' +
+          '<div class="profile-item-label">Telefon raqami (Tahrirlash)</div>' +
           '<div class="profile-item-value">' + escHtml(formattedPhone) + '</div>' +
         '</div>' +
+        '<span class="profile-item-action-chip">✏️ O\'zgartirish</span>' +
       '</div>' +
       '<div class="profile-item-row" style="border-bottom:none;">' +
         '<div class="profile-item-icon">📅</div>' +
@@ -999,7 +1006,157 @@ function renderProfileTab() {
         '</div>' +
         '<span class="profile-item-arrow">›</span>' +
       '</div>' +
+    '</div>' +
+
+    // ── 5. XAVFLI HUDUD (Akkauntni butunlay o'chirish) ──
+    '<div class="profile-danger-card animate-in">' +
+      '<div class="danger-card-title">Xavfli hudud</div>' +
+      '<div class="danger-card-desc">Akkaunt va unga biriktirilgan barcha test natijalarini butunlay o\'chirib tashlash.</div>' +
+      '<button type="button" class="btn-delete-account" onclick="deleteMyAccount()">' +
+        '<span>🗑 Akkauntni butunlay o\'chirish</span>' +
+      '</button>' +
     '</div>';
+}
+
+function openEditProfileModal() {
+  var u = state.userInfo;
+  var tgU = state.tgUser;
+  var fullname = (u && u.fullname) || ((tgU && ((tgU.first_name || '') + ' ' + (tgU.last_name || '')).trim())) || '';
+  var phone = (u && u.phone) || '';
+
+  var modal = document.getElementById('edit-profile-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'edit-profile-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:16px;';
+    modal.onclick = function(e) { if (e.target === modal || e.target.classList.contains('modal-close')) closeEditProfileModal(); };
+    modal.innerHTML =
+      '<div class="modal-box" style="max-width:380px;width:100%;padding:22px 18px;border-radius:24px;background:var(--bg-card,#1e293b);border:1px solid var(--border);box-shadow:0 24px 60px rgba(0,0,0,0.5);">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+          '<div style="font-size:16px;font-weight:800;color:var(--text);">✏️ Profilni tahrirlash</div>' +
+          '<button class="modal-close" onclick="closeEditProfileModal()" style="background:none;border:none;font-size:22px;color:var(--text-muted);cursor:pointer;line-height:1;">✕</button>' +
+        '</div>' +
+        '<div style="margin-bottom:12px;">' +
+          '<label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;">Ism va familiya</label>' +
+          '<input type="text" id="edit-profile-name" class="modal-input" placeholder="Ism Familiya" style="width:100%;padding:11px 14px;border-radius:12px;background:var(--bg-glass-2);border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:14px;outline:none;">' +
+        '</div>' +
+        '<div style="margin-bottom:18px;">' +
+          '<label style="display:block;font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;">Telefon raqami</label>' +
+          '<input type="tel" id="edit-profile-phone" class="modal-input" placeholder="+998901234567" style="width:100%;padding:11px 14px;border-radius:12px;background:var(--bg-glass-2);border:1px solid var(--border);color:var(--text);font-family:var(--font);font-size:14px;outline:none;">' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button type="button" onclick="closeEditProfileModal()" style="flex:1;padding:12px;border-radius:12px;background:transparent;border:1px solid var(--border);color:var(--text-muted);font-weight:700;cursor:pointer;">Bekor qilish</button>' +
+          '<button type="button" id="btn-save-profile" onclick="saveEditedProfile()" style="flex:1.5;padding:12px;border-radius:12px;background:linear-gradient(135deg,#2563EB,#1D4ED8);border:none;color:#fff;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(37,99,235,0.35);">💾 Saqlash</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(modal);
+  }
+
+  var nameInput = document.getElementById('edit-profile-name');
+  var phoneInput = document.getElementById('edit-profile-phone');
+  if (nameInput) nameInput.value = fullname;
+  if (phoneInput) phoneInput.value = phone;
+
+  modal.style.display = 'flex';
+}
+
+function closeEditProfileModal() {
+  var modal = document.getElementById('edit-profile-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function saveEditedProfile() {
+  var nameInput = document.getElementById('edit-profile-name');
+  var phoneInput = document.getElementById('edit-profile-phone');
+  if (!nameInput || !phoneInput) return;
+
+  var newName = (nameInput.value || '').trim();
+  var newPhone = (phoneInput.value || '').trim();
+
+  if (!newName) {
+    alert("Iltimos, ismingizni kiriting!");
+    nameInput.focus();
+    return;
+  }
+  if (!newPhone) {
+    alert("Iltimos, telefon raqamingizni kiriting!");
+    phoneInput.focus();
+    return;
+  }
+
+  var btn = document.getElementById('btn-save-profile');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Saqlanmoqda...';
+  }
+
+  var tgId = (state.tgUser && state.tgUser.id) || (state.userInfo && state.userInfo.tg_id) || 0;
+
+  try {
+    var res = await fetch('/api/app/update-profile', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        tg_id: tgId,
+        fullname: newName,
+        phone: newPhone,
+        init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
+      })
+    });
+    var data = await res.json();
+    if (data.success) {
+      if (!state.userInfo) state.userInfo = {};
+      state.userInfo.fullname = newName;
+      state.userInfo.phone = newPhone;
+      localStorage.setItem(LS_USER, JSON.stringify(state.userInfo));
+      closeEditProfileModal();
+      renderProfileTab();
+      showToast('Profil ma\'lumotlari muvaffaqiyatli saqlandi! ✅');
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        try { window.Telegram.WebApp.HapticFeedback.notificationOccurred('success'); } catch(e) {}
+      }
+    } else {
+      alert("Xatolik: " + (data.message || "Saqlab bo'lmadi"));
+    }
+  } catch(e) {
+    alert("Server bilan bog'lanishda xatolik: " + e.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '💾 Saqlash';
+    }
+  }
+}
+
+async function deleteMyAccount() {
+  if (!confirm("⚠️ DIQQAT! Haqiqatan ham profilingizni va barcha test natijalaringizni butunlay o'chirib tashlamoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi!")) {
+    return;
+  }
+  var tgId = (state.tgUser && state.tgUser.id) || (state.userInfo && state.userInfo.tg_id) || 0;
+  if (!tgId) return;
+
+  try {
+    var res = await fetch('/api/app/delete-my-account', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        tg_id: tgId,
+        init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
+      })
+    });
+    var data = await res.json();
+    if (data.success) {
+      alert("Profilingiz va barcha natijalaringiz muvaffaqiyatli o'chirildi.");
+      localStorage.removeItem(LS_USER);
+      localStorage.removeItem('pin_code');
+      window.location.reload();
+    } else {
+      alert("Xatolik yuz berdi: " + (data.message || "O'chirib bo'lmadi"));
+    }
+  } catch(e) {
+    alert("Server bilan bog'lanishda xatolik: " + e.message);
+  }
 }
 
 // ── ADMIN TAB ───────────────────────────────────

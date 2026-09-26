@@ -560,6 +560,32 @@ def add_or_update_user(tg_id: int, fullname: str, phone: str,
         return False
 
 
+def update_user_profile(tg_id: int, fullname: Optional[str] = None, phone: Optional[str] = None) -> bool:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        updates = []
+        params = []
+        if fullname is not None:
+            updates.append(f"fullname = {_ph()}")
+            params.append(fullname.strip())
+        if phone is not None:
+            updates.append(f"phone = {_ph()}")
+            params.append(phone.strip())
+        if not updates:
+            _close_conn(conn)
+            return True
+        params.append(tg_id)
+        sql = f"UPDATE users SET {', '.join(updates)} WHERE tg_id = {_ph()}"
+        cur.execute(sql, tuple(params))
+        _commit_and_close(conn)
+        return True
+    except Exception as e:
+        print(f"Error updating user profile: {e}")
+        _close_conn(conn)
+        return False
+
+
 def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
