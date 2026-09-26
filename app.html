@@ -36,23 +36,40 @@
 
 <body>
 
-  <!-- SPLASH SCREEN -->
+  <!-- SPLASH SCREEN (Kosmik Matematik Kirish Animatsiyasi) -->
   <div id="splash-screen">
-    <div class="splash-bg"></div>
-    <div class="splash-logo-wrap">
-      <div class="splash-ring" id="splash-ring"></div>
-      <div class="splash-ring-2" id="splash-ring-2"></div>
-      <div class="splash-logo-box" id="splash-logo-box">
-        <img src="/img/bm_logo.png?v=20260926_shohruh3" alt="Shohruh Matematika" class="splash-logo-img" id="splash-logo-img" />
-        <span class="splash-check" id="splash-check">&#10003;</span>
+    <canvas id="splash-canvas" class="splash-canvas"></canvas>
+    <div class="splash-glow-orb splash-glow-1"></div>
+    <div class="splash-glow-orb splash-glow-2"></div>
+    <div class="splash-content-wrap">
+      <div class="splash-logo-wrap">
+        <div class="splash-pulse-wave" id="splash-pulse-wave"></div>
+        <div class="splash-ring-outer" id="splash-ring-outer"></div>
+        <div class="splash-ring" id="splash-ring"></div>
+        <div class="splash-ring-2" id="splash-ring-2"></div>
+        <div class="splash-orbit-dot"></div>
+        <div class="splash-logo-box" id="splash-logo-box">
+          <img src="/img/bm_logo.png?v=20260926_shohruh3" alt="Shohruh Matematika" class="splash-logo-img" id="splash-logo-img" />
+          <div class="splash-logo-shimmer"></div>
+        </div>
       </div>
-    </div>
-    <div class="splash-title">SHOHRUH MATEMATIKA</div>
-    <div class="splash-subtitle" data-i18n="splash_subtitle">TEST MARKAZI VA MILLIY SERTIFIKAT</div>
-    <div class="splash-dots">
-      <div class="splash-dot"></div>
-      <div class="splash-dot"></div>
-      <div class="splash-dot"></div>
+      <div class="splash-badge">
+        <span class="splash-badge-pulse"></span>
+        <span>RASCH TEST SYSTEM</span>
+      </div>
+      <div class="splash-title">SHOHRUH MATEMATIKA</div>
+      <div class="splash-subtitle" data-i18n="splash_subtitle">MILLIY SERTIFIKAT VA OLIMPIADA MARKAZI</div>
+      
+      <!-- Progress Bar & Status -->
+      <div class="splash-progress-container">
+        <div class="splash-progress-track">
+          <div class="splash-progress-bar" id="splash-progress-bar"></div>
+        </div>
+        <div class="splash-status-row">
+          <span class="splash-status-text" id="splash-status-text">Tizim tayyorlanmoqda...</span>
+          <span class="splash-status-percent" id="splash-status-percent">0%</span>
+        </div>
+      </div>
     </div>
   </div>
 

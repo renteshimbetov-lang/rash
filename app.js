@@ -566,40 +566,154 @@ if (document.readyState === 'loading') {
   initApp();
 }
 
-// ── SPLASH (Chiroyli kirish animatsiyasi) ──────────
+// ── SPLASH (Kosmik Matematik Kirish Animatsiyasi) ──────────
+function startSplashCanvas() {
+  var canvas = document.getElementById('splash-canvas');
+  if (!canvas) return null;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  var width = canvas.width = window.innerWidth;
+  var height = canvas.height = window.innerHeight;
+
+  var symbols = ['∞', 'π', '∑', '∫', '√x', 'f(x)', '∆', 'θ', 'λ', '≈', '≠', 'e', 'α', 'β', 'γ', 'dx', 'dy', 'lim'];
+  var particles = [];
+  var count = Math.min(26, Math.max(16, Math.floor(width / 16)));
+
+  for (var i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      char: symbols[Math.floor(Math.random() * symbols.length)],
+      size: 13 + Math.random() * 18,
+      vx: (Math.random() - 0.5) * 0.45,
+      vy: -0.35 - Math.random() * 0.75,
+      opacity: 0.12 + Math.random() * 0.45,
+      pulseSpeed: 0.02 + Math.random() * 0.03,
+      angle: Math.random() * Math.PI * 2,
+      spinSpeed: (Math.random() - 0.5) * 0.015
+    });
+  }
+
+  var animId = null;
+  var isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+
+  function draw() {
+    ctx.clearRect(0, 0, width, height);
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.angle += p.spinSpeed;
+      p.opacity += Math.sin(Date.now() * p.pulseSpeed) * 0.005;
+      if (p.opacity < 0.1) p.opacity = 0.1;
+      if (p.opacity > 0.6) p.opacity = 0.6;
+
+      if (p.y < -30) { p.y = height + 30; p.x = Math.random() * width; }
+      if (p.x < -30) p.x = width + 30;
+      if (p.x > width + 30) p.x = -30;
+
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.font = 'bold ' + p.size + 'px serif';
+      if (isDark) {
+        ctx.fillStyle = 'rgba(147, 197, 253, ' + p.opacity + ')';
+        ctx.shadowColor = 'rgba(56, 189, 248, 0.4)';
+        ctx.shadowBlur = 8;
+      } else {
+        ctx.fillStyle = 'rgba(37, 99, 235, ' + (p.opacity * 0.8) + ')';
+        ctx.shadowColor = 'rgba(37, 99, 235, 0.2)';
+        ctx.shadowBlur = 6;
+      }
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.char, 0, 0);
+      ctx.restore();
+    }
+    animId = requestAnimationFrame(draw);
+  }
+
+  animId = requestAnimationFrame(draw);
+
+  return function stop() {
+    if (animId) cancelAnimationFrame(animId);
+  };
+}
+
 function runSplash() {
   var splash = document.getElementById('splash-screen');
-  var logoBox = document.getElementById('splash-logo-box');
-  var ring = document.getElementById('splash-ring');
-  var ring2 = document.getElementById('splash-ring-2');
-
   if (!splash) { launchApp(); return; }
 
-  // Ma'lumotlarni fonda oldindan tayyorlab qo'yish
+  var stopCanvas = startSplashCanvas();
+  var progressBar = document.getElementById('splash-progress-bar');
+  var statusText = document.getElementById('splash-status-text');
+  var statusPercent = document.getElementById('splash-status-percent');
+  var logoBox = document.getElementById('splash-logo-box');
+  var pulseWave = document.getElementById('splash-pulse-wave');
+
+  // Ma'lumotlarni fonda oldindan yuklash
   launchApp();
 
-  // 1.0s — Muvaffaqiyatli tekshiruv (checkmark) animatsiyasi
-  setTimeout(function() {
-    if (logoBox) logoBox.classList.add('success');
-    if (ring) ring.classList.add('success');
-    if (ring2) ring2.classList.add('success');
-  }, 1000);
+  function triggerHaptic(type) {
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      try {
+        if (type === 'success') {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        } else {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+        }
+      } catch(e) {}
+    }
+  }
 
-  // 1.8s — Yumshoq tarzda asosiy ilovaga o'tish (fade-out)
+  function setProgress(pct, text, haptic) {
+    if (progressBar) progressBar.style.width = pct + '%';
+    if (statusPercent) statusPercent.textContent = pct + '%';
+    if (statusText && text) statusText.textContent = text;
+    if (haptic) triggerHaptic(haptic);
+  }
+
+  // 1-bosqich: 0ms
+  setProgress(18, 'Tizim ishga tushirilmoqda...', 'light');
+
+  // 2-bosqich: 380ms
   setTimeout(function() {
-    if (splash) splash.classList.add('hide-splash');
+    setProgress(52, 'Matematik modellar yuklanmoqda...', null);
+  }, 380);
+
+  // 3-bosqich: 820ms
+  setTimeout(function() {
+    setProgress(85, 'Rasch tahlil moduli faol...', 'light');
+  }, 820);
+
+  // 4-bosqich: 1250ms — 100% Tayyor & Super-charge flash!
+  setTimeout(function() {
+    setProgress(100, 'Tayyor! Xush kelibsiz! ⚡', 'success');
+    if (logoBox) logoBox.classList.add('ready');
+    if (pulseWave) {
+      pulseWave.classList.remove('fire');
+      void pulseWave.offsetWidth; // reflow
+      pulseWave.classList.add('fire');
+    }
+  }, 1250);
+
+  // 5-bosqich: 1750ms — Portal warp silliq o'tishi
+  setTimeout(function() {
+    splash.classList.add('portal-warp-exit');
     setTimeout(function() {
-      if (splash) splash.style.display = 'none';
+      if (stopCanvas) stopCanvas();
+      splash.style.display = 'none';
 
       // Kirish animatsiyasi 100% tugagachgina tekshirish
       var isUnreg = checkRegistrationStatus();
       if (!isUnreg && !localStorage.getItem('onboarding_nav_tour_seen')) {
         setTimeout(function() {
           openOnboardingModal();
-        }, 350);
+        }, 300);
       }
-    }, 450);
-  }, 1800);
+    }, 550);
+  }, 1750);
 }
 
 // ── PIN SYSTEM ──────────────────────────────────
