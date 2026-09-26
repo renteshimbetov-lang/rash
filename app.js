@@ -1347,8 +1347,8 @@ function openAdminUserModal(targetUid) {
   var lastTestStr = u.last_test_at ? formatDate(u.last_test_at) : 'Hali test topshirmagan';
   var usernameStr = u.username ? ('@' + u.username) : 'Mavjud emas';
 
-  // Harakat tugmalari (Action buttons)
-  var actionButtonsHtml = '<div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">';
+  // Harakat tugmalari (Action buttons) - Birinchi o'rinda ko'rinadi
+  var actionButtonsHtml = '<div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">';
 
   if (st !== 'approved') {
     actionButtonsHtml += '<button class="admin-btn-action admin-btn-approve" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'approved\')">✅ Ruxsat berish (Faollashtirish)</button>';
@@ -1365,23 +1365,55 @@ function openAdminUserModal(targetUid) {
   actionButtonsHtml += '<button class="admin-btn-action admin-btn-delete" onclick="updateUserStatusFromModal(' + u.tg_id + ', \'delete\')">🗑 Bazadan butunlay o\'chirish</button>';
   actionButtonsHtml += '</div>';
 
+  // Foydalanuvchi ma'lumotlari (Akkordeon / Ko'rsatish-Yashirish)
+  var infoToggleHtml =
+    '<button type="button" class="admin-user-info-toggle-btn" id="btn-toggle-user-info" onclick="toggleAdminUserInfo()">' +
+      '<span class="info-toggle-left">' +
+        '<span style="font-size:15px;">📋</span>' +
+        '<span>Foydalanuvchi ma\'lumotlari</span>' +
+      '</span>' +
+      '<span class="info-toggle-arrow" id="info-toggle-arrow">Ko\'rsatish ▼</span>' +
+    '</button>' +
+    '<div id="admin-user-info-content" class="admin-user-info-content" style="display:none;">' +
+      '<div class="card" style="margin:0;padding:10px 14px;border-radius:14px;background:var(--bg-glass-2);border:1px solid var(--border);">' +
+        '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📱</div><div><div class="info-label" style="font-size:11px;">Telefon raqami</div><div class="info-value" style="font-size:14px;font-weight:700;"><a href="tel:' + escHtml(u.phone || '') + '" style="color:var(--primary);text-decoration:none;">' + escHtml(u.phone || '—') + '</a></div></div></div>' +
+        '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🆔</div><div><div class="info-label" style="font-size:11px;">Telegram ID</div><div class="info-value" style="font-size:14px;font-weight:700;"><code>' + u.tg_id + '</code></div></div></div>' +
+        '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🔗</div><div><div class="info-label" style="font-size:11px;">Username</div><div class="info-value" style="font-size:14px;font-weight:700;">' + escHtml(usernameStr) + '</div></div></div>' +
+        '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🕒</div><div><div class="info-label" style="font-size:11px;">Roʻyxatdan oʻtgan vaqti</div><div class="info-value" style="font-size:13.5px;font-weight:700;color:var(--primary);">' + regDateStr + '</div></div></div>' +
+        '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📝</div><div><div class="info-label" style="font-size:11px;">Topshirgan testlari soni</div><div class="info-value" style="font-size:14px;font-weight:700;">' + (u.tests_count || 0) + ' ta</div></div></div>' +
+        '<div class="info-row" style="padding:9px 0;border-bottom:none;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">⏱</div><div><div class="info-label" style="font-size:11px;">Oxirgi test topshirgan vaqti</div><div class="info-value" style="font-size:13px;font-weight:600;">' + lastTestStr + '</div></div></div>' +
+      '</div>' +
+    '</div>';
+
   body.innerHTML =
-    '<div style="text-align:center;padding:4px 0 14px;">' +
-      '<div class="profile-avatar" style="margin:0 auto 10px;width:56px;height:56px;font-size:24px;display:flex;align-items:center;justify-content:center;">' + letter + '</div>' +
-      '<div style="font-size:17px;font-weight:800;color:var(--text);">' + escHtml(u.fullname || 'Foydalanuvchi') + '</div>' +
+    '<div style="text-align:center;padding:2px 0 10px;">' +
+      '<div class="profile-avatar" style="margin:0 auto 8px;width:52px;height:52px;font-size:22px;display:flex;align-items:center;justify-content:center;">' + letter + '</div>' +
+      '<div style="font-size:16.5px;font-weight:800;color:var(--text);">' + escHtml(u.fullname || 'Foydalanuvchi') + '</div>' +
       '<div style="margin-top:6px;">' + statusBadge + '</div>' +
     '</div>' +
-    '<div class="card" style="margin:0;padding:10px 14px;border-radius:14px;background:var(--bg-glass-2);border:1px solid var(--border);">' +
-      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📱</div><div><div class="info-label" style="font-size:11px;">Telefon raqami</div><div class="info-value" style="font-size:14px;font-weight:700;"><a href="tel:' + escHtml(u.phone || '') + '" style="color:var(--primary);text-decoration:none;">' + escHtml(u.phone || '—') + '</a></div></div></div>' +
-      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🆔</div><div><div class="info-label" style="font-size:11px;">Telegram ID</div><div class="info-value" style="font-size:14px;font-weight:700;"><code>' + u.tg_id + '</code></div></div></div>' +
-      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🔗</div><div><div class="info-label" style="font-size:11px;">Username</div><div class="info-value" style="font-size:14px;font-weight:700;">' + escHtml(usernameStr) + '</div></div></div>' +
-      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">🕒</div><div><div class="info-label" style="font-size:11px;">Roʻyxatdan oʻtgan vaqti</div><div class="info-value" style="font-size:13.5px;font-weight:700;color:var(--primary);">' + regDateStr + '</div></div></div>' +
-      '<div class="info-row" style="padding:9px 0;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">📝</div><div><div class="info-label" style="font-size:11px;">Topshirgan testlari soni</div><div class="info-value" style="font-size:14px;font-weight:700;">' + (u.tests_count || 0) + ' ta</div></div></div>' +
-      '<div class="info-row" style="padding:9px 0;border-bottom:none;"><div class="info-icon" style="width:32px;height:32px;font-size:16px;">⏱</div><div><div class="info-label" style="font-size:11px;">Oxirgi test topshirgan vaqti</div><div class="info-value" style="font-size:13px;font-weight:600;">' + lastTestStr + '</div></div></div>' +
-    '</div>' +
-    actionButtonsHtml;
+    actionButtonsHtml +
+    infoToggleHtml;
 
   modal.style.display = 'flex';
+}
+
+function toggleAdminUserInfo() {
+  var content = document.getElementById('admin-user-info-content');
+  var arrow = document.getElementById('info-toggle-arrow');
+  if (!content) return;
+  var isHidden = content.style.display === 'none' || content.style.display === '';
+  if (isHidden) {
+    content.style.display = 'block';
+    if (arrow) arrow.innerHTML = 'Yashirish ▲';
+  } else {
+    content.style.display = 'none';
+    if (arrow) arrow.innerHTML = 'Ko\'rsatish ▼';
+  }
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try {
+      window.Telegram.WebApp.HapticFeedback.selectionChanged();
+    } catch(e) {}
+  }
 }
 
 function closeAdminUserModal(e) {
