@@ -909,11 +909,11 @@ async def do_delete_my_account_handler(call: CallbackQuery, state: FSMContext):
 async def show_help(message: Message):
     contact_kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✍️ Adminga murojaat (@eshmbetov)", url="https://t.me/eshmbetov")],
-        [make_webapp_button("📱 BM Test Mini App", f"{WEBAPP_URL}/app.html")]
+        [make_webapp_button("📱 Shohruh Matematika (Mini App)", f"{WEBAPP_URL}/app.html")]
     ])
     await message.answer(
         "ℹ️ <b>YORDAM VA QO'LLAB-QUVVATLASH</b>\n\n"
-        "🎓 <b>BUXORIYLAR MAKTABI — BM RASH TEST</b>\n\n"
+        "🎓 <b>SHOHRUH MATEMATIKA — RASH TEST</b>\n\n"
         "Ushbu tizim orqali siz:\n"
         "• Milliy sertifikat formatidagi 55 talik testlarni yechishingiz;\n"
         "• Virtual matematik klaviaturadan foydalanib yozma javoblarni kiritishingiz;\n"

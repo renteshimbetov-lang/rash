@@ -135,6 +135,12 @@ function initApp() {
     console.error('initApp error:', err);
   }
 
+  if (window.BM_LOGO_B64) {
+    document.querySelectorAll('.splash-logo-img, .header-logo-img, .header-bm-logo').forEach(function(img) {
+      img.src = window.BM_LOGO_B64;
+    });
+  }
+
   runSplash();
 }
 

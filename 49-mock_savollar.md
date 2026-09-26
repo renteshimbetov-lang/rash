@@ -1,4 +1,4 @@
-# BUXORIYLAR MAKTABI — 49-MILLIY SERTIFIKAT MOCK TESTI SAVOLLARI
+# SHOHRUH MATEMATIKA — 49-MILLIY SERTIFIKAT MOCK TESTI SAVOLLARI
 
 > Ushbu faylda barcha 45 ta savol to'liq keltirilgan. 33-savol sharti: **«Konus asosi radiusining yarmini toping.»** deb to'g'rilangan.
 
@@ -67,7 +67,7 @@ C) 7800$
 D) 7200$ 
  
  
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 2-sahifa
@@ -136,7 +136,7 @@ A) 8
 B) 9 
 C) 10 
 D) 12 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 3-sahifa
@@ -205,7 +205,7 @@ D) 0
  
  
  
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 4-sahifa
@@ -262,7 +262,7 @@ D) 2 ta
  
  
  
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 5-sahifa
@@ -322,7 +322,7 @@ D) 0
 𝑔ሺ𝑥ሻ= −3𝑥−3 
 𝑓ሺ𝑥ሻ= 𝑎𝑥3 + 𝑏𝑥2 + 𝑐𝑥+ 𝑑 
 1 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 6-sahifa
@@ -390,7 +390,7 @@ D) √15
 12 
 9 
 20 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 7-sahifa
@@ -445,7 +445,7 @@ D) 24 m
 𝐷 
 𝐸 
 𝐹 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 8-sahifa
@@ -476,7 +476,7 @@ D) 720
  
  
  
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 9-sahifa
@@ -529,7 +529,7 @@ F) 128
 𝑂 
 𝑇 
 𝑆 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 33. Konus asosi radiusining yarmini toping.
 
 ---
@@ -577,7 +577,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
  
  
  
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 11-sahifa
@@ -613,7 +613,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
 𝐴 
 𝑥1 
 𝑥2 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 12-sahifa
@@ -642,7 +642,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
 𝑦= 𝑓′ሺ𝑥ሻ 
 1 −𝑟𝑎𝑠𝑚 
 2 −𝑟𝑎𝑠𝑚 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 13-sahifa
@@ -677,7 +677,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
 2 
 −1 
 𝑦= 𝑓ሺ𝑥ሻ 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 14-sahifa
@@ -704,7 +704,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
 𝐵 
 4 
 30° 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 15-sahifa
@@ -734,7 +734,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
 𝐵 
 𝐸 
 𝐹 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 16-sahifa
@@ -762,7 +762,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
 𝑁 
 𝐾 
 𝐿 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 17-sahifa
@@ -790,7 +790,7 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
  
  
  
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi
 
 ---
 ### 📄 18-sahifa
@@ -820,4 +820,4 @@ Diqqat! Javoblaringizni javoblar varaqasiga ko’chirib yozing.
 𝑥 
 𝑦 
 𝑦= 𝑓ሺ𝑥ሻ 
-Buxoriylar Maktabi · Milliy Sertifikat Test Markazi
+Shohruh Matematika · Milliy Sertifikat Test Markazi

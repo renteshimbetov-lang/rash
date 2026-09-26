@@ -5,6 +5,12 @@ const AdminApp = {
   answers: {}, // {"1": {"ans": ""}, ...} — ball Rasch tomonidan avtomatik hisoblanadi
 
   init() {
+    if (window.BM_LOGO_B64) {
+      document.querySelectorAll('.header-bm-logo').forEach(img => {
+        img.src = window.BM_LOGO_B64;
+      });
+    }
+
     if (window.Telegram && window.Telegram.WebApp) {
       window.Telegram.WebApp.ready();
       window.Telegram.WebApp.expand();

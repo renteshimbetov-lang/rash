@@ -82,12 +82,23 @@ const TestApp = {
     if (codeEl) codeEl.textContent = `KOD: #${this.testCode}`;
     if (userEl) userEl.innerHTML = `Ishtirokchi: <strong>${this.userFullname}</strong>`;
 
+    if (barEl) {
+      barEl.style.width = '30%';
+      setTimeout(() => { if (barEl) barEl.style.width = '85%'; }, 350);
+      setTimeout(() => { if (barEl) barEl.style.width = '100%'; }, 750);
+    }
+    if (statusEl) {
+      setTimeout(() => {
+        if (statusEl) statusEl.innerHTML = '<span>🚀 Test tizimi tayyorlandi!</span>';
+      }, 700);
+    }
+
     setTimeout(() => {
       splash.classList.add('fade-out');
       setTimeout(() => {
         splash.style.display = 'none';
-      }, 200);
-    }, 250);
+      }, 450);
+    }, 1150);
   },
 
   toggleTheme() {
