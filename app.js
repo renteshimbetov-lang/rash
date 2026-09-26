@@ -680,7 +680,8 @@ var ADMIN_QUICK_TEMPLATES = {
   '30m': "⏳ Diqqat! Test boshlanishiga 30 daqiqa qoldi! Internet aloqangizni tekshirib, qoralama qog'ozlarni tayyorlab oling.",
   '10m': "⚠️ Test boshlanishiga 10 daqiqa qoldi! Mini ilovaga kirib, tayyor bo'lib turing.",
   'started': "🚀 Test boshlandi! Barchaga omad tilaymiz. Belgilangan vaqt ichida javoblarni topshirishni unutmang.",
-  '15m': "⏰ Diqqat, test yakunlanishiga 15 daqiqa qoldi! Qolgan javoblarni tekshirib, topshirishga shoshiling."
+  '15m': "⏰ Diqqat, test yakunlanishiga 15 daqiqa qoldi! Qolgan javoblarni tekshirib, topshirishga shoshiling.",
+  'ended': "🛑 Test yakunlandi! Javoblarni qabul qilish to'xtatildi. Ishtirok etgan barcha o'quvchilarga minnatdorchilik bildiramiz. Tez orada to'liq tahlil va rasmiy natijalar e'lon qilinadi."
 };
 
 function getActiveOrPlannedTestCode() {
@@ -696,7 +697,7 @@ function applyQuickTemplate(type) {
   if (!textarea) return;
 
   var text = ADMIN_QUICK_TEMPLATES[type] || '';
-  if (type === 'started') {
+  if (type === 'started' || type === 'ended') {
     var code = getActiveOrPlannedTestCode();
     var codeDisplay = code ? (code.startsWith('#') ? code : ('#' + code)) : '#TEST_KODI';
     text = text + "\n\n📌 Test kodi: " + codeDisplay;
@@ -843,6 +844,10 @@ function renderAdminTab() {
           '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-15m" onclick="applyQuickTemplate(\'15m\')">' +
             '<span class="tmpl-icon">⏰</span>' +
             '<span class="tmpl-text">15 daqiqa qoldi</span>' +
+          '</button>' +
+          '<button type="button" class="quick-tmpl-btn" id="tmpl-btn-ended" onclick="applyQuickTemplate(\'ended\')">' +
+            '<span class="tmpl-icon">🛑</span>' +
+            '<span class="tmpl-text">Test yakunlandi</span>' +
           '</button>' +
         '</div>' +
       '</div>' +

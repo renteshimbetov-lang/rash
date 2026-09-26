@@ -1392,6 +1392,29 @@ def get_broadcast_started_text() -> str:
         f"📌 <b>Test kodi:</b> <code>{code_display}</code>"
     )
 
+def get_broadcast_ended_text() -> str:
+    active_tests = test_db.get_active_tests()
+    test_code = ""
+    title = ""
+    if active_tests:
+        test_code = active_tests[0].get("test_code", "")
+        title = active_tests[0].get("title", "")
+    if not test_code:
+        all_tests = test_db.get_all_tests()
+        if all_tests:
+            test_code = all_tests[0].get("test_code", "")
+            title = all_tests[0].get("title", "")
+    
+    code_display = f"#{test_code}" if test_code and not str(test_code).startswith("#") else (str(test_code) or "#TEST_KODI")
+    title_line = f"📖 <b>Test:</b> {title}\n" if title else ""
+    return (
+        "🛑 <b>Test yakunlandi!</b>\n\n"
+        "Javoblarni qabul qilish to'xtatildi. Ishtirok etgan barcha o'quvchilarga minnatdorchilik bildiramiz.\n\n"
+        f"{title_line}"
+        f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n\n"
+        "📊 <i>Tez orada to'liq tahlil va rasmiy natijalar e'lon qilinadi. Mini ilovaga kirib yangiliklarni kuzatib boring!</i>"
+    )
+
 BROADCAST_TEMPLATES = {
     "30m": {
         "title": "⏳ 30 daqiqa qoldi",
@@ -1408,6 +1431,10 @@ BROADCAST_TEMPLATES = {
     "15m": {
         "title": "⏰ 15 daqiqa qoldi",
         "text": "⏰ <b>Diqqat, test yakunlanishiga 15 daqiqa qoldi!</b>\n\nQolgan javoblarni tekshirib, topshirishga shoshiling."
+    },
+    "ended": {
+        "title": "🛑 Test yakunlandi",
+        "get_text": get_broadcast_ended_text
     }
 }
 
@@ -1425,7 +1452,8 @@ async def admin_broadcast_menu_cb(call: CallbackQuery, state: FSMContext):
         f"⏳ <b>30 daqiqa qoldi:</b> Test boshlanishiga 30 daqiqa ogohlantirishi\n"
         f"⚠️ <b>10 daqiqa qoldi:</b> Test boshlanishiga 10 daqiqa ogohlantirishi\n"
         f"🚀 <b>Test boshlandi:</b> Test kodi bilan boshlanganlik xabari\n"
-        f"⏰ <b>15 daqiqa qoldi:</b> Test yakunlanishiga 15 daqiqa ogohlantirishi\n\n"
+        f"⏰ <b>15 daqiqa qoldi:</b> Test yakunlanishiga 15 daqiqa ogohlantirishi\n"
+        f"🛑 <b>Test yakunlandi:</b> Test yakunlanganlik xabari\n\n"
         f"🛠 <b>Texnik profilaktika:</b> Tizim ta'mirlash xabarlari\n"
         f"✍️ <b>Erkin xabar:</b> O'zingiz matn yoki rasm yuborishingiz mumkin"
     )
@@ -1437,6 +1465,9 @@ async def admin_broadcast_menu_cb(call: CallbackQuery, state: FSMContext):
         [
             InlineKeyboardButton(text="🚀 Test boshlandi", callback_data="adm_bc_tmpl_started"),
             InlineKeyboardButton(text="⏰ 15 daqiqa qoldi", callback_data="adm_bc_tmpl_15m")
+        ],
+        [
+            InlineKeyboardButton(text="🛑 Test yakunlandi", callback_data="adm_bc_tmpl_ended")
         ],
         [
             InlineKeyboardButton(text="🛠 1. Texnik ishlar boshlandi", callback_data="adm_bc_preview_start"),
@@ -3545,6 +3576,19 @@ async def schedule_checker():
                     test_db.set_test_active_status(test_id, 0)
                     test_db.clear_test_schedule(test_id)
                     log.info(f"⏰ Test #{test_id} avtomatik to'xtatildi ({send})")
+
+                    # Barcha o'quvchilarga test yakunlanganligi haqida avtomatik xabar tarqatish
+                    msg_ended = (
+                        "🛑 <b>Test yakunlandi!</b>\n\n"
+                        "Javoblarni qabul qilish to'xtatildi. Ishtirok etgan barcha o'quvchilarga minnatdorchilik bildiramiz.\n\n"
+                        f"📖 <b>Test:</b> {test_title}\n"
+                        f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n"
+                        f"🕕 <b>Tugash vaqti:</b> {send} (UZB)\n\n"
+                        "📊 <i>Tez orada to'liq tahlil va rasmiy natijalar e'lon qilinadi! Mini ilovaga kirib yangiliklarni kuzatib boring.</i>"
+                    )
+                    sent, fail = await send_broadcast_to_users(message_text=msg_ended)
+                    log.info(f"⏰ Test #{test_id} yakunlanganlik xabari {sent} nafar o'quvchiga tarqatildi")
+
                     try:
                         await bot.send_message(
                             chat_id=ADMIN_ID,
@@ -3553,8 +3597,8 @@ async def schedule_checker():
                                 f"📖 <b>{test_title}</b>\n"
                                 f"📌 Test kodi: <code>{code_display}</code>\n"
                                 f"🕕 Tugash vaqti: <b>{send}</b>\n\n"
-                                f"🔴 Test to'xtatildi. O'quvchilar endi javob bera olmaydi.\n"
-                                f"📊 Natijalarni e'lon qilish uchun: /admin → Testlar"
+                                f"🛑 Test to'xtatildi va barcha o'quvchilarga yakunlanganlik xabari tarqatildi ({sent} ta).\n"
+                                f"📊 Natijalarni hisoblash va e'lon qilish uchun: <b>/admin</b> → Testlar"
                             )
                         )
                     except Exception:
