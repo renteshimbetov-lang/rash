@@ -23,19 +23,21 @@ _pg_pool = None
 _pool_connections = set()
 
 def _get_pg_pool():
-    """PostgreSQL connection pool — bir marta yaratiladi, qayta ishlatiladi."""
+    """PostgreSQL connection pool — bir marta yaratiladi, qayta ishlatiladi.
+    minconn=2, maxconn=20: Neon/Render bepul tarifi doirasida bir vaqtda yuqori yuklamani ko'tara olishi uchun.
+    """
     global _pg_pool
     if _pg_pool is None:
         try:
             import psycopg2.pool
-            _pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=8, dsn=DATABASE_URL)
+            _pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=2, maxconn=20, dsn=DATABASE_URL)
         except Exception as e:
             print(f"Connection pool xatolik: {e}")
             _pg_pool = None
     return _pg_pool
 
 def _close_conn(conn):
-    """Ulanishni pool ga qaytarish yoki yopish."""
+    """Ulanishni pool ga qaytarish yoki yopish (Connection Leak va Abort tranzaksiyalarning oldini oladi)."""
     if conn is None:
         return
     conn_id = id(conn)
@@ -44,12 +46,23 @@ def _close_conn(conn):
         pool = _get_pg_pool()
         if pool:
             try:
+                # Agar tranzaksiya ochiq yoki xatolik bilan to'xtab qolgan bo'lsa, rollback qilib tozalash
+                if hasattr(conn, "closed") and not conn.closed:
+                    if not getattr(conn, "autocommit", False):
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
                 pool.putconn(conn)
                 return
             except Exception:
                 pass
     try:
-        conn.close()
+        if hasattr(conn, "closed"):
+            if not conn.closed:
+                conn.close()
+        else:
+            conn.close()
     except Exception:
         pass
 
@@ -140,195 +153,213 @@ def _ph() -> str:
 
 def init_db():
     conn = get_connection()
-    cur = conn.cursor()
+    try:
+        cur = conn.cursor()
 
-    if USE_POSTGRES:
-        # PostgreSQL jadvallar
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            tg_id BIGINT UNIQUE NOT NULL,
-            fullname TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            username TEXT,
-            status TEXT DEFAULT 'pending',
-            pin_code TEXT,
-            registered_at BIGINT NOT NULL
-        )
-        """)
+        if USE_POSTGRES:
+            # PostgreSQL jadvallar
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                tg_id BIGINT UNIQUE NOT NULL,
+                fullname TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                username TEXT,
+                status TEXT DEFAULT 'pending',
+                pin_code TEXT,
+                registered_at BIGINT NOT NULL
+            )
+            """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS tests (
-            id SERIAL PRIMARY KEY,
-            test_code TEXT UNIQUE NOT NULL,
-            title TEXT NOT NULL,
-            subject TEXT DEFAULT 'Matematika',
-            pdf_file_id TEXT,
-            pdf_file_name TEXT,
-            answers_json TEXT NOT NULL,
-            total_questions INTEGER DEFAULT 45,
-            time_limit_min INTEGER DEFAULT 0,
-            is_active INTEGER DEFAULT 1,
-            key_access_code TEXT,
-            results_published INTEGER DEFAULT 0,
-            created_at BIGINT NOT NULL,
-            created_by BIGINT DEFAULT 0,
-            created_by_name TEXT DEFAULT ''
-        )
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS tests (
+                id SERIAL PRIMARY KEY,
+                test_code TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                subject TEXT DEFAULT 'Matematika',
+                pdf_file_id TEXT,
+                pdf_file_name TEXT,
+                answers_json TEXT NOT NULL,
+                total_questions INTEGER DEFAULT 45,
+                time_limit_min INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                key_access_code TEXT,
+                results_published INTEGER DEFAULT 0,
+                created_at BIGINT NOT NULL,
+                created_by BIGINT DEFAULT 0,
+                created_by_name TEXT DEFAULT ''
+            )
+            """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS submissions (
-            id SERIAL PRIMARY KEY,
-            test_id INTEGER NOT NULL REFERENCES tests(id),
-            test_code TEXT NOT NULL,
-            user_tg_id BIGINT NOT NULL,
-            fullname TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            answers_json TEXT NOT NULL,
-            score REAL NOT NULL,
-            max_score REAL DEFAULT 100.0,
-            correct_count INTEGER NOT NULL,
-            total_count INTEGER DEFAULT 45,
-            details_json TEXT NOT NULL,
-            submitted_at BIGINT NOT NULL
-        )
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS submissions (
+                id SERIAL PRIMARY KEY,
+                test_id INTEGER NOT NULL REFERENCES tests(id),
+                test_code TEXT NOT NULL,
+                user_tg_id BIGINT NOT NULL,
+                fullname TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                answers_json TEXT NOT NULL,
+                score REAL NOT NULL,
+                max_score REAL DEFAULT 100.0,
+                correct_count INTEGER NOT NULL,
+                total_count INTEGER DEFAULT 45,
+                details_json TEXT NOT NULL,
+                submitted_at BIGINT NOT NULL
+            )
+            """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS admins (
-            tg_id BIGINT PRIMARY KEY,
-            fullname TEXT,
-            username TEXT,
-            added_by BIGINT,
-            created_at BIGINT NOT NULL
-        )
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS admins (
+                tg_id BIGINT PRIMARY KEY,
+                fullname TEXT,
+                username TEXT,
+                added_by BIGINT,
+                created_at BIGINT NOT NULL
+            )
+            """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS system_settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """)
 
-        # Bosh adminni qo'shish (ON CONFLICT — PostgreSQL)
-        cur.execute("""
-        INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
-        VALUES (%s, %s, %s, %s, %s)
-        ON CONFLICT (tg_id) DO NOTHING
-        """, (8039427064, 'Bosh Admin', 'admin', 0, 1789300000))
+            # Bosh adminni qo'shish (ON CONFLICT — PostgreSQL)
+            cur.execute("""
+            INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (tg_id) DO NOTHING
+            """, (8039427064, 'Bosh Admin', 'admin', 0, 1789300000))
 
-    else:
-        # SQLite jadvallar (fallback)
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tg_id INTEGER UNIQUE NOT NULL,
-            fullname TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            username TEXT,
-            status TEXT DEFAULT 'pending',
-            pin_code TEXT,
-            registered_at INTEGER NOT NULL
-        )
-        """)
+            # PostgreSQL indekslar (Tezkor qidiruv va yuklamaga chidamlilik)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_tg_id ON users(tg_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_tg_id ON submissions(user_tg_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_test_id ON submissions(test_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_test_code ON tests(test_code)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_is_active ON tests(is_active)")
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS tests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            test_code TEXT UNIQUE NOT NULL,
-            title TEXT NOT NULL,
-            subject TEXT DEFAULT 'Matematika',
-            pdf_file_id TEXT,
-            pdf_file_name TEXT,
-            answers_json TEXT NOT NULL,
-            total_questions INTEGER DEFAULT 45,
-            time_limit_min INTEGER DEFAULT 0,
-            is_active INTEGER DEFAULT 1,
-            key_access_code TEXT,
-            results_published INTEGER DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            created_by INTEGER DEFAULT 0,
-            created_by_name TEXT DEFAULT ''
-        )
-        """)
+        else:
+            # SQLite jadvallar (fallback)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tg_id INTEGER UNIQUE NOT NULL,
+                fullname TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                username TEXT,
+                status TEXT DEFAULT 'pending',
+                pin_code TEXT,
+                registered_at INTEGER NOT NULL
+            )
+            """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS submissions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            test_id INTEGER NOT NULL,
-            test_code TEXT NOT NULL,
-            user_tg_id INTEGER NOT NULL,
-            fullname TEXT NOT NULL,
-            phone TEXT NOT NULL,
-            answers_json TEXT NOT NULL,
-            score REAL NOT NULL,
-            max_score REAL DEFAULT 100.0,
-            correct_count INTEGER NOT NULL,
-            total_count INTEGER DEFAULT 45,
-            details_json TEXT NOT NULL,
-            submitted_at INTEGER NOT NULL,
-            FOREIGN KEY(test_id) REFERENCES tests(id)
-        )
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS tests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_code TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                subject TEXT DEFAULT 'Matematika',
+                pdf_file_id TEXT,
+                pdf_file_name TEXT,
+                answers_json TEXT NOT NULL,
+                total_questions INTEGER DEFAULT 45,
+                time_limit_min INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                key_access_code TEXT,
+                results_published INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                created_by INTEGER DEFAULT 0,
+                created_by_name TEXT DEFAULT ''
+            )
+            """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS admins (
-            tg_id INTEGER PRIMARY KEY,
-            fullname TEXT,
-            username TEXT,
-            added_by INTEGER,
-            created_at INTEGER NOT NULL
-        )
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                test_id INTEGER NOT NULL,
+                test_code TEXT NOT NULL,
+                user_tg_id INTEGER NOT NULL,
+                fullname TEXT NOT NULL,
+                phone TEXT NOT NULL,
+                answers_json TEXT NOT NULL,
+                score REAL NOT NULL,
+                max_score REAL DEFAULT 100.0,
+                correct_count INTEGER NOT NULL,
+                total_count INTEGER DEFAULT 45,
+                details_json TEXT NOT NULL,
+                submitted_at INTEGER NOT NULL,
+                FOREIGN KEY(test_id) REFERENCES tests(id)
+            )
+            """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS system_settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        )
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS admins (
+                tg_id INTEGER PRIMARY KEY,
+                fullname TEXT,
+                username TEXT,
+                added_by INTEGER,
+                created_at INTEGER NOT NULL
+            )
+            """)
 
-        cur.execute("""
-        INSERT OR IGNORE INTO admins (tg_id, fullname, username, added_by, created_at)
-        VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
-        """)
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """)
 
-    # Jadval vaqt va qo'shimcha ustunlar migration (mavjud bo'lsa xato bermaydi)
-    if USE_POSTGRES:
-        for col, coltype in [
-            ("scheduled_date", "TEXT"),
-            ("scheduled_start", "TEXT"),
-            ("scheduled_end", "TEXT"),
-            ("created_by", "BIGINT"),
-            ("created_by_name", "TEXT"),
-            ("auto_notified", "TEXT"),
-            ("youtube_url", "TEXT"),
-        ]:
-            try:
-                cur.execute(f"ALTER TABLE tests ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT NULL")
-                conn.commit()
-            except Exception:
-                conn.rollback()
-    else:
-        for col, coltype in [
-            ("scheduled_date", "TEXT"),
-            ("scheduled_start", "TEXT"),
-            ("scheduled_end", "TEXT"),
-            ("created_by", "INTEGER"),
-            ("created_by_name", "TEXT"),
-            ("auto_notified", "TEXT"),
-            ("youtube_url", "TEXT"),
-        ]:
-            try:
-                cur.execute(f"ALTER TABLE tests ADD COLUMN {col} {coltype} DEFAULT NULL")
-                conn.commit()
-            except Exception:
-                pass
+            cur.execute("""
+            INSERT OR IGNORE INTO admins (tg_id, fullname, username, added_by, created_at)
+            VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
+            """)
 
-    _commit_and_close(conn)
+            # SQLite indekslar (Tezkor qidiruv va yuklamaga chidamlilik)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_tg_id ON users(tg_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_user_tg_id ON submissions(user_tg_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_test_id ON submissions(test_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_test_code ON tests(test_code)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_is_active ON tests(is_active)")
 
+        # Jadval vaqt va qo'shimcha ustunlar migration (mavjud bo'lsa xato bermaydi)
+        if USE_POSTGRES:
+            for col, coltype in [
+                ("scheduled_date", "TEXT"),
+                ("scheduled_start", "TEXT"),
+                ("scheduled_end", "TEXT"),
+                ("created_by", "BIGINT"),
+                ("created_by_name", "TEXT"),
+                ("auto_notified", "TEXT"),
+                ("youtube_url", "TEXT"),
+            ]:
+                try:
+                    cur.execute(f"ALTER TABLE tests ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT NULL")
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+        else:
+            for col, coltype in [
+                ("scheduled_date", "TEXT"),
+                ("scheduled_start", "TEXT"),
+                ("scheduled_end", "TEXT"),
+                ("created_by", "INTEGER"),
+                ("created_by_name", "TEXT"),
+                ("auto_notified", "TEXT"),
+                ("youtube_url", "TEXT"),
+            ]:
+                try:
+                    cur.execute(f"ALTER TABLE tests ADD COLUMN {col} {coltype} DEFAULT NULL")
+                    conn.commit()
+                except Exception:
+                    pass
+
+        conn.commit()
+    finally:
+        _close_conn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -340,25 +371,26 @@ def set_test_schedule(test_id: int, scheduled_date: str, start_time: str, end_ti
     scheduled_date: "26.09.2026", start_time: "19:30", end_time: "22:00" (UZB vaqt)
     """
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(
             f"UPDATE tests SET scheduled_date={_ph()}, scheduled_start={_ph()}, scheduled_end={_ph()}, auto_notified='' WHERE id={_ph()}",
             (scheduled_date, start_time, end_time, test_id)
         )
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error set_test_schedule: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def mark_test_auto_notified(test_id: int, stage: str) -> bool:
     """Belgilangan bosqich (30m, 10m, started, 15m) xabari yuborilganini belgilash."""
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"SELECT auto_notified FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
         cur_val = (row[0] if isinstance(row, (list, tuple)) else row.get('auto_notified')) if row else ""
@@ -367,63 +399,67 @@ def mark_test_auto_notified(test_id: int, stage: str) -> bool:
         stages.add(stage)
         new_val = ",".join(stages)
         cur.execute(f"UPDATE tests SET auto_notified = {_ph()} WHERE id = {_ph()}", (new_val, test_id))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error mark_test_auto_notified: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def clear_test_schedule(test_id: int) -> bool:
     """Test jadvalini tozalash (avtomatik boshlanish bekor qilish)."""
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(
             f"UPDATE tests SET scheduled_date=NULL, scheduled_start=NULL, scheduled_end=NULL WHERE id={_ph()}",
             (test_id,)
         )
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error clear_test_schedule: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def set_test_youtube_url(test_id: int, url: str) -> bool:
     """Test uchun YouTube video tahlil havolasini saqlash yoki o'chirish."""
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         val = url.strip() if url and url.strip() else None
         cur.execute(
             f"UPDATE tests SET youtube_url = {_ph()} WHERE id = {_ph()}",
             (val, test_id)
         )
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error set_test_youtube_url: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def get_test_youtube_url(test_id: int) -> Optional[str]:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"SELECT youtube_url FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
-        _close_conn(conn)
         if row:
             d = _row_to_dict(row)
             return d.get("youtube_url")
+        return None
     except Exception as e:
         print(f"Error get_test_youtube_url: {e}")
+        return None
+    finally:
         _close_conn(conn)
-    return None
 
 
 def get_next_test_code() -> str:
@@ -457,13 +493,15 @@ def get_next_test_code() -> str:
 def get_scheduled_tests() -> List[Dict[str, Any]]:
     """Jadval vaqti belgilangan barcha testlarni qaytaradi."""
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT * FROM tests WHERE scheduled_start IS NOT NULL AND scheduled_end IS NOT NULL"
-    )
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM tests WHERE scheduled_start IS NOT NULL AND scheduled_end IS NOT NULL"
+        )
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -473,33 +511,38 @@ def get_scheduled_tests() -> List[Dict[str, Any]]:
 def get_setting(key: str, default: str = "") -> str:
     """Tizim sozlamasini olish."""
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"SELECT value FROM system_settings WHERE key = {_ph()}", (key,))
-    row = cur.fetchone()
-    _close_conn(conn)
-    if row:
-        val = row["value"] if isinstance(row, dict) else row[0]
-        return str(val)
-    return default
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT value FROM system_settings WHERE key = {_ph()}", (key,))
+        row = cur.fetchone()
+        if row:
+            val = row["value"] if isinstance(row, dict) else row[0]
+            return str(val)
+        return default
+    finally:
+        _close_conn(conn)
 
 
 def set_setting(key: str, value: str):
     """Tizim sozlamasini saqlash yoki yangilash."""
     conn = get_connection()
-    cur = conn.cursor()
-    if USE_POSTGRES:
-        cur.execute("""
-        INSERT INTO system_settings (key, value)
-        VALUES (%s, %s)
-        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-        """, (key, str(value)))
-    else:
-        cur.execute("""
-        INSERT INTO system_settings (key, value)
-        VALUES (?, ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value
-        """, (key, str(value)))
-    _commit_and_close(conn)
+    try:
+        cur = conn.cursor()
+        if USE_POSTGRES:
+            cur.execute("""
+            INSERT INTO system_settings (key, value)
+            VALUES (%s, %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (key, str(value)))
+        else:
+            cur.execute("""
+            INSERT INTO system_settings (key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """, (key, str(value)))
+        conn.commit()
+    finally:
+        _close_conn(conn)
 
 
 def is_maintenance_mode() -> bool:
@@ -515,11 +558,13 @@ def set_maintenance_mode(enabled: bool):
 def get_broadcast_users() -> List[Dict[str, Any]]:
     """Xabar tarqatish uchun faol foydalanuvchilar ro'yxati (bloklanmaganlar)."""
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT tg_id, fullname, status FROM users WHERE status NOT IN ('blocked', 'rejected')")
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT tg_id, fullname, status FROM users WHERE status NOT IN ('blocked', 'rejected')")
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -529,9 +574,9 @@ def get_broadcast_users() -> List[Dict[str, Any]]:
 def add_or_update_user(tg_id: int, fullname: str, phone: str,
                        username: Optional[str] = None, status: str = "approved") -> bool:
     conn = get_connection()
-    cur = conn.cursor()
-    now = int(time.time())
     try:
+        cur = conn.cursor()
+        now = int(time.time())
         if USE_POSTGRES:
             cur.execute("""
             INSERT INTO users (tg_id, fullname, phone, username, status, registered_at)
@@ -552,18 +597,19 @@ def add_or_update_user(tg_id: int, fullname: str, phone: str,
                 username=excluded.username,
                 status=CASE WHEN users.status = 'blocked' THEN 'blocked' ELSE excluded.status END
             """, (tg_id, fullname, phone, username, status, now))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error saving user: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def update_user_profile(tg_id: int, fullname: Optional[str] = None, phone: Optional[str] = None) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         updates = []
         params = []
         if fullname is not None:
@@ -573,26 +619,28 @@ def update_user_profile(tg_id: int, fullname: Optional[str] = None, phone: Optio
             updates.append(f"phone = {_ph()}")
             params.append(phone.strip())
         if not updates:
-            _close_conn(conn)
             return True
         params.append(tg_id)
         sql = f"UPDATE users SET {', '.join(updates)} WHERE tg_id = {_ph()}"
         cur.execute(sql, tuple(params))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error updating user profile: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()}", (tg_id,))
-    row = cur.fetchone()
-    _close_conn(conn)
-    return _row_to_dict(row)
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()}", (tg_id,))
+        row = cur.fetchone()
+        return _row_to_dict(row)
+    finally:
+        _close_conn(conn)
 
 
 def is_user_approved(tg_id: int, admin_id: int = 8039427064) -> bool:
@@ -604,85 +652,90 @@ def is_user_approved(tg_id: int, admin_id: int = 8039427064) -> bool:
 
 def approve_user(tg_id: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"UPDATE users SET status = 'approved' WHERE tg_id = {_ph()}", (tg_id,))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error approving user: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def reject_user(tg_id: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"UPDATE users SET status = 'rejected' WHERE tg_id = {_ph()}", (tg_id,))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error rejecting user: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def set_user_pin(tg_id: int, pin: str) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"UPDATE users SET pin_code = {_ph()} WHERE tg_id = {_ph()}", (pin, tg_id))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error setting PIN: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def get_user_pin(tg_id: int) -> Optional[str]:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"SELECT pin_code FROM users WHERE tg_id = {_ph()}", (tg_id,))
         row = cur.fetchone()
-        _close_conn(conn)
         if row:
             d = _row_to_dict(row)
             return d.get("pin_code") if d else None
         return None
     except Exception as e:
         print(f"Error getting PIN: {e}")
-        _close_conn(conn)
         return None
+    finally:
+        _close_conn(conn)
 
 
 def block_user(tg_id: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"UPDATE users SET status = 'blocked' WHERE tg_id = {_ph()}", (tg_id,))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error blocking user: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def set_user_pending(tg_id: int) -> bool:
     """Foydalanuvchi maqomini 'pending' (kutilmoqda) ga o'tkazadi."""
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"UPDATE users SET status = 'pending' WHERE tg_id = {_ph()}", (tg_id,))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error setting user pending: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def restrict_all_users(super_admin_id: int = 8039427064) -> int:
@@ -692,8 +745,8 @@ def restrict_all_users(super_admin_id: int = 8039427064) -> int:
     Qaytaradi: cheklangan foydalanuvchilar soni.
     """
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute("SELECT tg_id FROM admins")
         admin_rows = cur.fetchall()
         admin_ids = set()
@@ -718,46 +771,50 @@ def restrict_all_users(super_admin_id: int = 8039427064) -> int:
                 WHERE tg_id NOT IN ({placeholders}) AND status != 'pending'
             """, admin_list)
         count = cur.rowcount
-        _commit_and_close(conn)
+        conn.commit()
         return count
     except Exception as e:
         print(f"Error restricting all users: {e}")
-        _close_conn(conn)
         return 0
+    finally:
+        _close_conn(conn)
 
 
 def delete_user(tg_id: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"DELETE FROM submissions WHERE user_tg_id = {_ph()}", (tg_id,))
         cur.execute(f"DELETE FROM users WHERE tg_id = {_ph()}", (tg_id,))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error deleting user: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def get_users_count() -> Dict[str, int]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) as total FROM users")
-    total = (_row_to_dict(cur.fetchone()) or {}).get("total", 0)
-    cur.execute("SELECT COUNT(*) as approved FROM users WHERE status = 'approved'")
-    approved = (_row_to_dict(cur.fetchone()) or {}).get("approved", 0)
-    cur.execute("SELECT COUNT(*) as pending FROM users WHERE status = 'pending'")
-    pending = (_row_to_dict(cur.fetchone()) or {}).get("pending", 0)
-    cur.execute("SELECT COUNT(*) as blocked FROM users WHERE status = 'blocked'")
-    blocked = (_row_to_dict(cur.fetchone()) or {}).get("blocked", 0)
-    _close_conn(conn)
-    return {
-        "total": total,
-        "approved": approved,
-        "pending": pending,
-        "blocked": blocked
-    }
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as total FROM users")
+        total = (_row_to_dict(cur.fetchone()) or {}).get("total", 0)
+        cur.execute("SELECT COUNT(*) as approved FROM users WHERE status = 'approved'")
+        approved = (_row_to_dict(cur.fetchone()) or {}).get("approved", 0)
+        cur.execute("SELECT COUNT(*) as pending FROM users WHERE status = 'pending'")
+        pending = (_row_to_dict(cur.fetchone()) or {}).get("pending", 0)
+        cur.execute("SELECT COUNT(*) as blocked FROM users WHERE status = 'blocked'")
+        blocked = (_row_to_dict(cur.fetchone()) or {}).get("blocked", 0)
+        return {
+            "total": total,
+            "approved": approved,
+            "pending": pending,
+            "blocked": blocked
+        }
+    finally:
+        _close_conn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -770,9 +827,9 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
                 created_by: int = 0, created_by_name: str = "",
                 youtube_url: str = "") -> bool:
     conn = get_connection()
-    cur = conn.cursor()
-    now = int(time.time())
     try:
+        cur = conn.cursor()
+        now = int(time.time())
         if USE_POSTGRES:
             cur.execute("""
             INSERT INTO tests (test_code, title, subject, pdf_file_id, pdf_file_name,
@@ -817,55 +874,63 @@ def create_test(test_code: str, title: str, subject: str, answers: Dict[str, Any
             """, (test_code, title, subject, pdf_file_id, pdf_file_name,
                   json.dumps(answers, ensure_ascii=False), 45, time_limit_min,
                   key_access_code, now, created_by, created_by_name, youtube_url or None))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error creating/updating test: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def update_test_pdf(test_id: int, pdf_file_id: str, pdf_file_name: str) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(
             f"UPDATE tests SET pdf_file_id = {_ph()}, pdf_file_name = {_ph()} WHERE id = {_ph()}",
             (pdf_file_id, pdf_file_name, test_id)
         )
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error updating test pdf: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def get_active_tests() -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM tests WHERE is_active = 1 ORDER BY id DESC")
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM tests WHERE is_active = 1 ORDER BY id DESC")
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 def get_test_by_code(test_code: str) -> Optional[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"SELECT * FROM tests WHERE test_code = {_ph()}", (test_code,))
-    row = cur.fetchone()
-    _close_conn(conn)
-    return _row_to_dict(row)
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM tests WHERE test_code = {_ph()}", (test_code,))
+        row = cur.fetchone()
+        return _row_to_dict(row)
+    finally:
+        _close_conn(conn)
 
 
 def get_test_by_id(test_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"SELECT * FROM tests WHERE id = {_ph()}", (test_id,))
-    row = cur.fetchone()
-    _close_conn(conn)
-    return _row_to_dict(row)
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM tests WHERE id = {_ph()}", (test_id,))
+        row = cur.fetchone()
+        return _row_to_dict(row)
+    finally:
+        _close_conn(conn)
 
 
 get_test = get_test_by_id
@@ -873,129 +938,137 @@ get_test = get_test_by_id
 
 def get_all_tests() -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM tests ORDER BY id DESC")
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM tests ORDER BY id DESC")
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 def toggle_test_status(test_id: int) -> Optional[int]:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"SELECT is_active FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
         if not row:
-            _close_conn(conn)
             return None
         d = _row_to_dict(row)
         new_status = 0 if d["is_active"] == 1 else 1
         cur.execute(f"UPDATE tests SET is_active = {_ph()} WHERE id = {_ph()}", (new_status, test_id))
-        _commit_and_close(conn)
+        conn.commit()
         return new_status
     except Exception as e:
         print(f"Error toggling test: {e}")
-        _close_conn(conn)
         return None
+    finally:
+        _close_conn(conn)
 
 
 def set_test_active_status(test_id: int, status: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(
             f"UPDATE tests SET is_active = {_ph()} WHERE id = {_ph()}",
             (1 if status else 0, test_id)
         )
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error setting test active status: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def update_test_time_limit(test_id: int, time_limit_min: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(
             f"UPDATE tests SET time_limit_min = {_ph()} WHERE id = {_ph()}",
             (time_limit_min, test_id)
         )
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error updating test time limit: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def set_test_results_published(test_id: int, published: bool = True) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(
             f"UPDATE tests SET results_published = {_ph()} WHERE id = {_ph()}",
             (1 if published else 0, test_id)
         )
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error publishing results: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def is_test_results_published(test_id: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"SELECT results_published FROM tests WHERE id = {_ph()}", (test_id,))
         row = cur.fetchone()
-        _close_conn(conn)
         if row:
             d = _row_to_dict(row)
             return bool(d.get("results_published", 0))
         return False
     except Exception:
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def get_test_submissions_with_users(test_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"""
-    SELECT s.*, t.title as test_title, t.test_code, t.results_published, t.youtube_url
-    FROM submissions s
-    JOIN tests t ON s.test_id = t.id
-    WHERE s.test_id = {_ph()}
-    ORDER BY s.score DESC, s.submitted_at ASC
-    """, (test_id,))
-    rows = cur.fetchall()
-    _close_conn(conn)
-    out = []
-    for r in rows:
-        d = _row_to_dict(r)
-        if d:
-            d["grade"] = calculate_grade(d.get("score", 0.0))
-            out.append(d)
-    return out
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT s.*, t.title as test_title, t.test_code, t.results_published, t.youtube_url
+        FROM submissions s
+        JOIN tests t ON s.test_id = t.id
+        WHERE s.test_id = {_ph()}
+        ORDER BY s.score DESC, s.submitted_at ASC
+        """, (test_id,))
+        rows = cur.fetchall()
+        out = []
+        for r in rows:
+            d = _row_to_dict(r)
+            if d:
+                d["grade"] = calculate_grade(d.get("score", 0.0))
+                out.append(d)
+        return out
+    finally:
+        _close_conn(conn)
 
 
 def delete_test(test_id: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"DELETE FROM submissions WHERE test_id = {_ph()}", (test_id,))
         cur.execute(f"DELETE FROM tests WHERE id = {_ph()}", (test_id,))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception:
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -1006,18 +1079,20 @@ def is_admin(tg_id: int, super_admin_id: int = 8039427064) -> bool:
     if tg_id == super_admin_id:
         return True
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"SELECT tg_id FROM admins WHERE tg_id = {_ph()}", (tg_id,))
-    row = cur.fetchone()
-    _close_conn(conn)
-    return bool(row)
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT tg_id FROM admins WHERE tg_id = {_ph()}", (tg_id,))
+        row = cur.fetchone()
+        return bool(row)
+    finally:
+        _close_conn(conn)
 
 
 def add_admin(tg_id: int, fullname: str = "Admin", username: Optional[str] = None, added_by: int = 0) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
-    now = int(time.time())
     try:
+        cur = conn.cursor()
+        now = int(time.time())
         if USE_POSTGRES:
             cur.execute("""
             INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
@@ -1034,48 +1109,54 @@ def add_admin(tg_id: int, fullname: str = "Admin", username: Optional[str] = Non
                 fullname=excluded.fullname,
                 username=excluded.username
             """, (tg_id, fullname, username, added_by, now))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception as e:
         print(f"Error adding admin: {e}")
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def remove_admin(tg_id: int) -> bool:
     conn = get_connection()
-    cur = conn.cursor()
     try:
+        cur = conn.cursor()
         cur.execute(f"DELETE FROM admins WHERE tg_id = {_ph()}", (tg_id,))
-        _commit_and_close(conn)
+        conn.commit()
         return True
     except Exception:
-        _close_conn(conn)
         return False
+    finally:
+        _close_conn(conn)
 
 
 def get_all_admins() -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM admins ORDER BY created_at ASC")
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM admins ORDER BY created_at ASC")
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 def get_all_users() -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-    SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
-    FROM users u
-    LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
-    GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
-    ORDER BY u.registered_at DESC
-    """)
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+        SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
+        FROM users u
+        LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
+        GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
+        ORDER BY u.registered_at DESC
+        """)
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -1188,14 +1269,16 @@ def is_answer_matching(user_ans: Any, correct_ans: Any) -> bool:
 
 def get_user_submission_for_test(test_id: int, user_tg_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        f"SELECT * FROM submissions WHERE test_id = {_ph()} AND user_tg_id = {_ph()}",
-        (test_id, user_tg_id)
-    )
-    row = cur.fetchone()
-    _close_conn(conn)
-    return _row_to_dict(row)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT * FROM submissions WHERE test_id = {_ph()} AND user_tg_id = {_ph()}",
+            (test_id, user_tg_id)
+        )
+        row = cur.fetchone()
+        return _row_to_dict(row)
+    finally:
+        _close_conn(conn)
 
 
 def get_key_and_score(q_data: Any, default_score: float) -> tuple:
@@ -1241,10 +1324,14 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
         if existing:
             if is_admin(user_tg_id, ADMIN_ID):
                 conn_del = get_connection()
-                conn_del.cursor().execute(
-                    f"DELETE FROM submissions WHERE id = {_ph()}", (existing["id"],)
-                )
-                _commit_and_close(conn_del)
+                try:
+                    cur_del = conn_del.cursor()
+                    cur_del.execute(
+                        f"DELETE FROM submissions WHERE id = {_ph()}", (existing["id"],)
+                    )
+                    conn_del.commit()
+                finally:
+                    _close_conn(conn_del)
             else:
                 raise ValueError("Siz ushbu testni allaqachon topshirgansiz! Qayta topshirish mumkin emas.")
 
@@ -1359,40 +1446,41 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
 
     now = int(time.time())
     conn = get_connection()
-    cur = conn.cursor()
-
-    if USE_POSTGRES:
-        cur.execute("""
-        INSERT INTO submissions (
-            test_id, test_code, user_tg_id, fullname, phone,
-            answers_json, score, max_score, correct_count, total_count,
-            details_json, submitted_at
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """, (
-            test["id"], test["test_code"], user_tg_id, fullname, phone,
-            json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
-            correct_count, 55,
-            json.dumps(details, ensure_ascii=False), now
-        ))
-        submission_id = cur.fetchone()
-        submission_id = _row_to_dict(submission_id).get("id") if submission_id else None
-    else:
-        cur.execute("""
-        INSERT INTO submissions (
-            test_id, test_code, user_tg_id, fullname, phone,
-            answers_json, score, max_score, correct_count, total_count,
-            details_json, submitted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            test["id"], test["test_code"], user_tg_id, fullname, phone,
-            json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
-            correct_count, 55,
-            json.dumps(details, ensure_ascii=False), now
-        ))
-        submission_id = cur.lastrowid
-
-    _commit_and_close(conn)
+    try:
+        cur = conn.cursor()
+        if USE_POSTGRES:
+            cur.execute("""
+            INSERT INTO submissions (
+                test_id, test_code, user_tg_id, fullname, phone,
+                answers_json, score, max_score, correct_count, total_count,
+                details_json, submitted_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """, (
+                test["id"], test["test_code"], user_tg_id, fullname, phone,
+                json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
+                correct_count, 55,
+                json.dumps(details, ensure_ascii=False), now
+            ))
+            sub_row = cur.fetchone()
+            submission_id = _row_to_dict(sub_row).get("id") if sub_row else None
+        else:
+            cur.execute("""
+            INSERT INTO submissions (
+                test_id, test_code, user_tg_id, fullname, phone,
+                answers_json, score, max_score, correct_count, total_count,
+                details_json, submitted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                test["id"], test["test_code"], user_tg_id, fullname, phone,
+                json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
+                correct_count, 55,
+                json.dumps(details, ensure_ascii=False), now
+            ))
+            submission_id = cur.lastrowid
+        conn.commit()
+    finally:
+        _close_conn(conn)
 
     return {
         "submission_id": submission_id,
@@ -1414,15 +1502,17 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
 
 def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"""
-    SELECT s.*, t.title as test_title, t.results_published, t.is_active
-    FROM submissions s
-    JOIN tests t ON s.test_id = t.id
-    WHERE s.user_tg_id = {_ph()} ORDER BY s.id DESC
-    """, (user_tg_id,))
-    rows = cur.fetchall()
-    _close_conn(conn)
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT s.*, t.title as test_title, t.results_published, t.is_active
+        FROM submissions s
+        JOIN tests t ON s.test_id = t.id
+        WHERE s.user_tg_id = {_ph()} ORDER BY s.id DESC
+        """, (user_tg_id,))
+        rows = cur.fetchall()
+    finally:
+        _close_conn(conn)
     results = []
     for r in rows:
         d = _row_to_dict(r)
@@ -1444,33 +1534,37 @@ def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
 
 def get_test_results_leaderboard(test_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"""
-    SELECT fullname, phone, score, correct_count, submitted_at
-    FROM submissions WHERE test_id = {_ph()} ORDER BY score DESC, submitted_at ASC
-    """, (test_id,))
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT fullname, phone, score, correct_count, submitted_at
+        FROM submissions WHERE test_id = {_ph()} ORDER BY score DESC, submitted_at ASC
+        """, (test_id,))
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 def get_tests_with_stats() -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("""
-    SELECT t.*, COUNT(s.id) as submissions_count,
-           COALESCE(AVG(s.score), 0) as avg_score,
-           COALESCE(MAX(s.score), 0) as max_score_achieved
-    FROM tests t
-    LEFT JOIN submissions s ON t.id = s.test_id
-    GROUP BY t.id, t.test_code, t.title, t.subject, t.pdf_file_id, t.pdf_file_name,
-             t.answers_json, t.total_questions, t.time_limit_min, t.is_active,
-             t.key_access_code, t.results_published, t.created_at, t.created_by, t.created_by_name
-    ORDER BY t.id DESC
-    """)
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+        SELECT t.*, COUNT(s.id) as submissions_count,
+               COALESCE(AVG(s.score), 0) as avg_score,
+               COALESCE(MAX(s.score), 0) as max_score_achieved
+        FROM tests t
+        LEFT JOIN submissions s ON t.id = s.test_id
+        GROUP BY t.id, t.test_code, t.title, t.subject, t.pdf_file_id, t.pdf_file_name,
+                 t.answers_json, t.total_questions, t.time_limit_min, t.is_active,
+                 t.key_access_code, t.results_published, t.created_at, t.created_by, t.created_by_name
+        ORDER BY t.id DESC
+        """)
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 # ──────────────────────────────────────────────────────────
@@ -1479,16 +1573,18 @@ def get_tests_with_stats() -> List[Dict[str, Any]]:
 
 def get_test_submissions_for_rasch(test_id: int) -> List[Dict[str, Any]]:
     conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(f"""
-    SELECT user_tg_id, fullname, details_json, score, correct_count, submitted_at
-    FROM submissions
-    WHERE test_id = {_ph()} AND details_json IS NOT NULL AND details_json != ''
-    ORDER BY submitted_at ASC
-    """, (test_id,))
-    rows = cur.fetchall()
-    _close_conn(conn)
-    return [_row_to_dict(r) for r in rows if r]
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT user_tg_id, fullname, details_json, score, correct_count, submitted_at
+        FROM submissions
+        WHERE test_id = {_ph()} AND details_json IS NOT NULL AND details_json != ''
+        ORDER BY submitted_at ASC
+        """, (test_id,))
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
 
 
 def evaluate_test_rasch(test_id: int, auto_update_db: bool = False) -> Optional[Dict[str, Any]]:
@@ -1501,39 +1597,42 @@ def evaluate_test_rasch(test_id: int, auto_update_db: bool = False) -> Optional[
                 for it in res.get("items", [])
             }
             conn = get_connection()
-            cur = conn.cursor()
-            for s in res["students"]:
-                student_id = s.get("student_id")
-                final_score = s.get("final_score", 0.0)
-                cur.execute(f"""
-                    SELECT id, details_json FROM submissions
-                    WHERE test_id = {_ph()} AND (user_tg_id = {_ph()} OR id = {_ph()})
-                """, (test_id, student_id, student_id))
-                row = cur.fetchone()
-                if row:
-                    d = _row_to_dict(row)
-                    sub_id = d["id"]
-                    det_raw = d["details_json"]
-                    try:
-                        det = json.loads(det_raw) if det_raw else {}
-                        for k, v in det.items():
-                            if k in item_score_map:
-                                is_c = (v.get("status") == "correct")
-                                sc = item_score_map[k]
-                                v["score"] = sc if is_c else 0.0
-                                v["max_score"] = sc
-                        new_det = json.dumps(det, ensure_ascii=False)
-                        cur.execute(f"""
-                            UPDATE submissions
-                            SET score = {_ph()}, details_json = {_ph()}
-                            WHERE id = {_ph()}
-                        """, (final_score, new_det, sub_id))
-                    except Exception:
-                        cur.execute(
-                            f"UPDATE submissions SET score = {_ph()} WHERE id = {_ph()}",
-                            (final_score, sub_id)
-                        )
-            _commit_and_close(conn)
+            try:
+                cur = conn.cursor()
+                for s in res["students"]:
+                    student_id = s.get("student_id")
+                    final_score = s.get("final_score", 0.0)
+                    cur.execute(f"""
+                        SELECT id, details_json FROM submissions
+                        WHERE test_id = {_ph()} AND (user_tg_id = {_ph()} OR id = {_ph()})
+                    """, (test_id, student_id, student_id))
+                    row = cur.fetchone()
+                    if row:
+                        d = _row_to_dict(row)
+                        sub_id = d["id"]
+                        det_raw = d["details_json"]
+                        try:
+                            det = json.loads(det_raw) if det_raw else {}
+                            for k, v in det.items():
+                                if k in item_score_map:
+                                    is_c = (v.get("status") == "correct")
+                                    sc = item_score_map[k]
+                                    v["score"] = sc if is_c else 0.0
+                                    v["max_score"] = sc
+                            new_det = json.dumps(det, ensure_ascii=False)
+                            cur.execute(f"""
+                                UPDATE submissions
+                                SET score = {_ph()}, details_json = {_ph()}
+                                WHERE id = {_ph()}
+                            """, (final_score, new_det, sub_id))
+                        except Exception:
+                            cur.execute(
+                                f"UPDATE submissions SET score = {_ph()} WHERE id = {_ph()}",
+                                (final_score, sub_id)
+                            )
+                conn.commit()
+            finally:
+                _close_conn(conn)
         return res
     except ImportError:
         print("[rasch] rasch_engine.py topilmadi — Rasch baholash o'tkazib yuborildi.")
