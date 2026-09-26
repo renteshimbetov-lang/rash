@@ -843,58 +843,163 @@ function renderTestsTab(results) {
 }
 
 // ── PROFILE TAB ─────────────────────────────────
+// ── PROFILE TAB (Real Mobile App Design) ────────
 function renderProfileTab() {
   var tab = document.getElementById('tab-profile');
+  if (!tab) return;
   var u = state.userInfo;
   var tgU = state.tgUser;
-  var fullname = (u && u.fullname) || ((tgU && ((tgU.first_name || '') + ' ' + (tgU.last_name || '')).trim())) || 'Foydalanuvchi';
-  var phone = (u && u.phone) || '\u2014';
-  var username = (tgU && tgU.username) ? '@' + tgU.username : '\u2014';
-  var tgId = (tgU && tgU.id) || 0;
-  var testsCount = (u && u.tests_count) || 0;
-  var avgScore = (u && u.avg_score) ? Math.round(u.avg_score) : 0;
-  var maxScore = (u && u.max_score) || 0;
-  var status = computeStatus(testsCount, avgScore);
-  var avatarLetter = fullname.charAt(0).toUpperCase();
 
-  var st = (u && u.status) || 'pending';
-  var statusBadgeHtml = '';
-  var heroBadgeHtml = '';
-  if (st === 'approved') {
-    statusBadgeHtml = '<div class="stat-status-badge status-approved"><span class="status-dot approved"></span> Faol</div>';
-    heroBadgeHtml = '<span class="profile-status-badge status-approved" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.35)"><span class="status-dot approved"></span> Tasdiqlangan (Faol)</span>';
-  } else if (st === 'pending') {
-    statusBadgeHtml = '<div class="stat-status-badge status-pending"><span class="status-dot pending"></span> Kutilmoqda</div>';
-    heroBadgeHtml = '<span class="profile-status-badge status-pending" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.35)"><span class="status-dot pending"></span> Tasdiqlanmagan (Kutilmoqda)</span>';
-  } else {
-    statusBadgeHtml = '<div class="stat-status-badge status-rejected"><span class="status-dot rejected"></span> Rad etilgan</div>';
-    heroBadgeHtml = '<span class="profile-status-badge status-rejected" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.35)"><span class="status-dot rejected"></span> Cheklangan</span>';
+  // Ismni to'g'ri proporsiya va bosh harflar bilan formatlash
+  var rawFullname = (u && u.fullname) || ((tgU && ((tgU.first_name || '') + ' ' + (tgU.last_name || '')).trim())) || 'Foydalanuvchi';
+  var fullname = rawFullname.split(' ').map(function(w) {
+    if (!w) return '';
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+  }).join(' ');
+
+  // Telefon raqamini chiroyli ajratib ko'rsatish (+998 97 027 87 70)
+  var rawPhone = (u && u.phone) || '';
+  var formattedPhone = rawPhone;
+  var digits = rawPhone.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('998')) {
+    formattedPhone = '+' + digits.slice(0, 3) + ' ' + digits.slice(3, 5) + ' ' + digits.slice(5, 8) + ' ' + digits.slice(8, 10) + ' ' + digits.slice(10, 12);
+  } else if (!rawPhone) {
+    formattedPhone = 'Biriktirilmagan';
   }
 
+  var username = (tgU && tgU.username) ? ('@' + tgU.username) : ((u && u.username) ? ('@' + u.username) : 'Mavjud emas');
+  var tgId = (tgU && tgU.id) || (u && u.tg_id) || 0;
+  var testsCount = (u && u.tests_count) || 0;
+  var avgScore = (u && u.avg_score) ? (Number(u.avg_score).toFixed(1)) : '0.0';
+  var maxScore = (u && u.max_score) ? (Number(u.max_score).toFixed(1)) : '0.0';
+  var avatarLetter = fullname.charAt(0).toUpperCase() || 'U';
+
+  var regDateStr = (u && u.registered_at) ? formatDate(u.registered_at) : 'Yaqinda';
+
+  var st = (u && u.status || 'pending').toLowerCase();
+  var isAdmin = Boolean(state.isAdmin);
+
+  var statusChipHtml = '';
+  var avatarBadgeClass = 'approved';
+
+  if (st === 'approved') {
+    statusChipHtml = '<span class="profile-chip chip-approved"><span class="chip-dot dot-approved"></span> Faol o\'quvchi</span>';
+    avatarBadgeClass = 'approved';
+  } else if (st === 'pending') {
+    statusChipHtml = '<span class="profile-chip chip-pending"><span class="chip-dot dot-pending"></span> Kutilmoqda</span>';
+    avatarBadgeClass = 'pending';
+  } else {
+    statusChipHtml = '<span class="profile-chip chip-rejected"><span class="chip-dot dot-rejected"></span> Bloklangan</span>';
+    avatarBadgeClass = 'blocked';
+  }
+
+  var adminChipHtml = isAdmin ? '<span class="profile-chip chip-admin">🛡 Bosh Admin</span>' : '';
+
+  var avatarInnerHtml = '';
+  if (tgU && tgU.photo_url) {
+    avatarInnerHtml = '<img src="' + escHtml(tgU.photo_url) + '" class="profile-avatar-img" alt="Avatar" onerror="this.onerror=null;this.parentElement.innerHTML=\'' + avatarLetter + '\';">';
+  } else {
+    avatarInnerHtml = avatarLetter;
+  }
+
+  var curTheme = document.documentElement.getAttribute('data-theme') || 'light';
+  var themeLabel = curTheme === 'dark' ? 'Tungi rejim (Dark)' : 'Kunduzgi rejim (Light)';
+
   tab.innerHTML =
-    '<div class="profile-hero animate-in">' +
-    '<div class="profile-avatar">' + avatarLetter + '</div>' +
-    '<div class="profile-name">' + escHtml(fullname) + '</div>' +
-    '<div class="profile-phone">' + escHtml(phone) + '</div>' +
-    heroBadgeHtml +
+    // ── 1. HERO PROFILE CARD (Ixcham, toza va to'g'ri o'lchamdagi ism) ──
+    '<div class="profile-hero-card animate-in">' +
+      '<div class="profile-avatar-box">' +
+        '<div class="profile-avatar-circle">' + avatarInnerHtml + '</div>' +
+        '<span class="profile-avatar-badge ' + avatarBadgeClass + '"></span>' +
+      '</div>' +
+      '<div class="profile-name-title">' + escHtml(fullname) + '</div>' +
+      '<div class="profile-phone-subtitle">' + escHtml(formattedPhone) + '</div>' +
+      '<div class="profile-tag-row">' +
+        adminChipHtml +
+        statusChipHtml +
+      '</div>' +
     '</div>' +
-    '<div class="stats-grid animate-in">' +
-    '<div class="stat-card"><div class="stat-value">' + testsCount + '</div><div class="stat-label">' + t('stat_tests') + '</div></div>' +
-    '<div class="stat-card"><div class="stat-value">' + avgScore + '</div><div class="stat-label">' + t('stat_avg') + '</div></div>' +
-    '<div class="stat-card"><div class="stat-value">' + maxScore + '</div><div class="stat-label">' + t('stat_max') + '</div></div>' +
-    '<div class="stat-card" style="display:flex;flex-direction:column;justify-content:center;align-items:center;">' + statusBadgeHtml + '<div class="stat-label">' + t('stat_status') + '</div></div>' +
+
+    // ── 2. METRIKALAR PANELCHASI (3 ta ustunli qulay va ixcham lenta) ──
+    '<div class="profile-stats-ribbon animate-in">' +
+      '<div class="stat-ribbon-item">' +
+        '<div class="stat-ribbon-val">' + testsCount + ' <span style="font-size:11px;font-weight:600;opacity:0.8;">ta</span></div>' +
+        '<div class="stat-ribbon-lbl">' + t('stat_tests') + '</div>' +
+      '</div>' +
+      '<div class="stat-ribbon-divider"></div>' +
+      '<div class="stat-ribbon-item">' +
+        '<div class="stat-ribbon-val">' + avgScore + '</div>' +
+        '<div class="stat-ribbon-lbl">' + t('stat_avg') + '</div>' +
+      '</div>' +
+      '<div class="stat-ribbon-divider"></div>' +
+      '<div class="stat-ribbon-item">' +
+        '<div class="stat-ribbon-val">' + maxScore + '</div>' +
+        '<div class="stat-ribbon-lbl">' + t('stat_max') + '</div>' +
+      '</div>' +
     '</div>' +
-    '<div class="card animate-in">' +
-    '<div class="info-row"><div class="info-icon">\uD83D\uDC64</div><div><div class="info-label">' + t('info_name') + '</div><div class="info-value">' + escHtml(fullname) + '</div></div></div>' +
-    '<div class="info-row"><div class="info-icon">\uD83D\uDCF1</div><div><div class="info-label">' + t('info_phone') + '</div><div class="info-value">' + escHtml(phone) + '</div></div></div>' +
-    '<div class="info-row"><div class="info-icon">\uD83D\uDD17</div><div><div class="info-label">' + t('info_tg') + '</div><div class="info-value">' + escHtml(username) + '</div></div></div>' +
-    '<div class="info-row"><div class="info-icon">\uD83C\uDD94</div><div><div class="info-label">' + t('info_id') + '</div><div class="info-value">' + tgId + '</div></div></div>' +
+
+    // ── 3. AKKAUNT MA'LUMOTLARI (iOS / Telegram sozlamalari uslubidagi karta) ──
+    '<div class="profile-section-card animate-in">' +
+      '<div class="profile-section-title">Akkaunt ma\'lumotlari</div>' +
+      '<div class="profile-item-row clickable" onclick="copyTextToClipboard(\'' + tgId + '\', \'Telegram ID nusxalandi!\')">' +
+        '<div class="profile-item-icon">🆔</div>' +
+        '<div class="profile-item-body">' +
+          '<div class="profile-item-label">Telegram ID</div>' +
+          '<div class="profile-item-value"><code>' + tgId + '</code></div>' +
+        '</div>' +
+        '<span class="profile-item-action-chip">📋 Nusxa</span>' +
+      '</div>' +
+      '<div class="profile-item-row">' +
+        '<div class="profile-item-icon">🔗</div>' +
+        '<div class="profile-item-body">' +
+          '<div class="profile-item-label">Telegram Username</div>' +
+          '<div class="profile-item-value">' + escHtml(username) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="profile-item-row">' +
+        '<div class="profile-item-icon">📱</div>' +
+        '<div class="profile-item-body">' +
+          '<div class="profile-item-label">Bog\'langan telefon</div>' +
+          '<div class="profile-item-value">' + escHtml(formattedPhone) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="profile-item-row" style="border-bottom:none;">' +
+        '<div class="profile-item-icon">📅</div>' +
+        '<div class="profile-item-body">' +
+          '<div class="profile-item-label">Roʻyxatdan oʻtgan vaqti</div>' +
+          '<div class="profile-item-value">' + regDateStr + '</div>' +
+        '</div>' +
+      '</div>' +
     '</div>' +
-    '<button class="admin-action-btn animate-in" onclick="openOnboardingModal()" style="margin-top:12px;background:linear-gradient(135deg,rgba(59,130,246,0.12),rgba(99,102,241,0.12));border:1px solid rgba(59,130,246,0.25);">' +
-    '<div class="btn-icon" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff">📖</div>' +
-    '<div><span style="font-weight:700;color:var(--text);display:block">Bot qanday ishlaydi?</span><span style="font-size:11px;color:var(--text-muted)">Yangi o\'quvchilar uchun to\'liq qo\'llanma</span></div>' +
-    '<span class="btn-arrow" style="color:#3b82f6">›</span>' +
-    '</button>';
+
+    // ── 4. SOZLAMALAR VA QO'LLANMA ──
+    '<div class="profile-section-card animate-in" style="margin-top:10px;">' +
+      '<div class="profile-section-title">Sozlamalar va Yordam</div>' +
+      '<div class="profile-item-row clickable" onclick="toggleTheme()">' +
+        '<div class="profile-item-icon">🌓</div>' +
+        '<div class="profile-item-body">' +
+          '<div class="profile-item-label">Ilova mavzusi</div>' +
+          '<div class="profile-item-value" id="profile-theme-label">' + themeLabel + '</div>' +
+        '</div>' +
+        '<span class="profile-item-arrow">›</span>' +
+      '</div>' +
+      '<div class="profile-item-row clickable" onclick="openOnboardingModal()">' +
+        '<div class="profile-item-icon" style="background:rgba(59,130,246,0.12);color:#2563eb;">📖</div>' +
+        '<div class="profile-item-body">' +
+          '<div class="profile-item-label">Bot qanday ishlaydi?</div>' +
+          '<div class="profile-item-value" style="font-size:12px;color:var(--text-muted);font-weight:600;">O\'quvchilar uchun to\'liq qo\'llanma</div>' +
+        '</div>' +
+        '<span class="profile-item-arrow">›</span>' +
+      '</div>' +
+      '<div class="profile-item-row clickable" onclick="returnToTelegramChat()" style="border-bottom:none;">' +
+        '<div class="profile-item-icon" style="background:rgba(16,185,129,0.12);color:#10b981;">💬</div>' +
+        '<div class="profile-item-body">' +
+          '<div class="profile-item-label">Yordam / Chatga qaytish</div>' +
+          '<div class="profile-item-value" style="font-size:12px;color:var(--text-muted);font-weight:600;">@bm_rashtest_bot</div>' +
+        '</div>' +
+        '<span class="profile-item-arrow">›</span>' +
+      '</div>' +
+    '</div>';
 }
 
 // ── ADMIN TAB ───────────────────────────────────
@@ -1535,6 +1640,10 @@ function toggleTheme() {
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem(LS_THEME, next);
   updateThemeIcon(next);
+  var pTheme = document.getElementById('profile-theme-label');
+  if (pTheme) {
+    pTheme.textContent = next === 'dark' ? 'Tungi rejim (Dark)' : 'Kunduzgi rejim (Light)';
+  }
 }
 
 function updateThemeIcon(theme) {
@@ -1968,6 +2077,38 @@ function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('show');
   setTimeout(function() { toast.classList.remove('show'); }, 2200);
+}
+
+function copyTextToClipboard(text, successMsg) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(String(text)).then(function() {
+      showToast(successMsg || 'Nusxa olindi!');
+    }).catch(function() {
+      fallbackCopy(text, successMsg);
+    });
+  } else {
+    fallbackCopy(text, successMsg);
+  }
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+    } catch(e) {}
+  }
+}
+
+function fallbackCopy(text, successMsg) {
+  var ta = document.createElement('textarea');
+  ta.value = String(text);
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast(successMsg || 'Nusxa olindi!');
+  } catch(e) {}
+  document.body.removeChild(ta);
 }
 
 // ── ONBOARDING / BOT QO'LLANMA OYNASI ───────────
