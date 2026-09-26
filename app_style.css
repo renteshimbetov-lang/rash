@@ -83,6 +83,79 @@ body {
     var(--bg);
 }
 
+/* ── HARAKATLANUVCHI DINAMIK AMBIENT ORQA FON (OQ VA QORA MOS) ── */
+.ambient-moving-mesh {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+  transition: opacity 0.4s ease;
+}
+
+.ambient-mesh-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(85px);
+  will-change: transform;
+}
+
+.ambient-orb-1 {
+  width: 440px;
+  height: 440px;
+  top: -120px;
+  left: -90px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.26) 0%, rgba(30, 58, 138, 0.12) 50%, transparent 70%);
+  animation: ambientFloat1 20s ease-in-out infinite alternate;
+}
+
+.ambient-orb-2 {
+  width: 480px;
+  height: 480px;
+  bottom: -140px;
+  right: -90px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.22) 0%, rgba(79, 70, 229, 0.10) 50%, transparent 70%);
+  animation: ambientFloat2 24s ease-in-out infinite alternate-reverse;
+}
+
+.ambient-orb-3 {
+  width: 340px;
+  height: 340px;
+  top: 42%;
+  left: 32%;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.18) 0%, transparent 70%);
+  animation: ambientFloat3 16s ease-in-out infinite alternate;
+}
+
+/* Light mode colors - Yumshoq, ko'zni charchatmaydigan uyg'unlik */
+[data-theme="light"] .ambient-orb-1 {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.17) 0%, rgba(147, 197, 253, 0.08) 50%, transparent 70%);
+}
+[data-theme="light"] .ambient-orb-2 {
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.15) 0%, rgba(192, 132, 252, 0.06) 50%, transparent 70%);
+}
+[data-theme="light"] .ambient-orb-3 {
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.13) 0%, transparent 70%);
+}
+
+@keyframes ambientFloat1 {
+  0% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate3d(55px, 75px, 0) scale(1.15) rotate(45deg); }
+  100% { transform: translate3d(-35px, 115px, 0) scale(0.95) rotate(90deg); }
+}
+
+@keyframes ambientFloat2 {
+  0% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate3d(-75px, -55px, 0) scale(1.12) rotate(-45deg); }
+  100% { transform: translate3d(45px, -95px, 0) scale(0.92) rotate(-90deg); }
+}
+
+@keyframes ambientFloat3 {
+  0% { transform: translate3d(0, 0, 0) scale(0.9); opacity: 0.35; }
+  50% { transform: translate3d(-45px, 55px, 0) scale(1.22); opacity: 0.7; }
+  100% { transform: translate3d(35px, -35px, 0) scale(0.95); opacity: 0.45; }
+}
+
 /* ── SPLASH SCREEN (KOSMIK MATEMATIK KINEMATIK KIRISH) ── */
 #splash-screen {
   position: fixed;
@@ -281,6 +354,81 @@ body {
   object-fit: cover;
   border-radius: 50%;
   display: block;
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Galochka Checkmark box */
+.splash-checkmark-box {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.65);
+  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.splash-checkmark-svg {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: block;
+}
+
+.splash-checkmark-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 3.5;
+  stroke-miterlimit: 10;
+  stroke: #10B981;
+  fill: rgba(16, 185, 129, 0.22);
+}
+
+.splash-checkmark-check {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  stroke: #FFFFFF;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Muvaffaqiyatli tekshiruv (Checkmark faollashuvi) */
+.splash-logo-box.success {
+  background: linear-gradient(135deg, #059669, #10B981) !important;
+  border-color: #34D399 !important;
+  box-shadow: 0 0 38px rgba(16, 185, 129, 0.85), 0 0 75px rgba(6, 182, 212, 0.45) !important;
+  transform: scale(1.1) !important;
+}
+
+.splash-logo-box.success .splash-logo-img {
+  opacity: 0;
+  transform: scale(0.75);
+}
+
+.splash-logo-box.success .splash-checkmark-box {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.splash-logo-box.success .splash-checkmark-circle {
+  animation: strokeCircle 0.45s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.splash-logo-box.success .splash-checkmark-check {
+  animation: strokeCheck 0.35s cubic-bezier(0.65, 0, 0.45, 1) 0.2s forwards;
+}
+
+@keyframes strokeCircle {
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes strokeCheck {
+  100% { stroke-dashoffset: 0; }
 }
 
 /* Dynamic specular shimmer across logo */

@@ -690,7 +690,10 @@ function runSplash() {
   // 4-bosqich: 1250ms — 100% Tayyor & Super-charge flash!
   setTimeout(function() {
     setProgress(100, 'Tayyor! Xush kelibsiz! ⚡', 'success');
-    if (logoBox) logoBox.classList.add('ready');
+    if (logoBox) {
+      logoBox.classList.add('ready');
+      logoBox.classList.add('success');
+    }
     if (pulseWave) {
       pulseWave.classList.remove('fire');
       void pulseWave.offsetWidth; // reflow
