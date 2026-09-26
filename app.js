@@ -919,11 +919,8 @@ function renderProfileTab() {
         adminChipHtml +
         statusChipHtml +
       '</div>' +
-      '<div style="display:flex;gap:8px;margin-top:10px;">' +
-        '<button type="button" class="btn-hero-profile-action btn-hero-profile-info" onclick="toggleProfileDetails()">' +
-          '<span class="hero-btn-icon">📋</span><span>Ma\'lumotlar</span>' +
-        '</button>' +
-        '<button type="button" class="btn-hero-profile-action btn-edit-profile-hero" onclick="openEditProfileModal()">' +
+      '<div style="display:flex;justify-content:center;margin-top:10px;">' +
+        '<button type="button" class="btn-hero-profile-action btn-edit-profile-hero" onclick="openEditProfileModal()" style="max-width:170px;">' +
           '<span class="hero-btn-icon">✏️</span><span>Tahrirlash</span>' +
         '</button>' +
       '</div>' +
@@ -949,11 +946,16 @@ function renderProfileTab() {
 
     // ── 3. SHAXSIY MA'LUMOTLAR BO'LIMI (Ko'rsatish / Yashirish) ──
     '<div class="profile-section-card animate-in" id="profile-info-section" style="margin-top:12px;">' +
-      '<div class="profile-info-toggle-header" onclick="toggleProfileDetails()" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;cursor:pointer;user-select:none;">' +
-        '<div style="display:flex;align-items:center;gap:10px;">' +
-          '<div class="profile-item-icon" style="background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);font-size:18px;">📋</div>' +
-          '<div>' +
-            '<div class="profile-section-title" style="margin:0;font-size:15px;font-weight:800;color:var(--text);">Shaxsiy ma\'lumotlar</div>' +
+      '<div class="profile-info-toggle-header" onclick="toggleProfileDetails()" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;cursor:pointer;user-select:none;">' +
+        '<div style="display:flex;align-items:center;gap:11px;">' +
+          '<div class="profile-item-icon" style="background:rgba(37,99,235,0.12);color:#2563EB;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' +
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>' +
+              '<circle cx="12" cy="7" r="4"></circle>' +
+            '</svg>' +
+          '</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div class="profile-section-title" style="margin:0;font-size:14.5px;font-weight:800;color:var(--text);white-space:nowrap;">Shaxsiy ma\'lumotlar</div>' +
           '</div>' +
         '</div>' +
         '<span class="profile-info-toggle-badge" id="profile-info-toggle-badge" style="padding:6px 14px;border-radius:20px;font-size:12px;font-weight:800;background:rgba(59,130,246,0.12);color:var(--accent,#3b82f6);transition:all 0.2s ease;">' + (window._profileDetailsOpen ? 'Yashirish ▲' : 'Ko\'rish ▼') + '</span>' +
@@ -995,7 +997,7 @@ function renderProfileTab() {
 
     // ── 4. SOZLAMALAR VA QO'LLANMA ──
     '<div class="profile-section-card animate-in" style="margin-top:10px;">' +
-      '<div class="profile-section-title">Sozlamalar va Yordam</div>' +
+      '<div class="profile-section-title">Sozlamalar va Qo\'llanma</div>' +
       '<div class="profile-item-row clickable" onclick="toggleTheme()">' +
         '<div class="profile-item-icon">🌓</div>' +
         '<div class="profile-item-body">' +
@@ -1004,19 +1006,11 @@ function renderProfileTab() {
         '</div>' +
         '<span class="profile-item-arrow">›</span>' +
       '</div>' +
-      '<div class="profile-item-row clickable" onclick="openOnboardingModal()">' +
+      '<div class="profile-item-row clickable" onclick="openOnboardingModal()" style="border-bottom:none;">' +
         '<div class="profile-item-icon" style="background:rgba(59,130,246,0.12);color:#2563eb;">📖</div>' +
         '<div class="profile-item-body">' +
           '<div class="profile-item-label">Bot qanday ishlaydi?</div>' +
           '<div class="profile-item-value" style="font-size:12px;color:var(--text-muted);font-weight:600;">O\'quvchilar uchun to\'liq qo\'llanma</div>' +
-        '</div>' +
-        '<span class="profile-item-arrow">›</span>' +
-      '</div>' +
-      '<div class="profile-item-row clickable" onclick="returnToTelegramChat()" style="border-bottom:none;">' +
-        '<div class="profile-item-icon" style="background:rgba(16,185,129,0.12);color:#10b981;">💬</div>' +
-        '<div class="profile-item-body">' +
-          '<div class="profile-item-label">Yordam / Chatga qaytish</div>' +
-          '<div class="profile-item-value" style="font-size:12px;color:var(--text-muted);font-weight:600;">@bm_rashtest_bot</div>' +
         '</div>' +
         '<span class="profile-item-arrow">›</span>' +
       '</div>' +
@@ -1584,8 +1578,7 @@ function renderFilteredAdminUsers() {
     return '<div class="user-row clickable" onclick="openAdminUserModal(' + u.tg_id + ')">' +
       '<div class="user-row-avatar">' + letter + '</div>' +
       '<div class="user-row-info">' +
-        '<div class="user-row-name">' + escHtml(u.fullname || 'Nomaʼlum') + '</div>' +
-        '<div class="user-row-meta">' + escHtml(u.phone || '—') + ' • ID: <code>' + u.tg_id + '</code> • ' + tc + ' test</div>' +
+        '<div class="user-row-name" style="font-size:14.5px;font-weight:700;">' + escHtml(u.fullname || 'Nomaʼlum') + '</div>' +
       '</div>' +
       sb +
       '<span style="color:var(--text-muted);font-size:16px;margin-left:4px">›</span>' +
