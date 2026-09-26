@@ -730,15 +730,18 @@ function renderHomeTab(tests) {
     '<div class="section-sub">' + t('home_sub') + '</div></div>';
 
   // ── SUBTABS (2 ta bo'lim: Faol va Oldingi) ──
+  var boltIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor"/></svg>';
+  var archiveIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+
   html += '<div class="home-subtabs animate-in">' +
     '<button type="button" class="home-subtab ' + (currentSubtab === 'active' ? 'active' : '') + '" onclick="switchHomeSubtab(\'active\')">' +
-      '<span class="home-subtab-icon">⚡️</span>' +
-      '<span>Faol testlar</span>' +
+      '<span class="home-subtab-icon">' + boltIcon + '</span>' +
+      '<span class="home-subtab-text">Faol testlar</span>' +
       '<span class="home-subtab-badge">' + activeTotalCount + '</span>' +
     '</button>' +
     '<button type="button" class="home-subtab ' + (currentSubtab === 'past' ? 'active' : '') + '" onclick="switchHomeSubtab(\'past\')">' +
-      '<span class="home-subtab-icon">📁</span>' +
-      '<span>Oldingi testlar</span>' +
+      '<span class="home-subtab-icon">' + archiveIcon + '</span>' +
+      '<span class="home-subtab-text">Oldingi testlar</span>' +
       '<span class="home-subtab-badge">' + pastTotalCount + '</span>' +
     '</button>' +
   '</div>';
