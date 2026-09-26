@@ -3245,7 +3245,194 @@ body {
 
 .test-card-closed {
   border-left: 4.5px solid #94A3B8;
-  opacity: 0.8;
+  opacity: 0.95;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.test-card-closed:active {
+  transform: scale(0.985);
+}
+
+/* ── OLDINGI TESTLAR: QATNASHGAN/QATNASHMAGAN STATUS BANNERI ── */
+.test-user-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+}
+
+.test-user-status-banner.status-participated {
+  background: rgba(16, 185, 129, 0.10);
+  border: 1.5px solid rgba(16, 185, 129, 0.28);
+  color: #059669;
+}
+
+[data-theme="dark"] .test-user-status-banner.status-participated {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #34D399;
+}
+
+.test-user-status-banner.status-not-participated {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1.5px solid rgba(239, 68, 68, 0.24);
+  color: #DC2626;
+}
+
+[data-theme="dark"] .test-user-status-banner.status-not-participated {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.32);
+  color: #F87171;
+}
+
+.test-user-status-banner .status-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.test-user-status-banner .status-title {
+  font-weight: 800;
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+
+.test-user-status-banner .status-desc {
+  font-size: 12px;
+  opacity: 0.88;
+  margin-top: 2px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+/* ── PAST TEST MODAL STYLES ── */
+.past-test-modal-box {
+  padding-bottom: 24px;
+}
+
+.past-modal-hero {
+  text-align: center;
+  padding: 16px 12px 10px;
+}
+
+.past-modal-lock-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  margin: 0 auto 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+}
+
+.past-modal-heading {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.past-modal-title-tag {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--bg-card-sub, rgba(148, 163, 184, 0.12));
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.past-modal-info-card {
+  background: var(--bg-body);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.past-modal-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+.past-modal-info-row b {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.past-modal-summary-text {
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.past-modal-status-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  margin-bottom: 14px;
+}
+
+.past-modal-status-box.status-participated {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1.5px solid rgba(16, 185, 129, 0.3);
+}
+
+.past-modal-status-box.status-not-participated {
+  background: rgba(239, 68, 68, 0.10);
+  border: 1.5px solid rgba(239, 68, 68, 0.28);
+}
+
+.past-modal-yt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.10);
+  color: #DC2626;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  font-weight: 800;
+  font-size: 14px;
+  text-decoration: none;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.past-modal-close-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: 14px;
+  background: var(--bg-card-sub, #E2E8F0);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 14.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.past-modal-close-btn:hover {
+  filter: brightness(0.95);
 }
 
 .test-rich-header {

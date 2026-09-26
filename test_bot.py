@@ -3654,6 +3654,19 @@ async def handle_app_active_tests(request):
     """Faol testlar ro'yxati (user uchun topshirilgan-topshirilmaganligini ham qaytaradi)."""
     try:
         tg_id = int(request.rel_url.query.get('tg_id', 0))
+        if not tg_id:
+            init_data = request.rel_url.query.get('init_data', '') or request.headers.get('X-Telegram-Init-Data', '')
+            if init_data:
+                import urllib.parse, json
+                try:
+                    parsed = dict(urllib.parse.parse_qsl(init_data))
+                    if 'user' in parsed:
+                        u_dict = json.loads(parsed['user'])
+                        if u_dict and u_dict.get('id'):
+                            tg_id = int(u_dict['id'])
+                except Exception:
+                    pass
+
         all_tests = test_db.get_all_tests()
         result = []
         for t in all_tests:
@@ -3664,6 +3677,13 @@ async def handle_app_active_tests(request):
             if tg_id:
                 existing = test_db.get_user_submission_for_test(t['id'], tg_id)
                 td['already_submitted'] = bool(existing)
+                if existing:
+                    td['user_score'] = existing.get('score')
+                    td['user_correct'] = existing.get('correct_count')
+                    td['user_incorrect'] = existing.get('incorrect_count')
+                    td['user_total'] = existing.get('total_count')
+                    td['user_grade'] = existing.get('grade')
+                    td['submitted_at'] = existing.get('submitted_at')
             else:
                 td['already_submitted'] = False
 

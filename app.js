@@ -41,6 +41,19 @@ var I18N = {
     val_yt_available: 'Mavjud (YouTube) 🎬', val_yt_planning: 'Rejalashtirilmoqda',
     btn_return_bot: 'Botga (chatga) qaytish', btn_view_result: "Natijani ko'rish",
     btn_solve_test: 'Testni yechish', btn_test_ended: 'Test muddati tugagan',
+    btn_test_ended_info: 'Test yakunlangan (Batafsil)',
+    user_status_participated: 'Siz bu testda qatnashgansiz',
+    user_status_not_participated: 'Siz bu testda qatnashmagansiz',
+    test_ended_modal_title: 'Test muddati yakunlangan',
+    test_ended_on_datetime: 'Ushbu test {date} kuni soat {time} da yakunlangan.',
+    test_ended_on_desc: 'Test topshirish muddati yakunlangan',
+    test_ended_user_not_took: 'Siz ushbu testda qatnashmagansiz. Belgilangan muddat o‘tganligi sababli testga javob qabul qilinmaydi.',
+    test_ended_user_took: 'Siz ushbu testda muvaffaqiyatli qatnashgansiz.',
+    btn_modal_understand: 'Tushunarli',
+    btn_view_my_result: "Natijani ko'rish",
+    lbl_ended_date: '📅 Yakunlangan sana:',
+    lbl_ended_time: '⏰ Yakunlangan vaqt:',
+    stat_score: "To'plangan ball",
     code_hidden_until_start: 'Boshlanganda ochiladi',
     btn_waiting_start: 'Boshlanishi kutilmoqda',
     toast_test_not_started: 'Test hali boshlanmadi! Boshlanish vaqti:',
@@ -203,6 +216,19 @@ var I18N = {
     val_yt_available: 'Доступен (YouTube) 🎬', val_yt_planning: 'Планируется',
     btn_return_bot: 'Вернуться к боту (чат)', btn_view_result: 'Посмотреть результат',
     btn_solve_test: 'Решать тест', btn_test_ended: 'Срок теста истек',
+    btn_test_ended_info: 'Тест завершен (Подробнее)',
+    user_status_participated: 'Вы участвовали в этом тесте',
+    user_status_not_participated: 'Вы не участвовали в этом тесте',
+    test_ended_modal_title: 'Срок теста завершен',
+    test_ended_on_datetime: 'Этот тест завершен {date} в {time}.',
+    test_ended_on_desc: 'Срок сдачи теста истек',
+    test_ended_user_not_took: 'Вы не участвовали в этом тесте. Срок сдачи истек, ответы больше не принимаются.',
+    test_ended_user_took: 'Вы успешно участвовали в этом тесте.',
+    btn_modal_understand: 'Понятно',
+    btn_view_my_result: 'Посмотреть результат',
+    lbl_ended_date: '📅 Дата завершения:',
+    lbl_ended_time: '⏰ Время завершения:',
+    stat_score: 'Набранный балл',
     code_hidden_until_start: 'Откроется при начале',
     btn_waiting_start: 'Ожидается начало',
     toast_test_not_started: 'Тест еще не начался! Время начала:',
@@ -365,6 +391,19 @@ var I18N = {
     val_yt_available: 'Available (YouTube) 🎬', val_yt_planning: 'In preparation',
     btn_return_bot: 'Return to bot (chat)', btn_view_result: 'View result',
     btn_solve_test: 'Solve test', btn_test_ended: 'Test has ended',
+    btn_test_ended_info: 'Test ended (Details)',
+    user_status_participated: 'You participated in this test',
+    user_status_not_participated: 'You did not participate in this test',
+    test_ended_modal_title: 'Test has ended',
+    test_ended_on_datetime: 'This test ended on {date} at {time}.',
+    test_ended_on_desc: 'Test submission deadline has ended',
+    test_ended_user_not_took: 'You did not participate in this test. The deadline has passed and submissions are no longer accepted.',
+    test_ended_user_took: 'You successfully participated in this test.',
+    btn_modal_understand: 'Got it',
+    btn_view_my_result: 'View result',
+    lbl_ended_date: '📅 Ended date:',
+    lbl_ended_time: '⏰ Ended time:',
+    stat_score: 'Score achieved',
     code_hidden_until_start: 'Unlocks at start',
     btn_waiting_start: 'Waiting to start',
     toast_test_not_started: "Test hasn't started yet! Start time:",
@@ -1236,6 +1275,24 @@ function renderTestDetailCard(test, type) {
   var isInactive = (type === 'inactive' && !isUpcoming);
   var done = Boolean(test.already_submitted);
 
+  // Check matching submission in window._myResults if available
+  var matchingResult = null;
+  if (window._myResults && window._myResults.length > 0) {
+    matchingResult = window._myResults.find(function(r) {
+      return (r.test_id && test.id && Number(r.test_id) === Number(test.id)) ||
+             (r.test_code && test.test_code && String(r.test_code).trim().toLowerCase() === String(test.test_code).trim().toLowerCase());
+    });
+    if (matchingResult) {
+      done = true;
+      if (test.user_score == null) test.user_score = matchingResult.score;
+      if (test.user_correct == null) test.user_correct = matchingResult.correct_count;
+      if (test.user_total == null) test.user_total = matchingResult.total_count;
+      if (test.submitted_at == null) test.submitted_at = matchingResult.submitted_at;
+      if (test.user_grade == null) test.user_grade = matchingResult.grade;
+      if (test.results_published == null) test.results_published = matchingResult.results_published;
+    }
+  }
+
   var cardClass = isUpcoming ? 'test-card-upcoming' : (isActive ? 'test-card-active' : 'test-card-closed');
   var badgeHtml = '';
   if (isUpcoming) {
@@ -1247,12 +1304,16 @@ function renderTestDetailCard(test, type) {
       badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:800;">' + t('badge_active_now') + '</span>';
     }
   } else {
-    badgeHtml = '<span class="badge badge-inactive">' + t('badge_stopped') + '</span>';
+    // Inactive / Past test
+    if (done) {
+      badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#059669;border:1px solid rgba(16,185,129,0.3);font-weight:800;">✅ ' + t('user_status_participated') + '</span>';
+    } else {
+      badgeHtml = '<span class="badge" style="background:rgba(239,68,68,0.12);color:#DC2626;border:1px solid rgba(239,68,68,0.25);font-weight:800;">❌ ' + t('user_status_not_participated') + '</span>';
+    }
   }
 
   var displayTitle = (test.title || t('default_test_title'));
   if (isUpcoming) {
-    // Agar sarlavhada '#118' kabi test kodi bo'lsa, test boshlanguncha uni yashirish
     displayTitle = displayTitle.replace(/\s*#[\w\d]+\b/g, '').trim();
   }
 
@@ -1263,15 +1324,42 @@ function renderTestDetailCard(test, type) {
     codeDisplay = String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code);
   }
 
-  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (isUpcoming ? t('val_scheduled_soon') : t('val_today'));
+  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (isUpcoming ? t('val_scheduled_soon') : (test.created_at ? formatDate(test.created_at) : t('val_today')));
   var startStr = test.scheduled_start ? (escHtml(test.scheduled_start) + ' (UZB)') : (isActive ? t('val_started') : '—');
-  var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : t('val_unlimited');
+  var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : (isInactive ? '22:00 (UZB)' : t('val_unlimited'));
   var totalQuestions = (test.total_questions || 45) + ' ' + t('val_questions_format');
   var timeLimit = test.time_limit_min ? (test.time_limit_min + ' ' + t('val_minutes')) : t('val_infinite');
   var ytUrl = (test.youtube_url || '').trim();
   var ytStatus = ytUrl ? ('<span style="color:#DC2626;font-weight:700;">' + t('val_yt_available') + '</span>') : ('<span style="color:var(--text-muted);">' + t('val_yt_planning') + '</span>');
 
-  var html = '<div class="test-rich-card ' + cardClass + ' animate-in">' +
+  var cardOnClick = isInactive ? (' onclick="handlePastTestCardClick(' + test.id + ')" style="cursor:pointer;"') : '';
+
+  var userStatusBannerHtml = '';
+  if (isInactive) {
+    if (done) {
+      var scoreText = (test.user_score != null) ? (test.user_score + ' ' + t('test_score_unit')) : '';
+      var correctPart = (test.user_correct != null) ? (' (' + test.user_correct + ' ' + t('tests_stat_correct') + ')') : '';
+      userStatusBannerHtml =
+        '<div class="test-user-status-banner status-participated">' +
+          '<span style="font-size:20px;">✅</span>' +
+          '<div class="status-content">' +
+            '<div class="status-title">' + t('user_status_participated') + '</div>' +
+            '<div class="status-desc">' + (scoreText ? (t('stat_score') + ': <b>' + scoreText + '</b>' + correctPart) : t('test_ended_user_took')) + '</div>' +
+          '</div>' +
+        '</div>';
+    } else {
+      userStatusBannerHtml =
+        '<div class="test-user-status-banner status-not-participated">' +
+          '<span style="font-size:20px;">❌</span>' +
+          '<div class="status-content">' +
+            '<div class="status-title">' + t('user_status_not_participated') + '</div>' +
+            '<div class="status-desc">' + t('test_ended_on_desc') + '</div>' +
+          '</div>' +
+        '</div>';
+    }
+  }
+
+  var html = '<div class="test-rich-card ' + cardClass + ' animate-in"' + cardOnClick + '>' +
     '<div class="test-rich-header">' +
       '<div class="test-rich-icon ' + (isUpcoming ? 'amber' : (isActive ? 'green' : 'gray')) + '">' +
         (isUpcoming ? '⏳' : (isActive ? '📝' : '🔒')) +
@@ -1282,6 +1370,7 @@ function renderTestDetailCard(test, type) {
       '</div>' +
       '<div>' + badgeHtml + '</div>' +
     '</div>' +
+    userStatusBannerHtml +
 
     // Qatorma-qator to'liq ma'lumotlar ro'yxati
     '<div class="test-rich-info-grid">' +
@@ -1290,15 +1379,17 @@ function renderTestDetailCard(test, type) {
         '<span class="test-rich-val test-rich-code">' + (isUpcoming ? codeDisplay : escHtml(codeDisplay)) + '</span>' +
       '</div>' +
       '<div class="test-rich-info-row">' +
-        '<span class="test-rich-label">' + t('lbl_scheduled_date') + '</span>' +
+        '<span class="test-rich-label">' + (isInactive ? t('lbl_ended_date') : t('lbl_scheduled_date')) + '</span>' +
         '<span class="test-rich-val">' + dateStr + '</span>' +
       '</div>' +
+      (isInactive ? '' : (
+        '<div class="test-rich-info-row">' +
+          '<span class="test-rich-label">' + t('lbl_start_time') + '</span>' +
+          '<span class="test-rich-val">' + startStr + '</span>' +
+        '</div>'
+      )) +
       '<div class="test-rich-info-row">' +
-        '<span class="test-rich-label">' + t('lbl_start_time') + '</span>' +
-        '<span class="test-rich-val">' + startStr + '</span>' +
-      '</div>' +
-      '<div class="test-rich-info-row">' +
-        '<span class="test-rich-label">' + t('lbl_end_time') + '</span>' +
+        '<span class="test-rich-label">' + (isInactive ? t('lbl_ended_time') : t('lbl_end_time')) + '</span>' +
         '<span class="test-rich-val">' + endStr + '</span>' +
       '</div>' +
       '<div class="test-rich-info-row">' +
@@ -1320,27 +1411,28 @@ function renderTestDetailCard(test, type) {
   // Tugmalar
   html += '<div class="test-rich-actions">';
   if (isUpcoming) {
-    html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%;cursor:pointer;" onclick="showTestNotStartedAlert(\'' + escHtml(startStr) + '\')">' +
+    html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%;cursor:pointer;" onclick="event.stopPropagation(); showTestNotStartedAlert(\'' + escHtml(startStr) + '\')">' +
       '<span>⏳</span> ' + t('btn_waiting_start') + (test.scheduled_start ? (' (' + escHtml(test.scheduled_start) + ')') : '') +
     '</button>';
   } else if (isActive) {
     if (done) {
-      html += '<button type="button" class="btn-rich-action btn-rich-success" style="width:100%" onclick="switchTab(\'tests\')">' +
+      html += '<button type="button" class="btn-rich-action btn-rich-success" style="width:100%" onclick="event.stopPropagation(); openPastTestResult(' + test.id + ')">' +
         '<span>✅</span> ' + t('btn_view_result') +
       '</button>';
     } else {
-      html += '<button type="button" class="btn-rich-action btn-rich-primary" style="width:100%" onclick="startTestInBot(\'' + (test.test_code || '') + '\', ' + test.id + ')">' +
+      html += '<button type="button" class="btn-rich-action btn-rich-primary" style="width:100%" onclick="event.stopPropagation(); startTestInBot(\'' + (test.test_code || '') + '\', ' + test.id + ')">' +
         '<span>✍️</span> ' + t('btn_solve_test') +
       '</button>';
     }
   } else {
+    // Inactive / Past test buttons
     if (done) {
-      html += '<button type="button" class="btn-rich-action btn-rich-success" style="width:100%" onclick="switchTab(\'tests\')">' +
-        '<span>✅</span> ' + t('btn_view_result') +
+      html += '<button type="button" class="btn-rich-action btn-rich-success" style="width:100%" onclick="event.stopPropagation(); openPastTestResult(' + test.id + ')">' +
+        '<span>📊</span> ' + t('btn_view_my_result') +
       '</button>';
     } else {
-      html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%" onclick="returnToTelegramChat()">' +
-        '<span>🔒</span> ' + t('btn_test_ended') +
+      html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%" onclick="event.stopPropagation(); showPastTestEndedModal(' + test.id + ')">' +
+        '<span>🔒</span> ' + t('btn_test_ended_info') +
       '</button>';
     }
   }
@@ -1348,6 +1440,162 @@ function renderTestDetailCard(test, type) {
 
   html += '</div>';
   return html;
+}
+
+function handlePastTestCardClick(testId) {
+  var test = (window.availableActiveTests || []).find(function(t) { return t.id === testId; });
+  if (!test) return;
+  var done = Boolean(test.already_submitted);
+  if (!done && window._myResults && window._myResults.length > 0) {
+    done = window._myResults.some(function(r) {
+      return (r.test_id && Number(r.test_id) === Number(test.id)) ||
+             (r.test_code && test.test_code && String(r.test_code).trim().toLowerCase() === String(test.test_code).trim().toLowerCase());
+    });
+  }
+  if (done) {
+    openPastTestResult(testId);
+  } else {
+    showPastTestEndedModal(testId);
+  }
+}
+
+function openPastTestResult(testId) {
+  var matching = null;
+  if (window._myResults && window._myResults.length > 0) {
+    matching = window._myResults.find(function(r) {
+      return (r.test_id && Number(r.test_id) === Number(testId));
+    });
+  }
+  if (!matching) {
+    var tObj = (window.availableActiveTests || []).find(function(t) { return t.id === testId; });
+    if (tObj && tObj.user_score != null) {
+      matching = {
+        test_id: tObj.id,
+        test_title: tObj.title,
+        score: tObj.user_score,
+        correct_count: tObj.user_correct,
+        total_count: tObj.user_total || 45,
+        grade: tObj.user_grade,
+        submitted_at: tObj.submitted_at,
+        results_published: tObj.results_published != null ? tObj.results_published : 1
+      };
+    }
+  }
+
+  if (matching) {
+    showResultModal(matching);
+  } else {
+    switchTab('tests');
+  }
+}
+
+function showPastTestEndedModal(testId) {
+  var test = (window.availableActiveTests || []).find(function(t) { return t.id === testId; });
+  if (!test) return;
+
+  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (test.created_at ? formatDate(test.created_at) : t('val_today'));
+  var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : '22:00 (UZB)';
+  var title = test.title || t('default_test_title');
+  var code = test.test_code ? (String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code)) : '—';
+  var done = Boolean(test.already_submitted);
+
+  if (!done && window._myResults && window._myResults.length > 0) {
+    done = window._myResults.some(function(r) {
+      return (r.test_id && Number(r.test_id) === Number(test.id)) ||
+             (r.test_code && test.test_code && String(r.test_code).trim().toLowerCase() === String(test.test_code).trim().toLowerCase());
+    });
+  }
+
+  var modal = document.getElementById('past-test-modal');
+  var titleEl = document.getElementById('past-test-modal-title');
+  var body = document.getElementById('past-test-modal-body');
+  if (!modal || !body) return;
+
+  if (titleEl) titleEl.textContent = t('test_ended_modal_title');
+
+  var userStatusHtml = '';
+  if (done) {
+    var sc = test.user_score != null ? test.user_score : '—';
+    var correctCount = test.user_correct != null ? test.user_correct : '—';
+    userStatusHtml =
+      '<div class="past-modal-status-box status-participated">' +
+        '<div style="font-size:28px;">✅</div>' +
+        '<div>' +
+          '<div style="font-weight:900;font-size:15px;color:#059669;">' + t('user_status_participated') + '</div>' +
+          '<div style="font-size:13px;color:var(--text-muted);margin-top:3px;">' +
+            t('stat_score') + ': <b>' + sc + ' ' + t('test_score_unit') + '</b> (' + correctCount + ' ' + t('tests_stat_correct') + ')' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  } else {
+    userStatusHtml =
+      '<div class="past-modal-status-box status-not-participated">' +
+        '<div style="font-size:28px;">❌</div>' +
+        '<div>' +
+          '<div style="font-weight:900;font-size:15px;color:#DC2626;">' + t('user_status_not_participated') + '</div>' +
+          '<div style="font-size:13px;color:var(--text-muted);margin-top:3px;line-height:1.4;">' +
+            t('test_ended_user_not_took') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  var ytHtml = '';
+  if (test.youtube_url && test.youtube_url.trim()) {
+    ytHtml =
+      '<a href="' + escHtml(test.youtube_url.trim()) + '" target="_blank" class="past-modal-yt-btn">' +
+        '<span>🎬</span> ' + t('val_yt_available') +
+      '</a>';
+  }
+
+  var actionBtnHtml = '';
+  if (done) {
+    actionBtnHtml =
+      '<button type="button" class="btn-primary" style="width:100%;margin-bottom:10px;padding:12px;border-radius:12px;font-weight:800;font-size:14px;" onclick="closePastTestModal(); openPastTestResult(' + test.id + ');">' +
+        '<span>📊</span> ' + t('btn_view_my_result') +
+      '</button>';
+  }
+
+  var summaryNotice = t('test_ended_on_datetime')
+    .replace('{date}', '<b>' + escHtml(dateStr) + '</b>')
+    .replace('{time}', '<b>' + escHtml(endStr) + '</b>');
+
+  body.innerHTML =
+    '<div class="past-modal-hero">' +
+      '<div class="past-modal-lock-icon">🔒</div>' +
+      '<h3 class="past-modal-heading">' + t('test_ended_modal_title') + '</h3>' +
+      '<div class="past-modal-title-tag">' + escHtml(title) + ' (' + escHtml(code) + ')</div>' +
+    '</div>' +
+
+    '<div class="past-modal-info-card">' +
+      '<div class="past-modal-info-row">' +
+        '<span>' + t('lbl_ended_date') + '</span>' +
+        '<b>' + escHtml(dateStr) + '</b>' +
+      '</div>' +
+      '<div class="past-modal-info-row">' +
+        '<span>' + t('lbl_ended_time') + '</span>' +
+        '<b>' + escHtml(endStr) + '</b>' +
+      '</div>' +
+      '<div class="past-modal-summary-text">' +
+        'ℹ️ ' + summaryNotice +
+      '</div>' +
+    '</div>' +
+
+    userStatusHtml +
+    ytHtml +
+    actionBtnHtml +
+
+    '<button type="button" class="past-modal-close-btn" onclick="closePastTestModal()">' +
+      t('btn_modal_understand') +
+    '</button>';
+
+  modal.style.display = 'flex';
+}
+
+function closePastTestModal(e) {
+  if (e && e.target && e.target.id !== 'past-test-modal') return;
+  var modal = document.getElementById('past-test-modal');
+  if (modal) modal.style.display = 'none';
 }
 
 // ── HOME TAB (Faol va Oldingi testlar - 2 ta bo'lim) ─

@@ -198,6 +198,17 @@
     </div>
   </div>
 
+  <!-- PAST / ENDED TEST INFO MODAL -->
+  <div id="past-test-modal" class="modal-overlay" style="display:none;z-index:99999;" onclick="closePastTestModal(event)">
+    <div class="modal-box past-test-modal-box" id="past-test-modal-box">
+      <div class="modal-header">
+        <div class="modal-title" id="past-test-modal-title" data-i18n="test_ended_modal_title">Test muddati yakunlangan</div>
+        <button class="modal-close" onclick="closePastTestModal()">&#10005;</button>
+      </div>
+      <div class="modal-body" id="past-test-modal-body"></div>
+    </div>
+  </div>
+
   <!-- UNREGISTERED MODAL -->
   <div id="unregistered-modal" class="modal-overlay" style="display:none;z-index:999999;">
     <div class="modal-box" style="text-align:center;padding:32px 24px 26px;border-radius:26px;max-width:380px;width:92%;background:var(--bg-card);border:1px solid var(--border);box-shadow:0 24px 60px rgba(0,0,0,0.45);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);">
