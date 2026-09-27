@@ -108,42 +108,29 @@ const TestApp = {
   },
 
   runIntroAnimation() {
-    const splash = document.getElementById('intro-splash');
+    const splash = document.getElementById('intro-splash') || document.getElementById('splashScreen');
     if (!splash) return;
-
-    function triggerHaptic(type) {
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-        try {
-          if (type === 'medium') {
-            window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-          } else {
-            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
-          }
-        } catch(e) {}
-      }
-    }
-
-    // Harflar sakrab tusha boshlaganda (350ms)
-    setTimeout(() => { triggerHaptic('light'); }, 350);
-    // Harflar to'liq tushganda (1100ms)
-    setTimeout(() => { triggerHaptic('light'); }, 1100);
 
     let isFinished = false;
     this.finishSplashImmediately = () => {
       if (isFinished) return;
       isFinished = true;
-      triggerHaptic('medium');
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
+      }
 
-      splash.classList.add('portal-warp-exit');
+      splash.classList.add('dismissed');
       setTimeout(() => {
         splash.style.display = 'none';
-      }, 450);
+      }, 700);
     };
 
-    // 2350ms dan so'ng avtomatik o'tish
+    window.dismissSplash = () => this.finishSplashImmediately();
+
+    // 3400ms dan so'ng avtomatik o'tish
     setTimeout(() => {
       if (!isFinished) this.finishSplashImmediately();
-    }, 2350);
+    }, 3400);
   },
 
   toggleTheme() {

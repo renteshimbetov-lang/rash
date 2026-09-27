@@ -65,251 +65,268 @@ body {
 /* =========================================
    0. ANIMATSIYALI INTRO / SPLASH EKRANI (BARCHA MINI APP LAR UCHUN)
    ========================================= */
+.splash-screen,
 .splash-screen-common,
 #intro-splash,
-#admin-splash {
+#admin-splash,
+#splashScreen {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 38%, #0E345D 0%, #0B2B4C 52%, #061A2F 100%);
   z-index: 99999;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  background: #060B18;
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
-  cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.55s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease;
 }
 
-.splash-screen-common.fade-out,
+/* Yopilganda kattalashib yo'qolish */
+.splash-screen.dismissed,
+.splash-screen.portal-warp-exit,
+.splash-screen.fade-out,
+.splash-screen-common.dismissed,
 .splash-screen-common.portal-warp-exit,
-#intro-splash.fade-out,
+.splash-screen-common.fade-out,
+#intro-splash.dismissed,
 #intro-splash.portal-warp-exit,
+#intro-splash.fade-out,
+#admin-splash.dismissed,
 #admin-splash.portal-warp-exit {
   opacity: 0;
   transform: scale(1.08);
   pointer-events: none;
 }
 
-/* Ambient orqa fon auralari */
-.splash-ambient-glow {
+/* Markaziy orqa fonning pulsatsiyalanishi */
+.splash-glow {
   position: absolute;
-  width: 380px;
-  height: 380px;
-  top: 48%;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(46, 196, 182, 0.35) 0%, rgba(46, 196, 182, 0) 70%);
+  border-radius: 50%;
+  top: 40%;
   left: 50%;
   transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(0, 229, 255, 0.20) 40%, rgba(99, 102, 241, 0.12) 65%, transparent 75%);
-  filter: blur(55px);
+  animation: splashGlowPulse 2.8s ease-in-out infinite alternate;
   pointer-events: none;
-  animation: splashAuraBreath 3.2s ease-in-out infinite alternate;
 }
 
-@keyframes splashAuraBreath {
-  0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.55; }
-  100% { transform: translate(-50%, -50%) scale(1.18); opacity: 0.95; }
+@keyframes splashGlowPulse {
+  0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.9; }
 }
 
-.splash-content-wrap {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 380px;
-}
-
-/* ── LOGO VA BADGE KONTEYNERI ── */
+/* 2. Logo Konteyneri va Dumaloq Disk */
 .splash-logo-container {
   position: relative;
   width: 140px;
   height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 28px;
+  margin: 0 auto 24px;
+  z-index: 2;
 }
 
-/* Tashqi aylanuvchi neon halo */
-.splash-neon-ring {
-  position: absolute;
-  inset: -14px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, #10B981, #00E5FF, #38BDF8, #6366F1, #10B981);
-  filter: blur(16px);
-  opacity: 0.85;
-  animation: splashRingSpin 5s linear infinite;
-}
-
-@keyframes splashRingSpin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Neon to'lqin tarqalishi */
-.splash-neon-pulse {
-  position: absolute;
-  inset: -20px;
-  border-radius: 50%;
-  border: 2px solid rgba(0, 229, 255, 0.45);
-  animation: splashWaveExpand 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
-}
-
-@keyframes splashWaveExpand {
-  0% { transform: scale(0.88); opacity: 0.85; }
-  100% { transform: scale(1.48); opacity: 0; }
-}
-
-/* Oq glossy doiraviy badge (emblem to'liq to'ldirilgan) */
-.splash-badge-circle {
-  position: relative;
-  width: 124px;
-  height: 124px;
+.splash-circle-badge {
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
   background: #FFFFFF;
-  border: 3.5px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 
-    0 20px 48px rgba(0, 0, 0, 0.55),
-    0 4px 20px rgba(0, 229, 255, 0.3),
-    inset 0 2px 4px rgba(255, 255, 255, 0.95),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.45), 0 0 35px rgba(46, 196, 182, 0.35);
+  border: 3.5px solid rgba(46, 196, 182, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2;
-  transform: scale(0);
-  animation: splashCircleEntrance 0.75s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.1s forwards;
-  overflow: hidden;
+  overflow: hidden; /* Doiradan tashqariga burchaklar chiqmaydi */
+  animation: emblemEmerge 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes splashCircleEntrance {
-  0% { transform: scale(0.2); opacity: 0; }
-  70% { transform: scale(1.08); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.splash-badge-shine {
-  position: absolute;
-  top: 4px;
-  left: 14px;
-  width: 52px;
-  height: 26px;
-  border-radius: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), transparent);
-  transform: rotate(-30deg);
-  pointer-events: none;
-  z-index: 4;
-}
-
-.splash-logo-img {
-  width: 95%;
-  height: 95%;
-  object-fit: contain;
-  border-radius: 50%;
-  position: relative;
-  z-index: 3;
-  display: block;
-}
-
-
-/* ── BRAND MATNI (SHOHRUH MATEMATIKA — SAKRAB YOZILISH ANIMATSIYASI) ── */
-.splash-brand-wrap {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.splash-brand-title {
-  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-  font-size: clamp(20px, 5.8vw, 27px);
-  font-weight: 900;
-  letter-spacing: -0.2px;
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0 4px;
-  text-align: center;
-  line-height: 1.2;
-}
-
-.splash-word {
-  display: inline-flex;
-  align-items: center;
-  white-space: nowrap;
-}
-
-.splash-word-spacer {
-  width: 7px;
-  display: inline-block;
-}
-
-/* Har bir harf alohida sakrab, tebranib tushishi */
-.splash-char {
-  display: inline-block;
-  color: #FFFFFF;
-  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.55), 0 0 20px rgba(56, 189, 248, 0.25);
-  opacity: 0;
-  transform-origin: center bottom;
-  animation: letterBounceDrop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d, 0.3s) forwards;
-}
-
-/* MATEMATIKA so'zi neon moviy rangda ajralib turadi */
-.splash-char-accent {
-  color: #38BDF8;
-  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), 0 0 24px rgba(56, 189, 248, 0.65);
-}
-
-@keyframes letterBounceDrop {
+@keyframes emblemEmerge {
   0% {
     opacity: 0;
-    transform: translateY(-55px) rotate(var(--r, -14deg)) scale(0.35);
-    filter: blur(4px);
+    transform: scale(0.35) translateY(24px);
+    filter: blur(8px);
   }
-  55% {
+  70% {
     opacity: 1;
-    transform: translateY(10px) rotate(calc(var(--r, -14deg) * -0.45)) scale(1.22);
+    transform: scale(1.06) translateY(-4px);
     filter: blur(0);
-  }
-  75% {
-    transform: translateY(-5px) rotate(calc(var(--r, -14deg) * 0.2)) scale(0.95);
-  }
-  90% {
-    transform: translateY(2px) rotate(0deg) scale(1.02);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) rotate(0deg) scale(1);
-    filter: blur(0);
+    transform: scale(1) translateY(0);
   }
 }
 
-.splash-brand-subtitle {
+.splash-emblem-img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  display: block;
+}
+
+/* 3. Akademik Qalpoqcha Kiyilishi va Tebranishi */
+.splash-grad-cap {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  width: 104px;
+  height: auto;
+  z-index: 10;
+  opacity: 0;
+  transform: translateX(-48%) rotate(-12deg);
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.6));
+  animation: capLandOnLogo 0.75s 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.35) forwards,
+             capFloatingWiggle 2.8s 1.4s ease-in-out infinite alternate;
+  transform-origin: 50% 80%;
+  pointer-events: none;
+}
+
+@keyframes capLandOnLogo {
+  0% {
+    opacity: 0;
+    transform: translateX(-48%) translateY(-65px) scale(0.3) rotate(32deg);
+  }
+  65% {
+    opacity: 1;
+    transform: translateX(-48%) translateY(5px) scale(1.1) rotate(-16deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translateX(-48%) translateY(-2px) scale(0.97) rotate(-10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-48%) translateY(0) scale(1) rotate(-12deg);
+  }
+}
+
+@keyframes capFloatingWiggle {
+  0% {
+    transform: translateX(-48%) translateY(0) rotate(-12deg) scale(1);
+  }
+  100% {
+    transform: translateX(-48%) translateY(-2.5px) rotate(-9deg) scale(1.02);
+  }
+}
+
+/* 4. Sakrab Chiqadigan Harflar */
+.splash-brand-text {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-size: clamp(22px, 6vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.bounce-char {
+  display: inline-block;
+  color: #FFFFFF;
+  opacity: 0;
+  transform: translateY(45px) scale(0.3);
+  animation: letterBounce 0.65s var(--d) cubic-bezier(0.175, 0.885, 0.32, 1.35) forwards;
+  text-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
+.bounce-char.space {
+  width: 8px;
+}
+
+.bounce-char.dot {
+  color: #55E4D6;
+  margin: 0 1px;
+}
+
+.bounce-char.teal {
+  color: #2EC4B6;
+  text-shadow: 0 0 18px rgba(46, 196, 182, 0.85);
+}
+
+@keyframes letterBounce {
+  0% {
+    opacity: 0;
+    transform: translateY(45px) scale(0.3);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-20px) scale(1.25);
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(6px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 5. Subtitle va Skip Tugmasi */
+.splash-subtitle {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 3.5px;
+  color: #94A3B8;
+  letter-spacing: 2px;
   text-transform: uppercase;
-  color: rgba(203, 213, 225, 0.75);
-  margin: 0;
   opacity: 0;
-  transform: translateY(12px);
-  animation: splashSubReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 1.25s forwards;
+  animation: subtitleReveal 0.8s 2.0s ease forwards;
+  z-index: 2;
+  text-align: center;
 }
 
-@keyframes splashSubReveal {
-  0% { opacity: 0; transform: translateY(12px); filter: blur(3px); }
-  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
+@keyframes subtitleReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+    letter-spacing: 0.5px;
+  }
+  100% {
+    opacity: 0.85;
+    transform: translateY(0);
+    letter-spacing: 2.2px;
+  }
+}
+
+.splash-skip-hint {
+  position: absolute;
+  bottom: 40px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 18px;
+  border-radius: 30px;
+  color: #FFFFFF;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  opacity: 0;
+  animation: skipBtnAppear 0.5s 2.3s ease forwards;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+
+.splash-skip-hint:hover {
+  background: rgba(46, 196, 182, 0.25);
+  border-color: #2EC4B6;
+  transform: scale(1.05);
+}
+
+@keyframes skipBtnAppear {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 .intro-logo-glow {

@@ -680,63 +680,41 @@ function startSplashCanvas() {
   };
 }
 
+let splashTimer = null;
+function dismissSplash() {
+  if (splashTimer) clearTimeout(splashTimer);
+  var splash = document.getElementById('splashScreen') || document.getElementById('splash-screen');
+  if (!splash) return;
+
+  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+    try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
+  }
+
+  splash.classList.add('dismissed');
+  setTimeout(function() {
+    splash.style.display = 'none';
+    var isUnreg = checkRegistrationStatus();
+    if (!isUnreg && !localStorage.getItem('onboarding_nav_tour_seen')) {
+      setTimeout(function() {
+        openOnboardingModal();
+      }, 300);
+    }
+  }, 700);
+}
+window.dismissSplash = dismissSplash;
+window.finishSplashImmediately = dismissSplash;
+
 function runSplash() {
-  var splash = document.getElementById('splash-screen');
+  var splash = document.getElementById('splashScreen') || document.getElementById('splash-screen');
   if (!splash) { launchApp(); return; }
 
   // Ma'lumotlarni fonda oldindan yuklash
   launchApp();
 
-  function triggerHaptic(type) {
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-      try {
-        if (type === 'success') {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-        } else if (type === 'medium') {
-          window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
-        } else {
-          window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
-        }
-      } catch(e) {}
-    }
-  }
-
-  // Harflar sakrab tusha boshlaganda (350ms) yengil tebranish
-  setTimeout(function() {
-    triggerHaptic('light');
-  }, 350);
-
-  // Harflar to'liq tushib bo'lganda (1100ms)
-  setTimeout(function() {
-    triggerHaptic('light');
-  }, 1100);
-
-  var isFinished = false;
-  window.finishSplashImmediately = function() {
-    if (isFinished) return;
-    isFinished = true;
-    triggerHaptic('medium');
-
-    splash.classList.add('portal-warp-exit');
-    setTimeout(function() {
-      splash.style.display = 'none';
-
-      // Kirish animatsiyasi 100% tugagachgina tekshirish
-      var isUnreg = checkRegistrationStatus();
-      if (!isUnreg && !localStorage.getItem('onboarding_nav_tour_seen')) {
-        setTimeout(function() {
-          openOnboardingModal();
-        }, 300);
-      }
-    }, 450);
-  };
-
-  // 2350ms dan so'ng avtomatik ravishda asosiy ekranga o'tadi
-  setTimeout(function() {
-    if (!isFinished) {
-      window.finishSplashImmediately();
-    }
-  }, 2350);
+  // Sahifa yuklanganda animatsiya to'liq o'tgach (3.4 soniyadan keyin) avtomatik yopish
+  splashTimer = setTimeout(function() {
+    dismissSplash();
+  }, 3400);
 }
 
 // ── PIN SYSTEM ──────────────────────────────────

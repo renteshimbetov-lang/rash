@@ -28,56 +28,44 @@
   <!-- =========================================
        MAVZUGA MOS ANIMATSIYALI INTRO EKRAN
        ========================================= -->
-  <!-- =========================================
-       PREMIUM SPLASH INTRO ANIMATSIYASI
-       ========================================= -->
-  <div id="intro-splash" class="splash-screen-common" onclick="TestApp.finishSplashImmediately()">
-    <div class="splash-ambient-glow"></div>
-    <div class="splash-content-wrap">
-      <!-- Markaziy Logo va Akademik Qalpoqcha -->
-      <div class="splash-logo-container">
-        <!-- Orqa fon neon pulsatsiyasi -->
-        <div class="splash-neon-pulse"></div>
-        <div class="splash-neon-ring"></div>
-        
-
-        <!-- Oq glossy doiraviy badge (to'liq to'ldirilgan emblem) -->
-        <div class="splash-badge-circle" id="splash-badge-circle">
-          <img src="/img/bm_emblem_fill.png?v=20260927_fill" alt="Shohruh Matematika" class="splash-logo-img" id="splash-logo-img" />
-          <div class="splash-badge-shine"></div>
-        </div>
+  <!-- KIRISH ANIMATSIYASI EKRANI -->
+  <div class="splash-screen" id="intro-splash">
+    <!-- Markaziy nur/fon nurlanishi -->
+    <div class="splash-glow"></div>
+    <!-- 1. Markaziy Logo va Qalpoqcha -->
+    <div class="splash-logo-container">
+      <div class="splash-circle-badge">
+        <img src="/img/bm_emblem_fill.png?v=20260927_fill" alt="Logo" class="splash-emblem-img">
       </div>
-
-      <!-- Matn: SHOHRUH MATEMATIKA (Harflar sakrab tushishi) -->
-      <div class="splash-brand-wrap">
-        <h1 class="splash-brand-title" id="splash-brand-title" aria-label="SHOHRUH MATEMATIKA">
-          <span class="splash-word splash-word-1">
-            <span class="splash-char" style="--d: 0.25s; --r: -14deg">S</span>
-            <span class="splash-char" style="--d: 0.30s; --r: 12deg">H</span>
-            <span class="splash-char" style="--d: 0.35s; --r: -10deg">O</span>
-            <span class="splash-char" style="--d: 0.40s; --r: 14deg">H</span>
-            <span class="splash-char" style="--d: 0.45s; --r: -12deg">R</span>
-            <span class="splash-char" style="--d: 0.50s; --r: 10deg">U</span>
-            <span class="splash-char" style="--d: 0.55s; --r: -14deg">H</span>
-          </span>
-          <span class="splash-word-spacer">&nbsp;</span>
-          <span class="splash-word splash-word-2">
-            <span class="splash-char splash-char-accent" style="--d: 0.65s; --r: 12deg">M</span>
-            <span class="splash-char splash-char-accent" style="--d: 0.70s; --r: -14deg">A</span>
-            <span class="splash-char splash-char-accent" style="--d: 0.75s; --r: 10deg">T</span>
-            <span class="splash-char splash-char-accent" style="--d: 0.80s; --r: -12deg">E</span>
-            <span class="splash-char splash-char-accent" style="--d: 0.85s; --r: 14deg">M</span>
-            <span class="splash-char splash-char-accent" style="--d: 0.90s; --r: -10deg">A</span>
-            <span class="splash-char splash-char-accent" style="--d: 0.95s; --r: 12deg">T</span>
-            <span class="splash-char splash-char-accent" style="--d: 1.00s; --r: -14deg">I</span>
-            <span class="splash-char splash-char-accent" style="--d: 1.05s; --r: 10deg">K</span>
-            <span class="splash-char splash-char-accent" style="--d: 1.10s; --r: -12deg">A</span>
-          </span>
-        </h1>
-        <p class="splash-brand-subtitle" id="splash-brand-subtitle">
-          MILLIY SERTIFIKAT VA RASCH TIZIMI
-        </p>
-      </div>
+      <!-- Logoga kiyiladigan 3D akademik qalpoqcha -->
+      <img src="/img/graduation_cap.svg" class="splash-grad-cap" alt="Cap">
+    </div>
+    <!-- 2. Sakrab chiquvchi Harflar -->
+    <div class="splash-brand-text">
+      <span class="bounce-char" style="--d: 0.95s">S</span>
+      <span class="bounce-char" style="--d: 1.02s">H</span>
+      <span class="bounce-char" style="--d: 1.09s">O</span>
+      <span class="bounce-char" style="--d: 1.16s">H</span>
+      <span class="bounce-char" style="--d: 1.23s">R</span>
+      <span class="bounce-char" style="--d: 1.30s">U</span>
+      <span class="bounce-char" style="--d: 1.37s">H</span>
+      <span class="bounce-char space">&nbsp;</span>
+      <span class="bounce-char teal" style="--d: 1.48s">M</span>
+      <span class="bounce-char teal" style="--d: 1.55s">A</span>
+      <span class="bounce-char teal" style="--d: 1.62s">T</span>
+      <span class="bounce-char teal" style="--d: 1.69s">E</span>
+      <span class="bounce-char teal" style="--d: 1.76s">M</span>
+      <span class="bounce-char teal" style="--d: 1.83s">A</span>
+      <span class="bounce-char teal" style="--d: 1.90s">T</span>
+      <span class="bounce-char teal" style="--d: 1.97s">I</span>
+      <span class="bounce-char teal" style="--d: 2.04s">K</span>
+      <span class="bounce-char teal" style="--d: 2.11s">A</span>
+    </div>
+    <!-- 3. Ostki Tagline/Izoh -->
+    <div class="splash-subtitle">MILLIY SERTIFIKAT VA RASCH TIZIMI</div>
+    <!-- 4. O'tkazib yuborish (Skip) tugmasi -->
+    <div class="splash-skip-hint" onclick="TestApp.finishSplashImmediately()">
+      <span>Davom etish ➔</span>
     </div>
   </div>
 
