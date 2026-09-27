@@ -37,7 +37,7 @@
 <body>
 
   <!-- SPLASH SCREEN (Video uslubidagi kirish animatsiyasi) -->
-  <div id="splash-screen">
+  <div id="splash-screen" onclick="finishSplashImmediately()">
     <div class="splash-ambient-glow"></div>
     <div class="splash-content-wrap">
       <!-- Markaziy Logo va Akademik Qalpoqcha -->
@@ -57,33 +57,43 @@
           </svg>
         </div>
 
-        <!-- Oq glossy doiraviy badge -->
+        <!-- Oq glossy doiraviy badge (to'liq to'ldirilgan emblem) -->
         <div class="splash-badge-circle" id="splash-badge-circle">
-          <img src="/img/bm_logo.png?v=20260926_shohruh3" alt="Shohruh Matematika" class="splash-logo-img" id="splash-logo-img" />
+          <img src="/img/bm_emblem_fill.png?v=20260927_fill" alt="Shohruh Matematika" class="splash-logo-img" id="splash-logo-img" />
           <div class="splash-badge-shine"></div>
         </div>
       </div>
 
-      <!-- Matn: shohruh.uz -->
+      <!-- Matn: SHOHRUH MATEMATIKA (Harflar sakrab tushishi) -->
       <div class="splash-brand-wrap">
-        <h1 class="splash-brand-title" id="splash-brand-title">
-          <span class="brand-text">shohruh</span><span class="brand-dot-uz">.uz</span>
+        <h1 class="splash-brand-title" id="splash-brand-title" aria-label="SHOHRUH MATEMATIKA">
+          <span class="splash-word splash-word-1">
+            <span class="splash-char" style="--d: 0.25s; --r: -14deg">S</span>
+            <span class="splash-char" style="--d: 0.30s; --r: 12deg">H</span>
+            <span class="splash-char" style="--d: 0.35s; --r: -10deg">O</span>
+            <span class="splash-char" style="--d: 0.40s; --r: 14deg">H</span>
+            <span class="splash-char" style="--d: 0.45s; --r: -12deg">R</span>
+            <span class="splash-char" style="--d: 0.50s; --r: 10deg">U</span>
+            <span class="splash-char" style="--d: 0.55s; --r: -14deg">H</span>
+          </span>
+          <span class="splash-word-spacer">&nbsp;</span>
+          <span class="splash-word splash-word-2">
+            <span class="splash-char splash-char-accent" style="--d: 0.65s; --r: 12deg">M</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.70s; --r: -14deg">A</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.75s; --r: 10deg">T</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.80s; --r: -12deg">E</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.85s; --r: 14deg">M</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.90s; --r: -10deg">A</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.95s; --r: 12deg">T</span>
+            <span class="splash-char splash-char-accent" style="--d: 1.00s; --r: -14deg">I</span>
+            <span class="splash-char splash-char-accent" style="--d: 1.05s; --r: 10deg">K</span>
+            <span class="splash-char splash-char-accent" style="--d: 1.10s; --r: -12deg">A</span>
+          </span>
         </h1>
         <p class="splash-brand-subtitle" id="splash-brand-subtitle">
           MILLIY SERTIFIKAT VA RASCH TIZIMI
         </p>
       </div>
-    </div>
-
-    <!-- Pastki "Davom etish →" tugmasi -->
-    <div class="splash-bottom-wrap">
-      <button type="button" class="splash-continue-btn" id="splash-continue-btn" onclick="finishSplashImmediately()">
-        <span>Davom etish</span>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"></line>
-          <polyline points="12 5 19 12 12 19"></polyline>
-        </svg>
-      </button>
     </div>
   </div>
 

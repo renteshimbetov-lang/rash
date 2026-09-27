@@ -591,7 +591,7 @@ function initApp() {
   }
 
   if (window.BM_LOGO_B64) {
-    document.querySelectorAll('.splash-logo-img, .header-logo-img, .header-bm-logo').forEach(function(img) {
+    document.querySelectorAll('.header-logo-img, .header-bm-logo').forEach(function(img) {
       img.src = window.BM_LOGO_B64;
     });
   }
@@ -701,10 +701,15 @@ function runSplash() {
     }
   }
 
-  // Qalpog'i tushganda (450ms) yengil tebranish
+  // Qalpog'i tushganda (350ms) yengil tebranish
   setTimeout(function() {
     triggerHaptic('light');
-  }, 450);
+  }, 350);
+
+  // Harflar to'liq tushib bo'lganda (1100ms)
+  setTimeout(function() {
+    triggerHaptic('light');
+  }, 1100);
 
   var isFinished = false;
   window.finishSplashImmediately = function() {
@@ -726,12 +731,12 @@ function runSplash() {
     }, 450);
   };
 
-  // 2400ms dan so'ng foydalanuvchi bosmasa ham avtomatik ravishda asosiy ekranga o'tadi
+  // 2350ms dan so'ng avtomatik ravishda asosiy ekranga o'tadi
   setTimeout(function() {
     if (!isFinished) {
       window.finishSplashImmediately();
     }
-  }, 2400);
+  }, 2350);
 }
 
 // ── PIN SYSTEM ──────────────────────────────────

@@ -169,10 +169,13 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  padding: 80px 24px 44px;
+  justify-content: center;
+  padding: 24px;
   background: #060B18;
   overflow: hidden;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
   transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.55s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease;
 }
 
@@ -183,13 +186,13 @@ body {
 /* Ambient orqa fon auralari */
 .splash-ambient-glow {
   position: absolute;
-  width: 360px;
-  height: 360px;
-  top: 42%;
+  width: 380px;
+  height: 380px;
+  top: 48%;
   left: 50%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, rgba(0, 229, 255, 0.18) 40%, rgba(99, 102, 241, 0.12) 65%, transparent 75%);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(0, 229, 255, 0.20) 40%, rgba(99, 102, 241, 0.12) 65%, transparent 75%);
   filter: blur(55px);
   pointer-events: none;
   animation: splashAuraBreath 3.2s ease-in-out infinite alternate;
@@ -207,30 +210,29 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  margin: auto 0;
   width: 100%;
-  max-width: 360px;
+  max-width: 380px;
 }
 
 /* ── LOGO VA BADGE KONTEYNERI ── */
 .splash-logo-container {
   position: relative;
-  width: 124px;
-  height: 124px;
+  width: 136px;
+  height: 136px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 26px;
+  margin-bottom: 28px;
 }
 
 /* Tashqi aylanuvchi neon halo */
 .splash-neon-ring {
   position: absolute;
-  inset: -12px;
+  inset: -14px;
   border-radius: 50%;
   background: conic-gradient(from 0deg, #10B981, #00E5FF, #38BDF8, #6366F1, #10B981);
-  filter: blur(15px);
-  opacity: 0.8;
+  filter: blur(16px);
+  opacity: 0.85;
   animation: splashRingSpin 5s linear infinite;
 }
 
@@ -242,35 +244,37 @@ body {
 /* Neon to'lqin tarqalishi */
 .splash-neon-pulse {
   position: absolute;
-  inset: -18px;
+  inset: -20px;
   border-radius: 50%;
-  border: 2px solid rgba(0, 229, 255, 0.4);
+  border: 2px solid rgba(0, 229, 255, 0.45);
   animation: splashWaveExpand 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
 }
 
 @keyframes splashWaveExpand {
   0% { transform: scale(0.88); opacity: 0.85; }
-  100% { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.48); opacity: 0; }
 }
 
-/* Oq glossy doiraviy badge (video kabi markaziy element) */
+/* Oq glossy doiraviy badge (videodagidek emblem to'liq to'ldirilgan) */
 .splash-badge-circle {
   position: relative;
-  width: 108px;
-  height: 108px;
+  width: 124px;
+  height: 124px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #FFFFFF 0%, #F1F5F9 60%, #E2E8F0 100%);
+  background: #FFFFFF;
+  border: 3.5px solid rgba(255, 255, 255, 0.95);
   box-shadow: 
-    0 18px 40px rgba(0, 0, 0, 0.5),
-    0 4px 12px rgba(16, 185, 129, 0.25),
+    0 20px 48px rgba(0, 0, 0, 0.55),
+    0 4px 20px rgba(0, 229, 255, 0.3),
     inset 0 2px 4px rgba(255, 255, 255, 0.95),
-    inset 0 -3px 6px rgba(0, 0, 0, 0.1);
+    inset 0 -3px 6px rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
   transform: scale(0);
   animation: splashCircleEntrance 0.75s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.1s forwards;
+  overflow: hidden;
 }
 
 @keyframes splashCircleEntrance {
@@ -282,41 +286,43 @@ body {
 .splash-badge-shine {
   position: absolute;
   top: 4px;
-  left: 12px;
-  width: 48px;
-  height: 24px;
+  left: 14px;
+  width: 52px;
+  height: 26px;
   border-radius: 50%;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), transparent);
   transform: rotate(-30deg);
   pointer-events: none;
+  z-index: 4;
 }
 
 .splash-logo-img {
-  width: 72px;
-  height: 72px;
+  width: 95%;
+  height: 95%;
   object-fit: contain;
   border-radius: 50%;
   position: relative;
   z-index: 3;
+  display: block;
 }
 
 /* Akademik qalpoqcha (3D Graduation Cap sakrab tushishi) */
 .splash-grad-cap {
   position: absolute;
-  top: -20px;
+  top: -24px;
   right: 2px;
-  width: 54px;
-  height: 54px;
+  width: 58px;
+  height: 58px;
   z-index: 10;
-  transform: translateY(-40px) scale(0.3) rotate(-35deg);
+  transform: translateY(-50px) scale(0.3) rotate(-35deg);
   opacity: 0;
-  animation: splashCapLanding 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s forwards;
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+  animation: splashCapLanding 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) 0.35s forwards;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.6));
 }
 
 @keyframes splashCapLanding {
-  0% { transform: translateY(-40px) scale(0.3) rotate(-35deg); opacity: 0; }
-  65% { transform: translateY(5px) scale(1.12) rotate(6deg); opacity: 1; }
+  0% { transform: translateY(-50px) scale(0.3) rotate(-35deg); opacity: 0; }
+  65% { transform: translateY(6px) scale(1.12) rotate(6deg); opacity: 1; }
   100% { transform: translateY(0) scale(1) rotate(-8deg); opacity: 1; }
 }
 
@@ -326,113 +332,98 @@ body {
   display: block;
 }
 
-/* ── BRAND MATNI (shohruh.uz) ── */
+/* ── BRAND MATNI (SHOHRUH MATEMATIKA — SAKRAB YOZILISH ANIMATSIYASI) ── */
 .splash-brand-wrap {
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  width: 100%;
 }
 
 .splash-brand-title {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-  font-size: 34px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  margin: 0;
-  color: #FFFFFF;
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 1px;
-  opacity: 0;
-  transform: translateY(18px);
-  animation: splashTitleReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.65s forwards;
-}
-
-@keyframes splashTitleReveal {
-  0% { opacity: 0; transform: translateY(18px); filter: blur(4px); }
-  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
-}
-
-.brand-text {
-  color: #FFFFFF;
-  letter-spacing: -0.5px;
-}
-
-.brand-dot-uz {
-  color: #10B981; /* Video dagi yashil rang */
+  font-size: clamp(20px, 5.8vw, 27px);
   font-weight: 900;
-  text-shadow: 0 0 16px rgba(16, 185, 129, 0.7), 0 0 32px rgba(16, 185, 129, 0.35);
+  letter-spacing: -0.2px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 4px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.splash-word {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.splash-word-spacer {
+  width: 7px;
+  display: inline-block;
+}
+
+/* Har bir harf alohida sakrab, tebranib tushishi */
+.splash-char {
+  display: inline-block;
+  color: #FFFFFF;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.55), 0 0 20px rgba(56, 189, 248, 0.25);
+  opacity: 0;
+  transform-origin: center bottom;
+  animation: letterBounceDrop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) var(--d, 0.3s) forwards;
+}
+
+/* MATEMATIKA so'zi neon moviy rangda ajralib turadi */
+.splash-char-accent {
+  color: #38BDF8;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.55), 0 0 24px rgba(56, 189, 248, 0.65);
+}
+
+@keyframes letterBounceDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-55px) rotate(var(--r, -14deg)) scale(0.35);
+    filter: blur(4px);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(10px) rotate(calc(var(--r, -14deg) * -0.45)) scale(1.22);
+    filter: blur(0);
+  }
+  75% {
+    transform: translateY(-5px) rotate(calc(var(--r, -14deg) * 0.2)) scale(0.95);
+  }
+  90% {
+    transform: translateY(2px) rotate(0deg) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+    filter: blur(0);
+  }
 }
 
 .splash-brand-subtitle {
   font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 3.8px;
+  letter-spacing: 3.5px;
   text-transform: uppercase;
-  color: rgba(203, 213, 225, 0.65);
+  color: rgba(203, 213, 225, 0.75);
   margin: 0;
   opacity: 0;
   transform: translateY(12px);
-  animation: splashSubReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.85s forwards;
+  animation: splashSubReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 1.25s forwards;
 }
 
 @keyframes splashSubReveal {
   0% { opacity: 0; transform: translateY(12px); filter: blur(3px); }
   100% { opacity: 1; transform: translateY(0); filter: blur(0); }
-}
-
-/* ── PASTKI TUGMA (Davom etish →) ── */
-.splash-bottom-wrap {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  opacity: 0;
-  transform: translateY(22px);
-  animation: splashBtnSlideIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) 1.05s forwards;
-}
-
-@keyframes splashBtnSlideIn {
-  0% { opacity: 0; transform: translateY(22px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-.splash-continue-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 32px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: #FFFFFF;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 14.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.2);
-}
-
-.splash-continue-btn:hover,
-.splash-continue-btn:active {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(16, 185, 129, 0.6);
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 12px 32px rgba(16, 185, 129, 0.3);
-}
-
-.splash-continue-btn svg {
-  transition: transform 0.25s ease;
-}
-
-.splash-continue-btn:hover svg {
-  transform: translateX(4px);
 }
 
 /* Silliq yo'qolish (Exit transition) */
