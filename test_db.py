@@ -226,6 +226,30 @@ def init_db():
             )
             """)
 
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_history (
+                id SERIAL PRIMARY KEY,
+                batch_id TEXT UNIQUE NOT NULL,
+                sender_tg_id BIGINT DEFAULT 0,
+                message_text TEXT DEFAULT '',
+                photo_id TEXT DEFAULT '',
+                total_sent INTEGER DEFAULT 0,
+                is_deleted INTEGER DEFAULT 0,
+                created_at BIGINT NOT NULL
+            )
+            """)
+
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_messages (
+                id SERIAL PRIMARY KEY,
+                batch_id TEXT NOT NULL,
+                chat_id BIGINT NOT NULL,
+                message_id BIGINT NOT NULL,
+                status TEXT DEFAULT 'sent',
+                created_at BIGINT NOT NULL
+            )
+            """)
+
             # Bosh adminni qo'shish (ON CONFLICT — PostgreSQL)
             cur.execute("""
             INSERT INTO admins (tg_id, fullname, username, added_by, created_at)
@@ -240,6 +264,9 @@ def init_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_test_id ON submissions(test_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_test_code ON tests(test_code)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_is_active ON tests(is_active)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_msg_batch ON broadcast_messages(batch_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_msg_chat ON broadcast_messages(chat_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_hist_created ON broadcast_history(created_at)")
 
         else:
             # SQLite jadvallar (fallback)
@@ -313,6 +340,30 @@ def init_db():
             """)
 
             cur.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                batch_id TEXT UNIQUE NOT NULL,
+                sender_tg_id INTEGER DEFAULT 0,
+                message_text TEXT DEFAULT '',
+                photo_id TEXT DEFAULT '',
+                total_sent INTEGER DEFAULT 0,
+                is_deleted INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL
+            )
+            """)
+
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS broadcast_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                batch_id TEXT NOT NULL,
+                chat_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL,
+                status TEXT DEFAULT 'sent',
+                created_at INTEGER NOT NULL
+            )
+            """)
+
+            cur.execute("""
             INSERT OR IGNORE INTO admins (tg_id, fullname, username, added_by, created_at)
             VALUES (8039427064, 'Bosh Admin', 'admin', 0, 1789300000)
             """)
@@ -324,6 +375,9 @@ def init_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_submissions_test_id ON submissions(test_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_test_code ON tests(test_code)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_tests_is_active ON tests(is_active)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_msg_batch ON broadcast_messages(batch_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_msg_chat ON broadcast_messages(chat_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_hist_created ON broadcast_history(created_at)")
 
         # Jadval vaqt va qo'shimcha ustunlar migration (mavjud bo'lsa xato bermaydi)
         if USE_POSTGRES:
@@ -569,6 +623,117 @@ def get_broadcast_users() -> List[Dict[str, Any]]:
         cur.execute("SELECT tg_id, fullname, status FROM users WHERE status NOT IN ('blocked', 'rejected')")
         rows = cur.fetchall()
         return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
+
+
+def create_broadcast_batch(batch_id: str, sender_tg_id: int = 0, message_text: str = "", photo_id: str = "") -> bool:
+    """Yangi broadcast partiyasini yaratish."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        now = int(time.time())
+        sql = f"""
+        INSERT INTO broadcast_history (batch_id, sender_tg_id, message_text, photo_id, total_sent, is_deleted, created_at)
+        VALUES ({_ph()}, {_ph()}, {_ph()}, {_ph()}, 0, 0, {_ph()})
+        """
+        cur.execute(sql, (batch_id, sender_tg_id, str(message_text)[:1000], str(photo_id or ''), now))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error create_broadcast_batch: {e}")
+        return False
+    finally:
+        _close_conn(conn)
+
+
+def record_broadcast_message(batch_id: str, chat_id: int, message_id: int) -> bool:
+    """Har bir yuborilgan xabar ID sini saqlash (keyinchalik o'chirish uchun)."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        now = int(time.time())
+        sql = f"""
+        INSERT INTO broadcast_messages (batch_id, chat_id, message_id, status, created_at)
+        VALUES ({_ph()}, {_ph()}, {_ph()}, 'sent', {_ph()})
+        """
+        cur.execute(sql, (batch_id, chat_id, message_id, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error record_broadcast_message: {e}")
+        return False
+    finally:
+        _close_conn(conn)
+
+
+def update_broadcast_sent_count(batch_id: str, total_sent: int) -> bool:
+    """Yuborilgan jami xabarlar sonini yangilash."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        sql = f"UPDATE broadcast_history SET total_sent = {_ph()} WHERE batch_id = {_ph()}"
+        cur.execute(sql, (total_sent, batch_id))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error update_broadcast_sent_count: {e}")
+        return False
+    finally:
+        _close_conn(conn)
+
+
+def get_broadcast_messages(batch_id: str) -> List[Dict[str, Any]]:
+    """Partiyaga tegishli barcha yuborilgan xabar ID lari ro'yxati."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        sql = f"SELECT chat_id, message_id FROM broadcast_messages WHERE batch_id = {_ph()} AND status = 'sent'"
+        cur.execute(sql, (batch_id,))
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
+
+
+def mark_broadcast_deleted(batch_id: str) -> bool:
+    """Xabar barcha o'quvchilardan o'chirilganini belgilash."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE broadcast_history SET is_deleted = 1 WHERE batch_id = {_ph()}", (batch_id,))
+        cur.execute(f"UPDATE broadcast_messages SET status = 'deleted' WHERE batch_id = {_ph()}", (batch_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error mark_broadcast_deleted: {e}")
+        return False
+    finally:
+        _close_conn(conn)
+
+
+def get_recent_broadcasts(limit: int = 10) -> List[Dict[str, Any]]:
+    """Yaqinda yuborilgan broadcast xabarlari ro'yxati."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        sql = f"SELECT * FROM broadcast_history ORDER BY id DESC LIMIT {_ph()}"
+        cur.execute(sql, (limit,))
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
+
+
+def get_broadcast_by_batch(batch_id: str) -> Optional[Dict[str, Any]]:
+    """Partiyani kodi orqali olish."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        sql = f"SELECT * FROM broadcast_history WHERE batch_id = {_ph()} LIMIT 1"
+        cur.execute(sql, (batch_id,))
+        row = cur.fetchone()
+        return _row_to_dict(row) if row else None
     finally:
         _close_conn(conn)
 

@@ -1600,21 +1600,36 @@ MAINT_END_TEXT = (
     "🌟 <i>Barchangizga bilim olishda va testlarda ulkan zafarlar tilaymiz!</i>"
 )
 
-async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", caption: str = "") -> tuple[int, int]:
-    """Barcha faol (bloklanmagan) o'quvchilarga xabar tarqatish."""
+import uuid
+
+async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", caption: str = "", sender_tg_id: int = 0) -> tuple[int, int, str]:
+    """Barcha faol (bloklanmagan) o'quvchilarga xabar tarqatish va keyinchalik o'chirish uchun ID larni saqlash."""
     users = test_db.get_broadcast_users()
     sent_count = 0
     fail_count = 0
     blocked_users = []  # Botni bloklagan foydalanuvchilar
+
+    batch_id = f"BC-{datetime.now(UZB_TZ).strftime('%y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+    test_db.create_broadcast_batch(
+        batch_id=batch_id,
+        sender_tg_id=sender_tg_id or ADMIN_ID,
+        message_text=caption or message_text,
+        photo_id=photo_id
+    )
+
     for u in users:
         uid = u.get("tg_id")
         if not uid:
             continue
         try:
             if photo_id:
-                await bot.send_photo(chat_id=uid, photo=photo_id, caption=caption or message_text)
+                sent_msg = await bot.send_photo(chat_id=uid, photo=photo_id, caption=caption or message_text)
             else:
-                await bot.send_message(chat_id=uid, text=message_text)
+                sent_msg = await bot.send_message(chat_id=uid, text=message_text)
+
+            if sent_msg and hasattr(sent_msg, "message_id"):
+                test_db.record_broadcast_message(batch_id, uid, sent_msg.message_id)
+
             sent_count += 1
             await asyncio.sleep(0.04)
         except Exception as e:
@@ -1623,6 +1638,8 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
             if "blocked" in err_str or "forbidden" in err_str or "deactivated" in err_str:
                 blocked_users.append(u)
             log.warning(f"Broadcast xatosi user {uid}: {e}")
+
+    test_db.update_broadcast_sent_count(batch_id, sent_count)
 
     # Admin ga bloklagan userlar haqida xabar
     if blocked_users:
@@ -1637,7 +1654,70 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
         except Exception:
             pass
 
-    return sent_count, fail_count
+    return sent_count, fail_count, batch_id
+
+
+async def delete_broadcast_batch_from_users(batch_id: str) -> tuple[int, int]:
+    """Berilgan batch_id bo'yicha barcha yuborilgan xabarlarni o'quvchilar chatidan o'chirib tashlash."""
+    msgs = test_db.get_broadcast_messages(batch_id)
+    deleted_count = 0
+    fail_count = 0
+    for m in msgs:
+        chat_id = m.get("chat_id")
+        msg_id = m.get("message_id")
+        if not chat_id or not msg_id:
+            continue
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            deleted_count += 1
+            await asyncio.sleep(0.03)
+        except Exception:
+            fail_count += 1
+    test_db.mark_broadcast_deleted(batch_id)
+    return deleted_count, fail_count
+
+
+async def delete_recent_bot_messages_from_all_users(count: int = 1) -> tuple[int, int]:
+    """
+    Barcha o'quvchilar chatidagi so'nggi bot xabarlarini o'chirish (hatto oldingilarini ham).
+    Har bir foydalanuvchining chatiga tezkor probe yuborilib, joriy message_id dan orqaga qarab
+    botning oxirgi `count` ta xabari o'chiriladi.
+    """
+    users = test_db.get_broadcast_users()
+    deleted_total = 0
+    checked_users = 0
+
+    for u in users:
+        uid = u.get("tg_id")
+        if not uid:
+            continue
+        checked_users += 1
+        try:
+            # 1. Joriy chatdagi eng so'nggi message_id ni aniqlash
+            probe = await bot.send_message(chat_id=uid, text=".")
+            top_id = probe.message_id
+            try:
+                await bot.delete_message(chat_id=uid, message_id=top_id)
+            except Exception:
+                pass
+
+            # 2. Orqaga qarab oxirgi bot xabarlarini o'chirish
+            deleted_for_user = 0
+            for mid in range(top_id - 1, max(1, top_id - 35), -1):
+                try:
+                    await bot.delete_message(chat_id=uid, message_id=mid)
+                    deleted_for_user += 1
+                    deleted_total += 1
+                    if deleted_for_user >= count:
+                        break
+                except Exception:
+                    continue
+            await asyncio.sleep(0.04)
+        except Exception as e:
+            log.warning(f"Oldingi xabarni o'chirishda xatolik user {uid}: {e}")
+            continue
+
+    return deleted_total, checked_users
 
 # 1. Texnik rejimni yoqish / o'chirish so'rovi
 @router.callback_query(F.data == "admin_toggle_maint_prompt")
@@ -1688,13 +1768,16 @@ async def adm_maint_set_on_cb(call: CallbackQuery):
     if call.data == "adm_maint_set_on_notify":
         await call.answer("⏳ Xabar tarqatilmoqda...")
         status_msg = await call.message.answer("⏳ O'quvchilarga texnik profilaktika boshlanganligi haqida xabar yuborilmoqda...")
-        sent, fail = await send_broadcast_to_users(message_text=MAINT_START_TEXT)
+        sent, fail, batch_id = await send_broadcast_to_users(message_text=MAINT_START_TEXT)
         await status_msg.edit_text(
             f"🛠 <b>Texnik rejim YOQILDI va xabar tarqatildi!</b>\n\n"
             f"📨 <b>Yetkazildi:</b> {sent} ta\n"
             f"⚠️ <b>Yetkazilmadi:</b> {fail} ta\n\n"
             f"<i>Endi botdan faqat siz (Bosh Admin) foydalana olasiz.</i>",
-            reply_markup=admin_menu_kb()
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🗑 Ushbu xabarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
+                [InlineKeyboardButton(text="⚙️ Admin panelga", callback_data="admin_back_to_menu")]
+            ])
         )
     else:
         await call.answer("🛠 Texnik rejim yoqildi (xabarsiz)!", show_alert=True)
@@ -1714,13 +1797,16 @@ async def adm_maint_set_off_cb(call: CallbackQuery):
     if call.data == "adm_maint_set_off_notify":
         await call.answer("⏳ Xabar tarqatilmoqda...")
         status_msg = await call.message.answer("⏳ O'quvchilarga texnik ishlar yakunlanganligi haqida xabar yuborilmoqda...")
-        sent, fail = await send_broadcast_to_users(message_text=MAINT_END_TEXT)
+        sent, fail, batch_id = await send_broadcast_to_users(message_text=MAINT_END_TEXT)
         await status_msg.edit_text(
             f"✅ <b>Texnik rejim O'CHIRILDI va xushxabar tarqatildi!</b>\n\n"
             f"📨 <b>Yetkazildi:</b> {sent} ta\n"
             f"⚠️ <b>Yetkazilmadi:</b> {fail} ta\n\n"
             f"<i>Bot barcha o'quvchilar va adminlar uchun yana to'liq faol.</i>",
-            reply_markup=admin_menu_kb()
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🗑 Ushbu xabarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
+                [InlineKeyboardButton(text="⚙️ Admin panelga", callback_data="admin_back_to_menu")]
+            ])
         )
     else:
         await call.answer("✅ Texnik rejim o'chirildi (xabarsiz)!", show_alert=True)
@@ -1831,6 +1917,8 @@ async def admin_broadcast_menu_cb(call: CallbackQuery, state: FSMContext):
             InlineKeyboardButton(text="✅ 2. Texnik ishlar yakunlandi", callback_data="adm_bc_preview_end")
         ],
         [InlineKeyboardButton(text="✍️ 3. O'zingiz erkin xabar yozish", callback_data="adm_bc_custom_input")],
+        [InlineKeyboardButton(text="🗑 4. Yuborilgan xabarlarni o'chirish (Tarix)", callback_data="adm_bc_history_menu")],
+        [InlineKeyboardButton(text="🧹 5. Oldingi xabarlarni barchadan tozalash", callback_data="adm_bc_clean_past_prompt")],
         [InlineKeyboardButton(text="⬅️ Admin panelga qaytish", callback_data="admin_back_to_menu")]
     ])
     try:
@@ -1879,12 +1967,14 @@ async def adm_bc_send_tmpl_cb(call: CallbackQuery):
 
     await call.answer("⏳ Xabar tarqatilmoqda...")
     status_msg = await call.message.answer("⏳ Barcha o'quvchilarga tayyor shablon xabari yuborilmoqda...")
-    sent, fail = await send_broadcast_to_users(message_text=text_to_send)
+    sent, fail, batch_id = await send_broadcast_to_users(message_text=text_to_send, sender_tg_id=call.from_user.id)
     await status_msg.edit_text(
         f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
         f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
-        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta\n\n"
+        f"<i>Agar xabarni o'chirmoqchi bo'lsangiz, pastdagi tugmani bosing:</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Ushbu xabarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
             [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
             [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
         ])
@@ -1933,12 +2023,14 @@ async def adm_bc_send_start_cb(call: CallbackQuery):
         return
     await call.answer("⏳ Xabar tarqatilmoqda...")
     status_msg = await call.message.answer("⏳ Barcha o'quvchilarga xabar yuborilmoqda...")
-    sent, fail = await send_broadcast_to_users(message_text=MAINT_START_TEXT)
+    sent, fail, batch_id = await send_broadcast_to_users(message_text=MAINT_START_TEXT, sender_tg_id=call.from_user.id)
     await status_msg.edit_text(
         f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
         f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
-        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta\n\n"
+        f"<i>Agar xabarni o'chirmoqchi bo'lsangiz, pastdagi tugmani bosing:</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Ushbu xabarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
             [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
             [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
         ])
@@ -1950,12 +2042,14 @@ async def adm_bc_send_end_cb(call: CallbackQuery):
         return
     await call.answer("⏳ Xabar tarqatilmoqda...")
     status_msg = await call.message.answer("⏳ Barcha o'quvchilarga xabar yuborilmoqda...")
-    sent, fail = await send_broadcast_to_users(message_text=MAINT_END_TEXT)
+    sent, fail, batch_id = await send_broadcast_to_users(message_text=MAINT_END_TEXT, sender_tg_id=call.from_user.id)
     await status_msg.edit_text(
         f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
         f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
-        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta\n\n"
+        f"<i>Agar xabarni o'chirmoqchi bo'lsangiz, pastdagi tugmani bosing:</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Ushbu xabarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
             [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
             [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
         ])
@@ -2039,17 +2133,153 @@ async def adm_bc_custom_confirm_cb(call: CallbackQuery, state: FSMContext):
 
     await call.answer("⏳ Xabar tarqatilmoqda...")
     status_msg = await call.message.answer("⏳ Barcha o'quvchilarga xabar yuborilmoqda...")
-    sent, fail = await send_broadcast_to_users(message_text=msg_text, photo_id=photo_id, caption=caption)
+    sent, fail, batch_id = await send_broadcast_to_users(message_text=msg_text, photo_id=photo_id, caption=caption, sender_tg_id=call.from_user.id)
 
     await status_msg.edit_text(
         f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
         f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
-        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta",
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta\n\n"
+        f"<i>Agar xabarni o'chirmoqchi bo'lsangiz, pastdagi tugmani bosing:</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🗑 Ushbu xabarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
             [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
             [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
         ])
     )
+
+
+# ── YUBORILGAN XABARLARNI O'CHIRISH (RECALL & DEEP CLEAN) ──
+
+@router.callback_query(F.data.startswith("adm_bc_del_"))
+async def adm_bc_del_cb(call: CallbackQuery):
+    """Aniq bir batch bo'yicha yuborilgan xabarlarni barcha o'quvchilar chatidan o'chirish."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        await call.answer("Siz admin emassiz!", show_alert=True)
+        return
+    batch_id = call.data.replace("adm_bc_del_", "").strip()
+    await call.answer("⏳ Xabar barcha o'quvchilar chatidan o'chirilmoqda...", show_alert=False)
+
+    progress_msg = await call.message.answer("⏳ <b>Xabarni o'chirish boshlandi...</b>\n\nIltimos, kuting...")
+    deleted_count, fail_count = await delete_broadcast_batch_from_users(batch_id)
+
+    result_text = (
+        f"🗑 <b>XABAR O'CHIRILDI!</b>\n\n"
+        f"✅ <b>O'chirildi:</b> {deleted_count} nafar o'quvchi chatidan\n"
+        f"⚠️ <b>O'chirib bo'lmadi / allaqachon yo'q:</b> {fail_count} ta\n\n"
+        f"<i>Ushbu xabar endi o'quvchilar ekranida ko'rinmaydi.</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
+        [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+    ])
+    await progress_msg.edit_text(result_text, reply_markup=kb)
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data == "adm_bc_history_menu")
+async def adm_bc_history_menu_cb(call: CallbackQuery):
+    """Yaqinda yuborilgan xabarlar ro'yxati va ularni o'chirish menyusi."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    recent = test_db.get_recent_broadcasts(8)
+    if not recent:
+        text = (
+            "📭 <b>Yuborilgan xabarlar tarixi bo'sh.</b>\n\n"
+            "Hozircha tizimda saqlangan xabarlar mavjud emas.\n"
+            "Oldingi xabarlarni tozalash uchun quyidagi tugmadan foydalanishingiz mumkin:"
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🧹 Oldingi xabarlarni barchadan tozalash", callback_data="adm_bc_clean_past_prompt")],
+            [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")]
+        ])
+        await call.message.edit_text(text, reply_markup=kb)
+        return
+
+    text = "🗑 <b>YUBORILGAN XABARLAR TARIXI VA O'CHIRISH</b>\n\n"
+    text += "Kerakli xabar ostidagi <b>«🗑 O'chirish»</b> tugmasini bossangiz, u barcha o'quvchilar chatidan bir zumda o'chirib tashlanadi:\n\n"
+
+    buttons = []
+    for idx, b in enumerate(recent, 1):
+        dt = format_uzb_time(b.get("created_at"), "%d.%m %H:%M")
+        raw_msg = (b.get("message_text") or "Rasmli xabar").replace("<br>", " ").replace("\n", " ")
+        snippet = (raw_msg[:35] + "...") if len(raw_msg) > 35 else raw_msg
+        is_del = (b.get("is_deleted") == 1)
+
+        status_icon = "🗑 O'chirilgan" if is_del else f"✅ {b.get('total_sent', 0)} ta o'quvchiga"
+        text += f"{idx}. <b>[{dt}]</b> {snippet}\n   <i>Holat: {status_icon}</i>\n\n"
+
+        if not is_del:
+            buttons.append([InlineKeyboardButton(
+                text=f"🗑 {idx}-xabarni barchadan o'chirish",
+                callback_data=f"adm_bc_del_{b['batch_id']}"
+            )])
+
+    buttons.append([InlineKeyboardButton(text="🧹 Oldingi xabarlarni barchadan tozalash", callback_data="adm_bc_clean_past_prompt")])
+    buttons.append([InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")])
+
+    await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    await call.answer()
+
+
+@router.callback_query(F.data == "adm_bc_clean_past_prompt")
+async def adm_bc_clean_past_prompt_cb(call: CallbackQuery):
+    """Oldingi xabarlarni barcha o'quvchilar chatidan tozalash taklifi."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    text = (
+        "🧹 <b>OLDINGI XABARLARNI TOZALASH (DEEP CLEAN)</b>\n\n"
+        "Ushbu funksiya tarixda saqlanmagan yoki avvalroq yuborilgan xabarlarni barcha o'quvchilar chatidan o'chirish uchun mo'ljallangan.\n\n"
+        "Bot har bir o'quvchining chatidagi so'nggi xabarlarni orqaga qarab skanerlaydi va bot yuborgan xabarlarni tozalab chiqadi.\n\n"
+        "<b>Nechta so'nggi bot xabarini o'chirmoqchisiz?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🗑 1 ta so'nggi xabarni o'chirish", callback_data="adm_bc_clean_1"),
+            InlineKeyboardButton(text="🗑 2 ta so'nggi xabarni o'chirish", callback_data="adm_bc_clean_2")
+        ],
+        [
+            InlineKeyboardButton(text="🗑 3 ta so'nggi xabarni o'chirish", callback_data="adm_bc_clean_3"),
+            InlineKeyboardButton(text="🗑 5 ta so'nggi xabarni o'chirish", callback_data="adm_bc_clean_5")
+        ],
+        [InlineKeyboardButton(text="⬅️ Bekor qilish", callback_data="admin_broadcast_menu")]
+    ])
+    await call.message.edit_text(text, reply_markup=kb)
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm_bc_clean_"))
+async def adm_bc_clean_action_cb(call: CallbackQuery):
+    """Barcha o'quvchilardan so'nggi N ta xabarni o'chirish amali."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    try:
+        count = int(call.data.replace("adm_bc_clean_", "").strip())
+    except Exception:
+        count = 1
+
+    await call.answer(f"⏳ Barcha o'quvchilardan so'nggi {count} ta xabar o'chirilmoqda...", show_alert=False)
+    status_msg = await call.message.answer(f"⏳ <b>Tozalash jarayoni boshlandi...</b>\n\nBarcha o'quvchilar chatidagi so'nggi {count} ta bot xabari o'chirilmoqda. Iltimos, kuting...")
+
+    deleted_total, checked_users = await delete_recent_bot_messages_from_all_users(count=count)
+
+    res_text = (
+        f"🧹 <b>TOZALASH MUVAFFAQIYATLI YAKUNLANDI!</b>\n\n"
+        f"👥 <b>Tekshirilgan o'quvchilar:</b> {checked_users} nafar\n"
+        f"🗑 <b>O'chirilgan jami bot xabarlari:</b> {deleted_total} ta\n\n"
+        f"<i>O'quvchilar chatidagi so'nggi bot xabarlari tozalandi.</i>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
+        [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+    ])
+    await status_msg.edit_text(res_text, reply_markup=kb)
+    try:
+        await call.message.delete()
+    except Exception:
+        pass
 
 # 5. Natijalar va hisobotlar boshqaruvi
 @router.callback_query(F.data == "admin_leaderboard")
@@ -3891,15 +4121,61 @@ async def handle_app_broadcast(request):
             return web.json_response({"success": False, "message": "Xabar matni bo'sh bo'lishi mumkin emas!"}, status=400)
 
         # Barcha faol o'quvchilarga xabar tarqatish
-        sent, fail = await send_broadcast_to_users(message_text=message_text)
+        sent, fail, batch_id = await send_broadcast_to_users(message_text=message_text, sender_tg_id=admin_id)
         return web.json_response({
             "success": True,
             "sent": sent,
             "fail": fail,
+            "batch_id": batch_id,
             "message": f"Xabar {sent} nafar o'quvchiga muvaffaqiyatli yetkazildi!"
         })
     except Exception as e:
         log.error(f"App Broadcast Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=400)
+
+async def handle_app_broadcast_delete(request):
+    """Admin tomonidan yuborilgan xabarni o'chirish yoki so'nggi xabarlarni tozalash (Mini App API)."""
+    try:
+        data = await request.json()
+        admin_id = int(data.get('admin_id', 0))
+        batch_id = str(data.get('batch_id', '')).strip()
+        clean_count = int(data.get('clean_count', 0))
+
+        if not admin_id or not test_db.is_admin(admin_id, ADMIN_ID):
+            init_data = data.get('init_data', '') or request.headers.get('X-Telegram-Init-Data', '')
+            import urllib.parse, json
+            try:
+                parsed = dict(urllib.parse.parse_qsl(init_data))
+                if 'user' in parsed:
+                    u_dict = json.loads(parsed['user'])
+                    if u_dict and u_dict.get('id'):
+                        admin_id = int(u_dict['id'])
+            except Exception:
+                pass
+
+        if not test_db.is_admin(admin_id, ADMIN_ID):
+            return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
+
+        if batch_id:
+            deleted, fail = await delete_broadcast_batch_from_users(batch_id)
+            return web.json_response({
+                "success": True,
+                "deleted": deleted,
+                "fail": fail,
+                "message": f"Xabar {deleted} nafar o'quvchi chatidan o'chirildi!"
+            })
+        elif clean_count > 0:
+            deleted, users = await delete_recent_bot_messages_from_all_users(count=clean_count)
+            return web.json_response({
+                "success": True,
+                "deleted": deleted,
+                "users": users,
+                "message": f"{users} nafar o'quvchidan {deleted} ta so'nggi bot xabari tozalandi!"
+            })
+        else:
+            return web.json_response({"success": False, "message": "O'chirish parametri ko'rsatilmadi"}, status=400)
+    except Exception as e:
+        log.error(f"App Broadcast Delete Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
 async def handle_next_test_code_api(request):
@@ -4012,6 +4288,7 @@ async def create_web_app():
     app.router.add_post('/api/app/update-user-status', handle_app_update_user_status)
     app.router.add_post('/api/app/restrict-all-users', handle_app_restrict_all_users)
     app.router.add_post('/api/app/broadcast', handle_app_broadcast)
+    app.router.add_post('/api/app/broadcast/delete', handle_app_broadcast_delete)
     app.router.add_get('/api/next-test-code', handle_next_test_code_api)
     app.router.add_get('/api/app/status', handle_app_status)
     app.router.add_get('/healthz', handle_app_status)
@@ -4385,7 +4662,7 @@ async def schedule_checker():
                             f"⏰ <b>Test vaqti:</b> {sstart} – {send} (UZB)\n\n"
                             "<i>Mini ilovaga kirib, test topshirishingiz mumkin 👇</i>"
                         )
-                        sent, fail = await send_broadcast_to_users(message_text=msg_started)
+                        sent, fail, _ = await send_broadcast_to_users(message_text=msg_started)
                         log.info(f"⏰ Test #{test_id} boshlanganlik xabari {sent} nafar o'quvchiga avtomat tarqatildi")
                         try:
                             await bot.send_message(
@@ -4430,7 +4707,7 @@ async def schedule_checker():
                         f"🕕 <b>Tugash vaqti:</b> {send} (UZB)\n\n"
                         "📊 <i>Tez orada to'liq tahlil va rasmiy natijalar e'lon qilinadi! Mini ilovaga kirib yangiliklarni kuzatib boring.</i>"
                     )
-                    sent, fail = await send_broadcast_to_users(message_text=msg_ended)
+                    sent, fail, _ = await send_broadcast_to_users(message_text=msg_ended)
                     log.info(f"⏰ Test #{test_id} yakunlanganlik xabari {sent} nafar o'quvchiga tarqatildi")
 
                     try:
