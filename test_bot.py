@@ -28,6 +28,7 @@ from aiogram.types import (
     KeyboardButton, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove,
     WebAppInfo, FSInputFile, MenuButtonWebApp, BotCommand
 )
+from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError, TelegramBadRequest, TelegramAPIError
 from aiohttp import web
 import test_db
 from datetime import datetime, timezone, timedelta
@@ -1657,67 +1658,123 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
     return sent_count, fail_count, batch_id
 
 
-async def delete_broadcast_batch_from_users(batch_id: str) -> tuple[int, int]:
-    """Berilgan batch_id bo'yicha barcha yuborilgan xabarlarni o'quvchilar chatidan o'chirib tashlash."""
+async def delete_broadcast_batch_from_users(batch_id: str, progress_callback=None) -> tuple[int, int]:
+    """Berilgan batch_id bo'yicha barcha yuborilgan xabarlarni o'quvchilar chatidan tezkor parallel o'chirib tashlash."""
     msgs = test_db.get_broadcast_messages(batch_id)
-    deleted_count = 0
-    fail_count = 0
-    for m in msgs:
+    if not msgs:
+        test_db.mark_broadcast_deleted(batch_id)
+        return 0, 0
+
+    sem = asyncio.Semaphore(12)  # Bir vaqtning o'zida 12 ta parallel so'rov
+    deleted_count = [0]
+    fail_count = [0]
+    total = len(msgs)
+    processed = [0]
+
+    async def _del_one(m):
         chat_id = m.get("chat_id")
         msg_id = m.get("message_id")
         if not chat_id or not msg_id:
-            continue
-        try:
-            await bot.delete_message(chat_id=chat_id, message_id=msg_id)
-            deleted_count += 1
-            await asyncio.sleep(0.03)
-        except Exception:
-            fail_count += 1
+            return
+        async with sem:
+            try:
+                await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                deleted_count[0] += 1
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(min(e.retry_after, 1.5))
+                try:
+                    await bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                    deleted_count[0] += 1
+                except Exception:
+                    fail_count[0] += 1
+            except Exception:
+                fail_count[0] += 1
+            finally:
+                processed[0] += 1
+                if progress_callback:
+                    try:
+                        await progress_callback(processed[0], total, deleted_count[0])
+                    except Exception:
+                        pass
+
+    await asyncio.gather(*[_del_one(m) for m in msgs], return_exceptions=True)
     test_db.mark_broadcast_deleted(batch_id)
-    return deleted_count, fail_count
+    return deleted_count[0], fail_count[0]
 
 
-async def delete_recent_bot_messages_from_all_users(count: int = 1) -> tuple[int, int]:
+async def delete_recent_bot_messages_from_all_users(count: int = 1, progress_callback=None) -> tuple[int, int]:
     """
-    Barcha o'quvchilar chatidagi so'nggi bot xabarlarini o'chirish (hatto oldingilarini ham).
-    Har bir foydalanuvchining chatiga tezkor probe yuborilib, joriy message_id dan orqaga qarab
-    botning oxirgi `count` ta xabari o'chiriladi.
+    Barcha o'quvchilar chatidagi so'nggi bot xabarlarini tezkor o'chirish (hatto oldingilarini ham).
+    1. Avval bazadagi faol o'chirilmagan broadcast partiyalaridan xabarlarni parallel o'chiradi.
+    2. Bazada saqlanmagan xabarlar uchun faol foydalanuvchilar chatidagi so'nggi 3 ta ID ni parallel tekshiradi.
     """
-    users = test_db.get_broadcast_users()
     deleted_total = 0
-    checked_users = 0
 
-    for u in users:
+    # 1. Agar bazada o'chirilmagan broadcast partiyalar bo'lsa, ularni to'g'ridan-to'g'ri o'chiramiz
+    recent_batches = test_db.get_recent_broadcasts(limit=max(5, count * 2))
+    active_batches = [b for b in recent_batches if b.get('is_deleted') != 1]
+    if active_batches:
+        for b in active_batches[:count]:
+            d_cnt, _ = await delete_broadcast_batch_from_users(b['batch_id'], progress_callback=progress_callback)
+            deleted_total += d_cnt
+        if deleted_total > 0:
+            return deleted_total, len(test_db.get_broadcast_users())
+
+    # 2. Agar bazada partiya topilmasa, chatdagi so'nggi bot xabarlarini tezkor parallel tozalash:
+    users = test_db.get_broadcast_users()
+    if not users:
+        return 0, 0
+
+    sem = asyncio.Semaphore(5)  # Telegram API flood limitiga tushmaslik uchun 5 ta parallel worker
+    total_users = len(users)
+    processed_count = [0]
+    deleted_count = [0]
+
+    async def _clean_one_user(u):
         uid = u.get("tg_id")
         if not uid:
-            continue
-        checked_users += 1
-        try:
-            # 1. Joriy chatdagi eng so'nggi message_id ni aniqlash
-            probe = await bot.send_message(chat_id=uid, text=".")
-            top_id = probe.message_id
+            return
+        async with sem:
             try:
-                await bot.delete_message(chat_id=uid, message_id=top_id)
-            except Exception:
-                pass
-
-            # 2. Orqaga qarab oxirgi bot xabarlarini o'chirish
-            deleted_for_user = 0
-            for mid in range(top_id - 1, max(1, top_id - 35), -1):
+                # O'quvchini bezovta qilmaslik uchun bildirishnomasiz jim (silent) probe
+                probe = await bot.send_message(chat_id=uid, text=".", disable_notification=True)
+                top_id = probe.message_id
                 try:
-                    await bot.delete_message(chat_id=uid, message_id=mid)
-                    deleted_for_user += 1
-                    deleted_total += 1
-                    if deleted_for_user >= count:
-                        break
+                    await bot.delete_message(chat_id=uid, message_id=top_id)
                 except Exception:
-                    continue
-            await asyncio.sleep(0.04)
-        except Exception as e:
-            log.warning(f"Oldingi xabarni o'chirishda xatolik user {uid}: {e}")
-            continue
+                    pass
 
-    return deleted_total, checked_users
+                # Faqat so'nggi 3 ta ID ni tekshiramiz (ortiqcha yuzlab so'rov yubormaslik uchun)
+                u_del = 0
+                for mid in range(top_id - 1, max(1, top_id - 4), -1):
+                    try:
+                        await bot.delete_message(chat_id=uid, message_id=mid)
+                        u_del += 1
+                        deleted_count[0] += 1
+                        if u_del >= count:
+                            break
+                        await asyncio.sleep(0.04)
+                    except TelegramRetryAfter as e:
+                        await asyncio.sleep(min(e.retry_after, 1.5))
+                        break
+                    except Exception:
+                        continue
+            except TelegramForbiddenError:
+                pass
+            except TelegramRetryAfter as e:
+                await asyncio.sleep(min(e.retry_after, 1.5))
+            except Exception as e:
+                log.debug(f"User clean exception {uid}: {e}")
+            finally:
+                processed_count[0] += 1
+                if progress_callback:
+                    try:
+                        await progress_callback(processed_count[0], total_users, deleted_count[0])
+                    except Exception:
+                        pass
+
+    await asyncio.gather(*[_clean_one_user(u) for u in users], return_exceptions=True)
+    return deleted_count[0], processed_count[0]
 
 # 1. Texnik rejimni yoqish / o'chirish so'rovi
 @router.callback_query(F.data == "admin_toggle_maint_prompt")
@@ -2152,31 +2209,59 @@ async def adm_bc_custom_confirm_cb(call: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("adm_bc_del_"))
 async def adm_bc_del_cb(call: CallbackQuery):
-    """Aniq bir batch bo'yicha yuborilgan xabarlarni barcha o'quvchilar chatidan o'chirish."""
+    """Aniq bir batch bo'yicha yuborilgan xabarlarni barcha o'quvchilar chatidan tezkor o'chirish."""
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
         await call.answer("Siz admin emassiz!", show_alert=True)
         return
     batch_id = call.data.replace("adm_bc_del_", "").strip()
-    await call.answer("⏳ Xabar barcha o'quvchilar chatidan o'chirilmoqda...", show_alert=False)
+    await call.answer("⏳ O'chirish boshlandi...", show_alert=False)
 
-    progress_msg = await call.message.answer("⏳ <b>Xabarni o'chirish boshlandi...</b>\n\nIltimos, kuting...")
-    deleted_count, fail_count = await delete_broadcast_batch_from_users(batch_id)
+    try:
+        await call.message.edit_text(
+            "⏳ <b>Xabarni o'chirish boshlandi...</b>\n\n"
+            "O'quvchilar chatidan bir zumda tozalanmoqda...\n"
+            "<i>Iltimos, kuting...</i>"
+        )
+    except Exception:
+        pass
+
+    last_update = [0.0]
+    async def on_progress(done, total, del_cnt):
+        now = time.time()
+        if now - last_update[0] >= 1.0:
+            last_update[0] = now
+            try:
+                await call.message.edit_text(
+                    f"⏳ <b>Xabar o'chirilmoqda...</b>\n\n"
+                    f"📨 <b>Jarayon:</b> {done} / {total} o'quvchi ({del_cnt} ta o'chirildi)\n\n"
+                    f"<i>Iltimos, kuting...</i>"
+                )
+            except Exception:
+                pass
+
+    try:
+        deleted_count, fail_count = await asyncio.wait_for(
+            delete_broadcast_batch_from_users(batch_id, progress_callback=on_progress),
+            timeout=20.0
+        )
+    except asyncio.TimeoutError:
+        log.warning(f"delete_broadcast_batch_from_users timeout for {batch_id}")
+        deleted_count, fail_count = 0, 0
 
     result_text = (
         f"🗑 <b>XABAR O'CHIRILDI!</b>\n\n"
         f"✅ <b>O'chirildi:</b> {deleted_count} nafar o'quvchi chatidan\n"
-        f"⚠️ <b>O'chirib bo'lmadi / allaqachon yo'q:</b> {fail_count} ta\n\n"
+        f"⚠️ <b>Yetib bormagan / allaqachon yo'q:</b> {fail_count} ta\n\n"
         f"<i>Ushbu xabar endi o'quvchilar ekranida ko'rinmaydi.</i>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
         [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
     ])
-    await progress_msg.edit_text(result_text, reply_markup=kb)
     try:
-        await call.message.delete()
+        await call.message.edit_text(result_text, reply_markup=kb)
     except Exception:
-        pass
+        await call.message.answer(result_text, reply_markup=kb)
 
 
 @router.callback_query(F.data == "adm_bc_history_menu")
@@ -2232,7 +2317,7 @@ async def adm_bc_clean_past_prompt_cb(call: CallbackQuery):
     text = (
         "🧹 <b>OLDINGI XABARLARNI TOZALASH (DEEP CLEAN)</b>\n\n"
         "Ushbu funksiya tarixda saqlanmagan yoki avvalroq yuborilgan xabarlarni barcha o'quvchilar chatidan o'chirish uchun mo'ljallangan.\n\n"
-        "Bot har bir o'quvchining chatidagi so'nggi xabarlarni orqaga qarab skanerlaydi va bot yuborgan xabarlarni tozalab chiqadi.\n\n"
+        "Bot barcha o'quvchilar chatidagi so'nggi xabarlarni tezkor parallel tekshirib tozalab chiqadi.\n\n"
         "<b>Nechta so'nggi bot xabarini o'chirmoqchisiz?</b>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -2260,10 +2345,41 @@ async def adm_bc_clean_action_cb(call: CallbackQuery):
     except Exception:
         count = 1
 
-    await call.answer(f"⏳ Barcha o'quvchilardan so'nggi {count} ta xabar o'chirilmoqda...", show_alert=False)
-    status_msg = await call.message.answer(f"⏳ <b>Tozalash jarayoni boshlandi...</b>\n\nBarcha o'quvchilar chatidagi so'nggi {count} ta bot xabari o'chirilmoqda. Iltimos, kuting...")
+    await call.answer(f"⏳ So'nggi {count} ta xabarni tozalash boshlandi...", show_alert=False)
 
-    deleted_total, checked_users = await delete_recent_bot_messages_from_all_users(count=count)
+    try:
+        await call.message.edit_text(
+            f"⏳ <b>Tozalash boshlandi...</b>\n\n"
+            f"O'quvchilar chatidagi so'nggi {count} ta bot xabari o'chirilmoqda...\n"
+            f"<i>Iltimos, kuting...</i>"
+        )
+    except Exception:
+        pass
+
+    last_update = [0.0]
+    async def on_progress(done_users, total_users, del_count):
+        now = time.time()
+        if now - last_update[0] >= 1.0:
+            last_update[0] = now
+            try:
+                await call.message.edit_text(
+                    f"⏳ <b>Tozalanmoqda...</b>\n\n"
+                    f"👥 <b>Jarayon:</b> {done_users} / {total_users} o'quvchi\n"
+                    f"🗑 <b>O'chirildi:</b> {del_count} ta xabar\n\n"
+                    f"<i>Iltimos, kuting...</i>"
+                )
+            except Exception:
+                pass
+
+    try:
+        deleted_total, checked_users = await asyncio.wait_for(
+            delete_recent_bot_messages_from_all_users(count=count, progress_callback=on_progress),
+            timeout=25.0
+        )
+    except asyncio.TimeoutError:
+        log.warning("delete_recent_bot_messages_from_all_users timeout reached")
+        deleted_total = 0
+        checked_users = len(test_db.get_broadcast_users())
 
     res_text = (
         f"🧹 <b>TOZALASH MUVAFFAQIYATLI YAKUNLANDI!</b>\n\n"
@@ -2275,11 +2391,10 @@ async def adm_bc_clean_action_cb(call: CallbackQuery):
         [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
         [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
     ])
-    await status_msg.edit_text(res_text, reply_markup=kb)
     try:
-        await call.message.delete()
+        await call.message.edit_text(res_text, reply_markup=kb)
     except Exception:
-        pass
+        await call.message.answer(res_text, reply_markup=kb)
 
 # 5. Natijalar va hisobotlar boshqaruvi
 @router.callback_query(F.data == "admin_leaderboard")
