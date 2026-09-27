@@ -111,31 +111,39 @@ const TestApp = {
     const splash = document.getElementById('intro-splash');
     if (!splash) return;
 
-    const codeEl = document.getElementById('intro-test-code');
-    const userEl = document.getElementById('intro-user-name');
-    const barEl = document.getElementById('intro-loader-bar');
-    const statusEl = document.getElementById('intro-loading-status');
-
-    if (codeEl) codeEl.textContent = `KOD: #${this.testCode}`;
-    if (userEl) userEl.innerHTML = `Ishtirokchi: <strong>${this.userFullname}</strong>`;
-
-    if (barEl) {
-      barEl.style.width = '30%';
-      setTimeout(() => { if (barEl) barEl.style.width = '85%'; }, 350);
-      setTimeout(() => { if (barEl) barEl.style.width = '100%'; }, 750);
-    }
-    if (statusEl) {
-      setTimeout(() => {
-        if (statusEl) statusEl.innerHTML = '<span>🚀 Test tizimi tayyorlandi!</span>';
-      }, 700);
+    function triggerHaptic(type) {
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+        try {
+          if (type === 'medium') {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+          } else {
+            window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+          }
+        } catch(e) {}
+      }
     }
 
-    setTimeout(() => {
-      splash.classList.add('fade-out');
+    // Qalpog'i tushganda (350ms)
+    setTimeout(() => { triggerHaptic('light'); }, 350);
+    // Harflar to'liq tushganda (1100ms)
+    setTimeout(() => { triggerHaptic('light'); }, 1100);
+
+    let isFinished = false;
+    this.finishSplashImmediately = () => {
+      if (isFinished) return;
+      isFinished = true;
+      triggerHaptic('medium');
+
+      splash.classList.add('portal-warp-exit');
       setTimeout(() => {
         splash.style.display = 'none';
       }, 450);
-    }, 1150);
+    };
+
+    // 2350ms dan so'ng avtomatik o'tish
+    setTimeout(() => {
+      if (!isFinished) this.finishSplashImmediately();
+    }, 2350);
   },
 
   toggleTheme() {

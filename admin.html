@@ -123,8 +123,68 @@
 <body>
 
   <!-- =========================================
-       ADMIN UCHUN ANIMATSIYALI INTRO EKRAN (Tez ochilish uchun yashirildi)
+       PREMIUM SPLASH INTRO ANIMATSIYASI
        ========================================= -->
+  <div id="admin-splash" class="splash-screen-common" onclick="finishAdminSplash()">
+    <div class="splash-ambient-glow"></div>
+    <div class="splash-content-wrap">
+      <!-- Markaziy Logo va Akademik Qalpoqcha -->
+      <div class="splash-logo-container">
+        <!-- Orqa fon neon pulsatsiyasi -->
+        <div class="splash-neon-pulse"></div>
+        <div class="splash-neon-ring"></div>
+        
+        <!-- Akademik qalpoqcha (3D Graduation Cap - Doira ustiga xuddi kiygandek, yondan qiyalab) -->
+        <div class="splash-grad-cap" id="splash-grad-cap">
+          <svg class="splash-cap-svg" viewBox="0 0 64 64" fill="none">
+            <path d="M32 7L5 21L32 35L59 21L32 7Z" fill="#0B132B" stroke="#00E5FF" stroke-width="2.6" stroke-linejoin="round"/>
+            <path d="M15 26V39C15 39 21 48 32 48C43 48 49 39 49 39V26" fill="#1C2541" stroke="#38BDF8" stroke-width="2.6" stroke-linejoin="round"/>
+            <circle cx="32" cy="21" r="3.5" fill="#00E5FF"/>
+            <path d="M32 21C32 21 48 24 50 38" stroke="#10B981" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="50" cy="40" r="3.2" fill="#10B981"/>
+          </svg>
+        </div>
+
+        <!-- Oq glossy doiraviy badge (to'liq to'ldirilgan emblem) -->
+        <div class="splash-badge-circle" id="splash-badge-circle">
+          <img src="/img/bm_emblem_fill.png?v=20260927_fill" alt="Shohruh Matematika" class="splash-logo-img" id="splash-logo-img" />
+          <div class="splash-badge-shine"></div>
+        </div>
+      </div>
+
+      <!-- Matn: SHOHRUH MATEMATIKA (Harflar sakrab tushishi) -->
+      <div class="splash-brand-wrap">
+        <h1 class="splash-brand-title" id="splash-brand-title" aria-label="SHOHRUH MATEMATIKA">
+          <span class="splash-word splash-word-1">
+            <span class="splash-char" style="--d: 0.25s; --r: -14deg">S</span>
+            <span class="splash-char" style="--d: 0.30s; --r: 12deg">H</span>
+            <span class="splash-char" style="--d: 0.35s; --r: -10deg">O</span>
+            <span class="splash-char" style="--d: 0.40s; --r: 14deg">H</span>
+            <span class="splash-char" style="--d: 0.45s; --r: -12deg">R</span>
+            <span class="splash-char" style="--d: 0.50s; --r: 10deg">U</span>
+            <span class="splash-char" style="--d: 0.55s; --r: -14deg">H</span>
+          </span>
+          <span class="splash-word-spacer">&nbsp;</span>
+          <span class="splash-word splash-word-2">
+            <span class="splash-char splash-char-accent" style="--d: 0.65s; --r: 12deg">M</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.70s; --r: -14deg">A</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.75s; --r: 10deg">T</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.80s; --r: -12deg">E</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.85s; --r: 14deg">M</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.90s; --r: -10deg">A</span>
+            <span class="splash-char splash-char-accent" style="--d: 0.95s; --r: 12deg">T</span>
+            <span class="splash-char splash-char-accent" style="--d: 1.00s; --r: -14deg">I</span>
+            <span class="splash-char splash-char-accent" style="--d: 1.05s; --r: 10deg">K</span>
+            <span class="splash-char splash-char-accent" style="--d: 1.10s; --r: -12deg">A</span>
+          </span>
+        </h1>
+        <p class="splash-brand-subtitle" id="splash-brand-subtitle">
+          ADMIN BOSHQARUV TIZIMI
+        </p>
+      </div>
+    </div>
+  </div>
+
   <!-- Dinamik harakatlanuvchi orqa fon (Oq va qora mavzularga mos) -->
   <div class="ambient-moving-mesh" aria-hidden="true">
     <div class="ambient-mesh-orb ambient-orb-1"></div>
@@ -492,5 +552,22 @@
   <script src="/logo_data.js?v=20260926_shohruh3"></script>
   <script src="/math_keyboard.js?v=20260926"></script>
   <script src="/admin_app.js?v=20260926_shohruh3"></script>
+  <script>
+    (function() {
+      var splash = document.getElementById('admin-splash');
+      if (!splash) return;
+      var done = false;
+      window.finishAdminSplash = function() {
+        if (done) return;
+        done = true;
+        if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+          try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
+        }
+        splash.classList.add('portal-warp-exit');
+        setTimeout(function() { splash.style.display = 'none'; }, 450);
+      };
+      setTimeout(function() { window.finishAdminSplash(); }, 2350);
+    })();
+  </script>
 </body>
 </html>
