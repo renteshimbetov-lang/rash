@@ -21,11 +21,19 @@ const TestApp = {
       });
     }
 
-    // 1. Telegram WebApp ni sozlash
+    // 1. Telegram WebApp ni sozlash va tekshirish
+    const isTelegramWebApp = Boolean(
+      window.Telegram &&
+      window.Telegram.WebApp &&
+      (
+        (window.Telegram.WebApp.initData && window.Telegram.WebApp.initData.length > 5) ||
+        (window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user)
+      )
+    );
+
     if (window.Telegram && window.Telegram.WebApp) {
       const tg = window.Telegram.WebApp;
-      tg.ready();
-      tg.expand();
+      try { tg.ready(); tg.expand(); } catch(e) {}
 
       // Foydalanuvchi ma'lumotlari
       if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
@@ -45,15 +53,31 @@ const TestApp = {
     if (params.has('test_id')) this.testId = parseInt(params.get('test_id')) || 1;
     if (params.has('title')) this.testTitle = params.get('title');
     if (params.has('subject')) this.subject = params.get('subject');
-    // Agar Telegram WebApp orqali olinmagan bo'lsa, URL parametridagi tg_id dan olish
-    if (!this.userTgId && params.has('tg_id')) {
+
+    // Faqat agar Telegram WebApp ichida bo'lsa va tgId topilmagan bo'lsa URL dan fallback olish
+    if (!this.userTgId && params.has('tg_id') && isTelegramWebApp) {
       const parsedId = parseInt(params.get('tg_id'), 10);
       if (parsedId && !isNaN(parsedId)) {
         this.userTgId = parsedId;
       }
     }
-    if (!this.userTgId) {
-      this.userFullname = 'Mehmon';
+
+    // ⚠️ AGAR WEB ORQALI KIRILGAN BO'LSA (TELEGRAMSIZ) — TO'LIQ BLOKLASH!
+    if (!this.userTgId || this.userTgId <= 0) {
+      const webBlock = document.getElementById('web-block-screen');
+      if (webBlock) {
+        webBlock.style.display = 'flex';
+      }
+      const introSplash = document.getElementById('intro-splash') || document.getElementById('splashScreen');
+      if (introSplash) {
+        introSplash.style.display = 'none';
+      }
+      const testContent = document.querySelector('.test-body') || document.querySelector('.main-container');
+      if (testContent) {
+        testContent.style.filter = 'blur(10px)';
+        testContent.style.pointerEvents = 'none';
+      }
+      return; // To'xtatish! Savollarni yuklamaslik va ishlashga ruxsat bermaslik!
     }
 
     // UI ga o'rnatish
@@ -398,7 +422,9 @@ const TestApp = {
   async submitTestNow() {
     if (!this.userTgId || this.userTgId <= 0) {
       this.closeConfirmSubmitModal();
-      alert("⚠️ Foydalanuvchi aniqlanmadi! Testni faqat Telegram botingiz (@bm_rashtest_bot) orqali ochib topshirishingiz lozim. Noma'lum foydalanuvchilar javoblari qabul qilinmaydi.");
+      alert("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin.");
+      const webBlock = document.getElementById('web-block-screen');
+      if (webBlock) webBlock.style.display = 'flex';
       return;
     }
 

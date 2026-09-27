@@ -3418,8 +3418,8 @@ async def handle_submit_test_api(request):
         if not user_tg_id or int(user_tg_id) <= 0:
             return web.json_response({
                 "success": False,
-                "message": "Foydalanuvchi aniqlanmadi! Testni faqat Telegram botimiz (@bm_rashtest_bot) orqali topshirish mumkin."
-            }, status=400)
+                "message": "⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin."
+            }, status=403)
 
         test_obj = test_db.get_test_by_id(test_id)
         if test_obj:

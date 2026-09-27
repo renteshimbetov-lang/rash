@@ -1590,7 +1590,7 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
         raise ValueError("Test topilmadi!")
 
     if not user_tg_id or int(user_tg_id) <= 0:
-        raise ValueError("Foydalanuvchi aniqlanmadi! Testni faqat Telegram botimiz (@bm_rashtest_bot) orqali topshirish lozim.")
+        raise ValueError("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin.")
 
     existing = get_user_submission_for_test(test_id, user_tg_id)
     if existing:
