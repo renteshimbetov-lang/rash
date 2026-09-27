@@ -650,25 +650,7 @@ body {
   border: 2px solid rgba(27,86,219,0.4);
 }
 
-/* Light mode nav pill */
-[data-theme="light"] .bottom-nav {
-  background: rgba(255,255,255,0.75);
-  border-color: rgba(0,0,0,0.08);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.9);
-}
 
-[data-theme="light"] .nav-item {
-  color: rgba(0,0,0,0.4);
-}
-
-[data-theme="light"] .nav-item.active {
-  color: var(--accent);
-}
-
-[data-theme="light"] .nav-item.active .nav-icon-wrap {
-  background: rgba(27,86,219,0.1);
-  box-shadow: 0 0 12px rgba(27,86,219,0.15);
-}
 
 /* ── TAB CONTENT ──────────────────────────── */
 .tab-content-wrapper {
@@ -820,122 +802,260 @@ body {
   color: #FFFFFF;
 }
 
-/* ── BOTTOM NAV — FLOATING PILL ──────────── */
+/* ── ULTRA LIQUID GLASS FLOATING BOTTOM DOCK ──────────── */
 .bottom-nav {
   position: absolute;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 24px);
-  max-width: 420px;
-  height: 64px;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 16px;
+  height: 66px;
+  max-width: 440px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(30px) saturate(210%);
+  -webkit-backdrop-filter: blur(30px) saturate(210%);
+  border: 1.2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 33px;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  background: rgba(18, 20, 35, 0.86);
-  backdrop-filter: blur(28px) saturate(1.8);
-  -webkit-backdrop-filter: blur(28px) saturate(1.8);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 999px;
-  padding: 4px 8px;
-  box-shadow: 0 12px 36px rgba(0,0,0,0.5), 0 2px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1);
-  z-index: 50;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 6px 8px;
+  gap: 6px;
+  z-index: 90;
+  box-shadow: 0 16px 36px -8px rgba(11, 37, 69, 0.16),
+              0 0 0 1px rgba(255, 255, 255, 0.6),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
+              inset 0 -1px 2px rgba(0, 0, 0, 0.04);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme="light"] .bottom-nav {
-  background: rgba(255,255,255,0.94);
-  border-color: rgba(0,0,0,0.08);
-  box-shadow: 0 12px 36px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.95);
+[data-theme="dark"] .bottom-nav {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1.2px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 42px -8px rgba(0, 0, 0, 0.55),
+              0 0 0 1px rgba(255, 255, 255, 0.08),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.22),
+              inset 0 -1px 2px rgba(0, 0, 0, 0.3);
 }
 
+/* 2. Alohida Ajratilgan Shisha Tugmalar */
 .nav-item {
-  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 4px 2px;
+  gap: 3px;
   cursor: pointer;
-  border-radius: 999px;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: #64748B;
+  font-family: var(--font, 'Plus Jakarta Sans', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  flex: 1;
+  height: 100%;
+  border-radius: 22px;
+  padding: 6px 2px;
   position: relative;
-  border: none;
   background: transparent;
-  color: var(--text-muted);
-  font-family: var(--font);
-  min-width: 0;
+  border: 1px solid transparent;
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
+.nav-item svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 2.2;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.25s ease;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .nav-item:active {
-  transform: scale(0.88);
+  transform: scale(0.92);
 }
 
+/* 3. Faol Tugma (Aktiv Ajratilgan Liquid Glass Kapsulasi) */
 .nav-item.active {
-  color: #3B82F6;
+  color: #0B2545;
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.22) 0%, rgba(46, 196, 182, 0.08) 100%);
+  border: 1.2px solid rgba(46, 196, 182, 0.45);
+  box-shadow: 0 4px 16px rgba(46, 196, 182, 0.25),
+              inset 0 1.5px 1.5px rgba(255, 255, 255, 0.9),
+              inset 0 -1px 2px rgba(46, 196, 182, 0.15);
+  transform: translateY(-1.5px);
 }
 
-[data-theme="light"] .nav-item.active {
-  color: #2563EB;
+[data-theme="dark"] .nav-item.active {
+  color: #E2E8F0;
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.32) 0%, rgba(46, 196, 182, 0.12) 100%);
+  border: 1.2px solid rgba(46, 196, 182, 0.6);
+  box-shadow: 0 4px 18px rgba(46, 196, 182, 0.35),
+              inset 0 1.5px 1.5px rgba(255, 255, 255, 0.35),
+              inset 0 -1px 2px rgba(46, 196, 182, 0.25);
+  transform: translateY(-1.5px);
 }
 
-.nav-item.active .nav-icon-wrap {
-  background: linear-gradient(135deg, rgba(37,99,235,0.28), rgba(99,102,241,0.20));
-  box-shadow: 0 3px 14px rgba(37,99,235,0.42), inset 0 1px 0 rgba(255,255,255,0.3);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: #FFFFFF;
+.nav-item.active svg {
+  stroke: #2EC4B6;
+  transform: scale(1.12);
+  filter: drop-shadow(0 2px 6px rgba(46, 196, 182, 0.4));
 }
 
-[data-theme="light"] .nav-item.active .nav-icon-wrap {
-  background: linear-gradient(135deg, rgba(37,99,235,0.14), rgba(99,102,241,0.08));
-  box-shadow: 0 3px 12px rgba(37,99,235,0.22), inset 0 1px 0 rgba(255,255,255,0.9);
-  border: 1px solid rgba(37,99,235,0.22);
-  color: #2563EB;
+.nav-item.active span,
+.nav-item.active .nav-label {
+  font-weight: 800;
+  color: #071E36;
 }
 
-.nav-item.active .nav-icon-wrap svg {
-  stroke: #60A5FA;
-  filter: drop-shadow(0 1px 4px rgba(59, 130, 246, 0.55));
+[data-theme="dark"] .nav-item.active span,
+[data-theme="dark"] .nav-item.active .nav-label {
+  color: #F8FAFC;
 }
 
-[data-theme="light"] .nav-item.active .nav-icon-wrap svg {
-  stroke: #2563EB;
-  filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.28));
-}
-
-/* Active bottom glowing indicator dot / bar */
-.nav-item::after {
-  content: '';
+/* 4. iPhone Home Indicator Bar */
+.iphone-home-indicator {
   position: absolute;
-  bottom: 2px;
-  width: 0;
-  height: 2.5px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #2563EB, #60A5FA);
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  opacity: 0;
-  transform: scaleX(0);
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 134px;
+  height: 4.5px;
+  background: #0F172A;
+  opacity: 0.25;
+  border-radius: 3px;
+  z-index: 95;
+  pointer-events: none;
 }
 
-.nav-item.active::after {
-  width: 12px;
-  opacity: 1;
-  transform: scaleX(1);
+[data-theme="dark"] .iphone-home-indicator {
+  background: #FFFFFF;
+  opacity: 0.22;
 }
 
-/* Pop spring animation on click */
-.nav-item.nav-tap-pop .nav-icon-wrap {
-  animation: navPopSpring 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+/* Click qilinganda o'zimizning sakrovchi prujina animatsiyamiz */
+.nav-item.nav-tap-pop {
+  animation: navPopSpring 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @keyframes navPopSpring {
-  0% { transform: scale(0.84) translateY(0); }
-  35% { transform: scale(1.22) translateY(-3px); }
-  68% { transform: scale(0.96) translateY(1px); }
-  100% { transform: scale(1) translateY(0); }
+  0% { transform: scale(0.85) translateY(0); }
+  45% { transform: scale(1.12) translateY(-3px); }
+  75% { transform: scale(0.96) translateY(-1px); }
+  100% { transform: scale(1) translateY(-1.5px); }
+}
+
+/* ── ULTRA LIQUID GLASS ASOSIY HARAKAT TUGMASI (ACTION BUTTON) ── */
+.btn-action-primary,
+.btn-primary-liquid {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.96) 0%, rgba(20, 160, 148, 0.94) 100%);
+  color: #071E36;
+  border: 1.2px solid rgba(255, 255, 255, 0.6);
+  padding: 16px;
+  border-radius: 20px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* Shisha yaltirashi va ko'p qatlamli soya */
+  box-shadow: 0 12px 28px -4px rgba(46, 196, 182, 0.45),
+              0 0 0 1px rgba(255, 255, 255, 0.35),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.8),
+              inset 0 -2px 3px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Tugma ustidagi shisha nuri (Specular Glare) */
+.btn-action-primary::before,
+.btn-primary-liquid::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.04) 100%);
+  border-radius: 19px 19px 50px 50px / 19px 19px 12px 12px;
+  pointer-events: none;
+}
+
+/* Hover va Click reaksiyasi */
+.btn-action-primary:hover,
+.btn-primary-liquid:hover {
+  box-shadow: 0 14px 34px -4px rgba(46, 196, 182, 0.55),
+              0 0 0 1.5px rgba(255, 255, 255, 0.5),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.95);
+  transform: translateY(-1.5px);
+}
+
+.btn-action-primary:active,
+.btn-primary-liquid:active {
+  transform: scale(0.97) translateY(1px);
+  box-shadow: 0 4px 14px rgba(46, 196, 182, 0.35),
+              inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ── TANLOV SHISHA KARTALARI (SELECTABLE GLASS CARDS) ── */
+.method-card {
+  border: 1.5px solid rgba(226, 232, 240, 0.9);
+  border-radius: 18px;
+  padding: 14px 6px;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(248, 250, 252, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03), inset 0 1px 1.5px #FFFFFF;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] .method-card {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.65);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), inset 0 1px 1.5px rgba(255, 255, 255, 0.1);
+}
+
+.method-card:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(46, 196, 182, 0.4);
+  transform: translateY(-1px);
+}
+
+[data-theme="dark"] .method-card:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(46, 196, 182, 0.5);
+}
+
+.method-card.active {
+  border-color: rgba(46, 196, 182, 0.85);
+  background: linear-gradient(135deg, rgba(46, 196, 182, 0.2) 0%, rgba(46, 196, 182, 0.06) 100%);
+  box-shadow: 0 6px 18px rgba(46, 196, 182, 0.28),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
+              inset 0 -1px 2px rgba(46, 196, 182, 0.15);
+  transform: translateY(-2px);
 }
 
 .nav-icon-wrap {
