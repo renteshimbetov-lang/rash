@@ -161,70 +161,43 @@ body {
   100% { transform: translate3d(45px, -45px, 0) scale(0.95); opacity: 0.65; }
 }
 
-/* ── SPLASH SCREEN (KOSMIK MATEMATIK KINEMATIK KIRISH) ── */
+/* ── SPLASH SCREEN (VIDEO USLUBIDAGI PREMYER KIRISH ANIMATSIYASI) ── */
 #splash-screen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 99999;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: #060814;
+  justify-content: space-between;
+  padding: 80px 24px 44px;
+  background: #060B18;
   overflow: hidden;
-  transition: opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.55s ease;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.55s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease;
 }
 
 [data-theme="light"] #splash-screen {
-  background: #F8FAFC;
+  background: #060B18;
 }
 
-.splash-canvas {
+/* Ambient orqa fon auralari */
+.splash-ambient-glow {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
-}
-
-.splash-glow-orb {
-  position: absolute;
+  width: 360px;
+  height: 360px;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  filter: blur(80px);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, rgba(0, 229, 255, 0.18) 40%, rgba(99, 102, 241, 0.12) 65%, transparent 75%);
+  filter: blur(55px);
   pointer-events: none;
-  z-index: 0;
+  animation: splashAuraBreath 3.2s ease-in-out infinite alternate;
 }
 
-.splash-glow-1 {
-  width: 260px;
-  height: 260px;
-  top: 15%;
-  left: 10%;
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.35), transparent 70%);
-  animation: orbMorph 6s ease-in-out infinite alternate;
-}
-
-.splash-glow-2 {
-  width: 300px;
-  height: 300px;
-  bottom: 15%;
-  right: 10%;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.3), transparent 70%);
-  animation: orbMorph 8s ease-in-out infinite alternate-reverse;
-}
-
-[data-theme="light"] .splash-glow-1 {
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.18), transparent 70%);
-}
-[data-theme="light"] .splash-glow-2 {
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.15), transparent 70%);
-}
-
-@keyframes orbMorph {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(25px, -30px) scale(1.15); }
-  100% { transform: translate(-20px, 25px) scale(0.95); }
+@keyframes splashAuraBreath {
+  0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0.55; }
+  100% { transform: translate(-50%, -50%) scale(1.18); opacity: 0.95; }
 }
 
 .splash-content-wrap {
@@ -234,386 +207,244 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 0 20px;
+  margin: auto 0;
   width: 100%;
-  max-width: 380px;
+  max-width: 360px;
 }
 
-/* ── LOGO & MULTI-RING REACTOR ── */
-.splash-logo-wrap {
+/* ── LOGO VA BADGE KONTEYNERI ── */
+.splash-logo-container {
   position: relative;
-  width: 110px;
-  height: 110px;
+  width: 124px;
+  height: 124px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 }
 
-/* Stargate outer tick ring */
-.splash-ring-outer {
+/* Tashqi aylanuvchi neon halo */
+.splash-neon-ring {
   position: absolute;
-  inset: -16px;
+  inset: -12px;
   border-radius: 50%;
-  border: 1.5px dashed rgba(99, 102, 241, 0.35);
-  animation: splashSpin 22s linear infinite;
+  background: conic-gradient(from 0deg, #10B981, #00E5FF, #38BDF8, #6366F1, #10B981);
+  filter: blur(15px);
+  opacity: 0.8;
+  animation: splashRingSpin 5s linear infinite;
 }
 
-[data-theme="light"] .splash-ring-outer {
-  border-color: rgba(99, 102, 241, 0.4);
+@keyframes splashRingSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-/* Middle neon plasma ring */
-.splash-ring {
+/* Neon to'lqin tarqalishi */
+.splash-neon-pulse {
   position: absolute;
-  inset: -8px;
+  inset: -18px;
   border-radius: 50%;
-  border: 2.5px solid transparent;
-  border-top-color: #38BDF8;
-  border-right-color: #818CF8;
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.6));
-  animation: splashSpin 2.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  border: 2px solid rgba(0, 229, 255, 0.4);
+  animation: splashWaveExpand 2.2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
 }
 
-/* Inner counter-rotating ring */
-.splash-ring-2 {
+@keyframes splashWaveExpand {
+  0% { transform: scale(0.88); opacity: 0.85; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+/* Oq glossy doiraviy badge (video kabi markaziy element) */
+.splash-badge-circle {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #FFFFFF 0%, #F1F5F9 60%, #E2E8F0 100%);
+  box-shadow: 
+    0 18px 40px rgba(0, 0, 0, 0.5),
+    0 4px 12px rgba(16, 185, 129, 0.25),
+    inset 0 2px 4px rgba(255, 255, 255, 0.95),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transform: scale(0);
+  animation: splashCircleEntrance 0.75s cubic-bezier(0.175, 0.885, 0.32, 1.275) 0.1s forwards;
+}
+
+@keyframes splashCircleEntrance {
+  0% { transform: scale(0.2); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.splash-badge-shine {
   position: absolute;
-  inset: -1px;
+  top: 4px;
+  left: 12px;
+  width: 48px;
+  height: 24px;
   border-radius: 50%;
-  border: 2px solid transparent;
-  border-bottom-color: #C084FC;
-  border-left-color: #38BDF8;
-  animation: splashSpin 3.4s linear infinite reverse;
-}
-
-/* Orbiting photon spark */
-.splash-orbit-dot {
-  position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #38BDF8;
-  box-shadow: 0 0 10px #38BDF8, 0 0 20px #38BDF8;
-  top: -11px;
-  left: 50%;
-  margin-left: -3.5px;
-  transform-origin: 3.5px 66px;
-  animation: splashSpin 2.2s linear infinite;
-}
-
-@keyframes splashSpin {
-  to { transform: rotate(360deg); }
-}
-
-/* Energetic shockwave pulse */
-.splash-pulse-wave {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid rgba(56, 189, 248, 0.8);
-  opacity: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75), transparent);
+  transform: rotate(-30deg);
   pointer-events: none;
-  transform: scale(0.9);
-}
-
-.splash-pulse-wave.fire {
-  animation: pulseShockwave 0.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
-}
-
-@keyframes pulseShockwave {
-  0% { transform: scale(0.95); opacity: 0.9; }
-  100% { transform: scale(2.2); opacity: 0; border-width: 0.5px; }
-}
-
-/* Logo Box */
-.splash-logo-box {
-  width: 92px;
-  height: 92px;
-  border-radius: 50%;
-  background: #0A0F24;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 28px rgba(56, 189, 248, 0.35), 0 0 60px rgba(99, 102, 241, 0.2);
-  position: relative;
-  overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
-}
-
-[data-theme="light"] .splash-logo-box {
-  background: #FFFFFF;
-  border-color: rgba(37, 99, 235, 0.2);
-  box-shadow: 0 8px 30px rgba(37, 99, 235, 0.2), 0 0 50px rgba(99, 102, 241, 0.15);
-}
-
-.splash-logo-box.ready {
-  transform: scale(1.08);
-  border-color: #38BDF8;
-  box-shadow: 0 0 35px rgba(56, 189, 248, 0.7), 0 0 70px rgba(129, 140, 248, 0.4);
 }
 
 .splash-logo-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 50%;
+  position: relative;
+  z-index: 3;
+}
+
+/* Akademik qalpoqcha (3D Graduation Cap sakrab tushishi) */
+.splash-grad-cap {
+  position: absolute;
+  top: -20px;
+  right: 2px;
+  width: 54px;
+  height: 54px;
+  z-index: 10;
+  transform: translateY(-40px) scale(0.3) rotate(-35deg);
+  opacity: 0;
+  animation: splashCapLanding 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s forwards;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.5));
+}
+
+@keyframes splashCapLanding {
+  0% { transform: translateY(-40px) scale(0.3) rotate(-35deg); opacity: 0; }
+  65% { transform: translateY(5px) scale(1.12) rotate(6deg); opacity: 1; }
+  100% { transform: translateY(0) scale(1) rotate(-8deg); opacity: 1; }
+}
+
+.splash-cap-svg {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
-  display: block;
-  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Galochka Checkmark box */
-.splash-checkmark-box {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transform: scale(0.65);
-  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-  pointer-events: none;
-  z-index: 5;
-}
-
-.splash-checkmark-svg {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
   display: block;
 }
 
-.splash-checkmark-circle {
-  stroke-dasharray: 166;
-  stroke-dashoffset: 166;
-  stroke-width: 3.5;
-  stroke-miterlimit: 10;
-  stroke: #10B981;
-  fill: rgba(16, 185, 129, 0.22);
-}
-
-.splash-checkmark-check {
-  transform-origin: 50% 50%;
-  stroke-dasharray: 48;
-  stroke-dashoffset: 48;
-  stroke: #FFFFFF;
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Muvaffaqiyatli tekshiruv (Checkmark faollashuvi) */
-.splash-logo-box.success {
-  background: linear-gradient(135deg, #059669, #10B981) !important;
-  border-color: #34D399 !important;
-  box-shadow: 0 0 38px rgba(16, 185, 129, 0.85), 0 0 75px rgba(6, 182, 212, 0.45) !important;
-  transform: scale(1.1) !important;
-}
-
-.splash-logo-box.success .splash-logo-img {
-  opacity: 0;
-  transform: scale(0.75);
-}
-
-.splash-logo-box.success .splash-checkmark-box {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.splash-logo-box.success .splash-checkmark-circle {
-  animation: strokeCircle 0.45s cubic-bezier(0.65, 0, 0.45, 1) forwards;
-}
-
-.splash-logo-box.success .splash-checkmark-check {
-  animation: strokeCheck 0.35s cubic-bezier(0.65, 0, 0.45, 1) 0.2s forwards;
-}
-
-@keyframes strokeCircle {
-  100% { stroke-dashoffset: 0; }
-}
-
-@keyframes strokeCheck {
-  100% { stroke-dashoffset: 0; }
-}
-
-/* Dynamic specular shimmer across logo */
-.splash-logo-shimmer {
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(45deg, transparent 35%, rgba(255,255,255,0.4) 50%, transparent 65%);
-  animation: logoShine 2.8s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes logoShine {
-  0% { transform: translateX(-120%) rotate(35deg); }
-  60%, 100% { transform: translateX(120%) rotate(35deg); }
-}
-
-/* ── BADGE & TEXT ── */
-.splash-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  padding: 4px 14px;
-  border-radius: 30px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #93C5FD;
-  backdrop-filter: blur(12px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  margin-bottom: 12px;
-  animation: fadeInDown 0.6s ease both;
-}
-
-[data-theme="light"] .splash-badge {
-  background: rgba(37, 99, 235, 0.08);
-  border-color: rgba(37, 99, 235, 0.2);
-  color: #2563EB;
-}
-
-.splash-badge-pulse {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #38BDF8;
-  box-shadow: 0 0 8px #38BDF8;
-  animation: pulseDot 1.4s ease-in-out infinite alternate;
-}
-
-@keyframes pulseDot {
-  from { opacity: 0.4; transform: scale(0.8); }
-  to { opacity: 1; transform: scale(1.3); }
-}
-
-.splash-title {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 3.5px;
-  text-transform: uppercase;
-  background: linear-gradient(135deg, #FFFFFF 30%, #93C5FD 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 5px;
+/* ── BRAND MATNI (shohruh.uz) ── */
+.splash-brand-wrap {
   text-align: center;
-  animation: fadeInUp 0.6s ease 0.15s both;
-}
-
-[data-theme="light"] .splash-title {
-  background: linear-gradient(135deg, #0F172A 30%, #2563EB 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.splash-subtitle {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.45);
-  letter-spacing: 1.8px;
-  text-transform: uppercase;
-  text-align: center;
-  margin-bottom: 26px;
-  animation: fadeInUp 0.6s ease 0.25s both;
-}
-
-[data-theme="light"] .splash-subtitle {
-  color: #64748B;
-}
-
-/* ── PROGRESS BAR CONTAINER ── */
-.splash-progress-container {
-  width: 220px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  animation: fadeInUp 0.6s ease 0.35s both;
-}
-
-.splash-progress-track {
-  width: 100%;
-  height: 5px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
-}
-
-[data-theme="light"] .splash-progress-track {
-  background: rgba(0, 0, 0, 0.08);
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-}
-
-.splash-progress-bar {
-  height: 100%;
-  width: 0%;
-  border-radius: 10px;
-  background: linear-gradient(90deg, #38BDF8, #818CF8, #C084FC);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
-  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-}
-
-.splash-progress-bar::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 15px;
-  background: #FFFFFF;
-  filter: blur(2px);
-  opacity: 0.8;
-}
-
-.splash-status-row {
-  display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 10px;
+  gap: 10px;
 }
 
-.splash-status-text {
-  color: rgba(255, 255, 255, 0.55);
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  transition: color 0.3s ease;
+.splash-brand-title {
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin: 0;
+  color: #FFFFFF;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+  opacity: 0;
+  transform: translateY(18px);
+  animation: splashTitleReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.65s forwards;
 }
 
-[data-theme="light"] .splash-status-text {
-  color: #64748B;
+@keyframes splashTitleReveal {
+  0% { opacity: 0; transform: translateY(18px); filter: blur(4px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 
-.splash-status-percent {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+.brand-text {
+  color: #FFFFFF;
+  letter-spacing: -0.5px;
+}
+
+.brand-dot-uz {
+  color: #10B981; /* Video dagi yashil rang */
+  font-weight: 900;
+  text-shadow: 0 0 16px rgba(16, 185, 129, 0.7), 0 0 32px rgba(16, 185, 129, 0.35);
+}
+
+.splash-brand-subtitle {
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-size: 11px;
   font-weight: 700;
-  color: #38BDF8;
-  letter-spacing: 0.5px;
+  letter-spacing: 3.8px;
+  text-transform: uppercase;
+  color: rgba(203, 213, 225, 0.65);
+  margin: 0;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: splashSubReveal 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.85s forwards;
 }
 
-[data-theme="light"] .splash-status-percent {
-  color: #2563EB;
+@keyframes splashSubReveal {
+  0% { opacity: 0; transform: translateY(12px); filter: blur(3px); }
+  100% { opacity: 1; transform: translateY(0); filter: blur(0); }
 }
 
-/* ── PORTAL WARP EXIT ANIMATION ── */
+/* ── PASTKI TUGMA (Davom etish →) ── */
+.splash-bottom-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  opacity: 0;
+  transform: translateY(22px);
+  animation: splashBtnSlideIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) 1.05s forwards;
+}
+
+@keyframes splashBtnSlideIn {
+  0% { opacity: 0; transform: translateY(22px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.splash-continue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 32px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #FFFFFF;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+.splash-continue-btn:hover,
+.splash-continue-btn:active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(16, 185, 129, 0.6);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 32px rgba(16, 185, 129, 0.3);
+}
+
+.splash-continue-btn svg {
+  transition: transform 0.25s ease;
+}
+
+.splash-continue-btn:hover svg {
+  transform: translateX(4px);
+}
+
+/* Silliq yo'qolish (Exit transition) */
+#splash-screen.splash-exit,
 #splash-screen.portal-warp-exit,
 #splash-screen.hide-splash {
   opacity: 0;
-  transform: scale(1.12);
-  filter: blur(12px);
+  transform: scale(1.08);
+  filter: blur(10px);
   pointer-events: none;
 }
+
 
 #pin-screen {
   position: fixed;

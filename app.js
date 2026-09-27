@@ -684,13 +684,6 @@ function runSplash() {
   var splash = document.getElementById('splash-screen');
   if (!splash) { launchApp(); return; }
 
-  var stopCanvas = startSplashCanvas();
-  var progressBar = document.getElementById('splash-progress-bar');
-  var statusText = document.getElementById('splash-status-text');
-  var statusPercent = document.getElementById('splash-status-percent');
-  var logoBox = document.getElementById('splash-logo-box');
-  var pulseWave = document.getElementById('splash-pulse-wave');
-
   // Ma'lumotlarni fonda oldindan yuklash
   launchApp();
 
@@ -699,6 +692,8 @@ function runSplash() {
       try {
         if (type === 'success') {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        } else if (type === 'medium') {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
         } else {
           window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
         }
@@ -706,45 +701,19 @@ function runSplash() {
     }
   }
 
-  function setProgress(pct, text, haptic) {
-    if (progressBar) progressBar.style.width = pct + '%';
-    if (statusPercent) statusPercent.textContent = pct + '%';
-    if (statusText && text) statusText.textContent = text;
-    if (haptic) triggerHaptic(haptic);
-  }
-
-  // 1-bosqich: 0ms
-  setProgress(18, 'Tizim ishga tushirilmoqda...', 'light');
-
-  // 2-bosqich: 380ms
+  // Qalpog'i tushganda (450ms) yengil tebranish
   setTimeout(function() {
-    setProgress(52, 'Matematik modellar yuklanmoqda...', null);
-  }, 380);
+    triggerHaptic('light');
+  }, 450);
 
-  // 3-bosqich: 820ms
-  setTimeout(function() {
-    setProgress(85, 'Rasch tahlil moduli faol...', 'light');
-  }, 820);
+  var isFinished = false;
+  window.finishSplashImmediately = function() {
+    if (isFinished) return;
+    isFinished = true;
+    triggerHaptic('medium');
 
-  // 4-bosqich: 1250ms — 100% Tayyor & Super-charge flash!
-  setTimeout(function() {
-    setProgress(100, 'Tayyor! Xush kelibsiz! ⚡', 'success');
-    if (logoBox) {
-      logoBox.classList.add('ready');
-      logoBox.classList.add('success');
-    }
-    if (pulseWave) {
-      pulseWave.classList.remove('fire');
-      void pulseWave.offsetWidth; // reflow
-      pulseWave.classList.add('fire');
-    }
-  }, 1250);
-
-  // 5-bosqich: 1750ms — Portal warp silliq o'tishi
-  setTimeout(function() {
     splash.classList.add('portal-warp-exit');
     setTimeout(function() {
-      if (stopCanvas) stopCanvas();
       splash.style.display = 'none';
 
       // Kirish animatsiyasi 100% tugagachgina tekshirish
@@ -754,8 +723,15 @@ function runSplash() {
           openOnboardingModal();
         }, 300);
       }
-    }, 550);
-  }, 1750);
+    }, 450);
+  };
+
+  // 2400ms dan so'ng foydalanuvchi bosmasa ham avtomatik ravishda asosiy ekranga o'tadi
+  setTimeout(function() {
+    if (!isFinished) {
+      window.finishSplashImmediately();
+    }
+  }, 2400);
 }
 
 // ── PIN SYSTEM ──────────────────────────────────
