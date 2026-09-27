@@ -3274,24 +3274,42 @@ function renderKeyComparison(correct, user, container) {
     return s.length > 0 ? s : '-';
   }
 
+  var DASHES_RE = /[\u2212\u2013\u2014\u2012\u2015\uFE63\uFF0D\u00ad]/g;
+  var MULT_SYMS_RE = /[\u00d7\u00b7\u2022\u2219\u22c5\u2715\u2716]/g;
+
   function normalizeAnswer(ans) {
     if (ans === undefined || ans === null || ans === '-') return '';
-    var s = String(ans).trim().toLowerCase();
+    var s = String(ans).trim();
 
-    // Bo'shliqlar va dollar belgilarini olib tashlash
-    s = s.replace(/[\s\$]/g, '');
+    // 1. Bo'shliqlar, ko'rinmas belgilar va dollar belgilarini olib tashlash
+    s = s.replace(/[\s\u200b\u200c\u200d\u00a0\uFEFF\$]/g, '');
 
-    // 1. Vergul va nuqta: "2,5" -> "2.5"
-    s = s.replace(/,/g, '.');
+    // 2. Barcha klaviaturalardagi minus/chiziqchalarni bitta standart '-' belgisiga keltirish
+    s = s.replace(DASHES_RE, '-');
 
-    // 2. Ko'paytirish belgilari: "×", "·" -> "*"
-    s = s.replace(/×/g, '*').replace(/·/g, '*');
+    // 3. Ko'paytirish belgilari: "*", "×", "·", "•" -> "*"
+    s = s.replace(MULT_SYMS_RE, '*');
     s = s.replace(/\\+(?:cdot|times)\b/g, '*');
 
-    // 3. Pi soni: \pi, pi, π
-    s = s.replace(/(^|[^a-zA-Z])\\*pi(?![a-zA-Z])/g, '$1π');
+    // 4. Bo'lish belgisi:
+    s = s.replace(/[\u00f7]/g, '/');
 
-    // 4. LaTeX residuallari: \frac, \sqrt, \sqrt[n]
+    // 5. Vergul va nuqta: "2,5" -> "2.5"
+    s = s.replace(/(\d+),(\d+)/g, '$1.$2');
+
+    // 6. Plus-minus belgisi
+    s = s.replace(/(\+\/\-|\+\s*\-|\+\-)/g, '±');
+
+    // 7. Pi soni: \pi, pi, PI -> π
+    s = s.replace(/(^|[^a-zA-Z])\\*pi(?![a-zA-Z])/gi, '$1π');
+
+    // 8. Darajalarni standart ^ shakliga keltirish:
+    var sups = {'⁰':'^0','¹':'^1','²':'^2','³':'^3','⁴':'^4','⁵':'^5','⁶':'^6','⁷':'^7','⁸':'^8','⁹':'^9','ⁿ':'^n'};
+    for (var k in sups) {
+      s = s.split(k).join(sups[k]);
+    }
+
+    // 9. LaTeX residuallari: \frac, \sqrt, \sqrt[n]
     while (/\\+sqrt\[([^\]]+)\]\{([^}]+)\}/.test(s)) {
       s = s.replace(/\\+sqrt\[([^\]]+)\]\{([^}]+)\}/g, '$1√$2');
     }
@@ -3302,77 +3320,123 @@ function renderKeyComparison(correct, user, container) {
       s = s.replace(/\\+sqrt\{([^}]+)\}/g, '√$1');
     }
     s = s.replace(/\\+sqrt([0-9a-zA-Z]+)/g, '√$1');
+    s = s.replace(/sqrt\(/g, '√(');
     s = s.replace(/sqrt/g, '√');
 
     // Ildizlar va darajalar:
-    s = s.replace(/∛/g, '3√').replace(/cbrt/g, '3√').replace(/³√/g, '3√');
-    s = s.replace(/∜/g, '4√').replace(/⁴√/g, '4√');
-    s = s.replace(/⁰√/g, '0√').replace(/¹√/g, '1√').replace(/²√/g, '2√');
-    s = s.replace(/⁵√/g, '5√').replace(/⁶√/g, '6√').replace(/⁷√/g, '7√');
-    s = s.replace(/⁸√/g, '8√').replace(/⁹√/g, '9√').replace(/ⁿ√/g, 'n√');
+    s = s.replace(/∛/g, '3√').replace(/cbrt/g, '3√');
+    s = s.replace(/∜/g, '4√');
 
-    // 5. Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32", "3√(8)" -> "3√8"
+    // Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32"
     while (/([0-9a-zA-Z]*√)\(([^()]+)\)/.test(s)) {
       s = s.replace(/([0-9a-zA-Z]*√)\(([^()]+)\)/g, '$1$2');
     }
-
-    // Agar ildiz butunligicha qavs ichida bo'lsa: "(√29)" -> "√29"
-    while (/\(([0-9a-zA-Z]*√[^()]+)\)/.test(s)) {
-      s = s.replace(/\(([0-9a-zA-Z]*√[^()]+)\)/g, '$1');
+    while (/^\(([0-9a-zA-Z]*√[^()]+)\)$/.test(s)) {
+      s = s.replace(/^\(([0-9a-zA-Z]*√[^()]+)\)$/, '$1');
     }
 
-    // 6. Ko'paytirish belgisi ko'rinishi: "8*√58" -> "8√58", "36*π" -> "36π"
-    s = s.replace(/(\d|\))\*(√|[0-9a-zA-Z]+√|π|[a-zA-Z])/g, '$1$2');
-    s = s.replace(/(\d)\((√|[0-9a-zA-Z]+√|π)/g, '$1$2');
-    s = s.replace(/\*(π)/g, '$1');
-    s = s.replace(/(π)\*/g, '$1');
+    // Raqam va qavsli ildiz: "8(√58)" -> "8√58"
+    s = s.replace(/(\d)\((√[^()]+)\)/g, '$1$2');
 
-    // Darajalarni standart ^ shakliga keltirish:
-    s = s.replace(/⁰/g, '^0').replace(/¹/g, '^1').replace(/²/g, '^2').replace(/³/g, '^3');
-    s = s.replace(/⁴/g, '^4').replace(/⁵/g, '^5').replace(/⁶/g, '^6').replace(/⁷/g, '^7').replace(/⁸/g, '^8').replace(/⁹/g, '^9');
+    // Tashqi ortiqcha qavslar: (-3π/2) -> -3π/2
+    while (s.startsWith('(') && s.endsWith(')') && (s.split('(').length === 2)) {
+      s = s.substring(1, s.length - 1);
+    }
+
+    // "x = ", "x1 = ", "javob:" kabi prefikslarni tozalash
+    s = s.replace(/^(?:[a-zA-Z]|x\d*|y\d*|k\d*)\s*=\s*/, '');
+    s = s.replace(/^(?:javob|ans)\s*:\s*/i, '');
 
     // Ortiqcha figurali qavslar va sleshlar
     s = s.replace(/\{([^}]+)\}/g, '$1');
     s = s.replace(/\\/g, '');
 
-    return s;
+    return s.trim().toLowerCase();
   }
 
-  function parseNumericOrFraction(val) {
-    if (!val) return null;
-    val = String(val).trim();
+  function evalNumericVal(expr) {
+    var s = normalizeAnswer(expr);
+    if (!s || s.indexOf('±') !== -1) return null;
+
+    var cleanForVars = s.replace(/(math|sqrt|pi|abs|exp)/g, '');
+    if (/[a-df-oq-z]/.test(cleanForVars)) return null;
+
+    // n-darajali ildiz: 3√8 -> ((8)**(1/3))
+    s = s.replace(/(^|[\+\-\*\/\(])(\d+)√\(([^()]+)\)/g, '$1(Math.pow($3, 1/$2))');
+    s = s.replace(/(^|[\+\-\*\/\(])(\d+)√(\d+(?:\.\d+)?)/g, '$1(Math.pow($3, 1/$2))');
+
+    // Kvadrat ildiz: 8√58 -> 8*Math.sqrt(58)
+    s = s.replace(/(\d)√/g, '$1*Math.sqrt');
+    s = s.replace(/√\(([^()]+)\)/g, 'Math.sqrt($1)');
+    s = s.replace(/√(\d+(?:\.\d+)?)/g, 'Math.sqrt($1)');
+    s = s.replace(/√/g, 'Math.sqrt');
+
+    // Pi va ko'paytirish
+    s = s.replace(/(\d)π/g, '$1*Math.PI');
+    s = s.replace(/(\))π/g, '$1*Math.PI');
+    s = s.replace(/π(\d)/g, 'Math.PI*$1');
+    s = s.replace(/(\))\s*\(/g, '$1*(');
+    s = s.replace(/(\d)\s*\(/g, '$1*(');
+    s = s.replace(/(\))\s*(\d)/g, '$1*$2');
+    s = s.replace(/π/g, 'Math.PI');
+
+    s = s.replace(/\^/g, '**');
+
+    var allowed = '0123456789.+-*/()Math.sqrtPI ';
+    for (var ci = 0; ci < s.length; ci++) {
+      if (allowed.indexOf(s[ci]) === -1) return null;
+    }
     try {
-      // Sof kasr holati: "a/b"
-      if (/^-?\d+(?:\.\d+)?\/-?\d+(?:\.\d+)?$/.test(val)) {
-        var parts = val.split('/');
-        var num = parseFloat(parts[0]);
-        var den = parseFloat(parts[1]);
-        if (!isNaN(num) && !isNaN(den) && den !== 0) {
-          return num / den;
-        }
-        return null;
-      }
-      // Sof butun yoki o'nlik kasr: "123", "-123.45"
-      if (/^-?\d+(?:\.\d+)?$/.test(val)) {
-        var f = parseFloat(val);
-        return !isNaN(f) ? f : null;
-      }
-      return null;
+      var val = Function('"use strict"; return (' + s + ')')();
+      return (typeof val === 'number' && !isNaN(val) && isFinite(val)) ? val : null;
     } catch (e) {
       return null;
     }
   }
 
   function isAnswerMatching(cVal, uVal) {
-    var nC = normalizeAnswer(cVal);
-    var nU = normalizeAnswer(uVal);
-    if (!nC || !nU) return false;
-    if (nC === nU) return true;
-    var numC = parseNumericOrFraction(nC);
-    var numU = parseNumericOrFraction(nU);
-    if (numC !== null && numU !== null) {
-      return Math.abs(numC - numU) < 1e-5;
+    if (cVal === undefined || cVal === null || uVal === undefined || uVal === null) return false;
+    var cStr = String(cVal).trim();
+    var uStr = String(uVal).trim();
+    if (!cStr || !uStr) return false;
+
+    // Kalitda bir nechta muqobil variant bo'lsa (';', '|', 'yoki')
+    if (/[;\|]|\byoki\b|\bor\b/.test(cStr)) {
+      var parts = cStr.split(/[;\|]|\byoki\b|\bor\b/);
+      for (var pi = 0; pi < parts.length; pi++) {
+        var part = parts[pi].trim();
+        if (part && isAnswerMatching(part, uVal)) return true;
+      }
     }
+
+    var nC = normalizeAnswer(cStr);
+    var nU = normalizeAnswer(uStr);
+    if (!nC || !nU) return false;
+
+    // 1. To'g'ridan-to'g'ri tenglik
+    if (nC === nU) return true;
+
+    // 2. Yulduzcha ko'paytirish belgisisiz: 8*√58 == 8√58
+    if (nC.replace(/\*/g, '') === nU.replace(/\*/g, '')) return true;
+
+    // 3. Yig'indi hadlarining o'rin almashuvi: 120 + 36π == 36π + 120
+    if (nC.indexOf('+') !== -1 && nU.indexOf('+') !== -1) {
+      var cTerms = nC.split('+').map(function(t) { return t.trim().replace(/\*/g, ''); }).sort().join('+');
+      var uTerms = nU.split('+').map(function(t) { return t.trim().replace(/\*/g, ''); }).sort().join('+');
+      if (cTerms === uTerms) return true;
+    }
+
+    // 4. Matematik ifodaning sonli qiymati tengligi
+    var numC = evalNumericVal(nC);
+    var numU = evalNumericVal(nU);
+    if (numC !== null && numU !== null) {
+      // Ishoralari bir xil bo'lishi shart!
+      if ((numU > 1e-6 && numC < -1e-6) || (numU < -1e-6 && numC > 1e-6)) {
+        return false;
+      }
+      return Math.abs(numC - numU) < 1e-4;
+    }
+
     return false;
   }
 

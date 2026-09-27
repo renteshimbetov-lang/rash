@@ -7,6 +7,7 @@ import json
 import os
 import re
 import time
+import math
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -1346,25 +1347,43 @@ def parse_answers_json(raw: Any) -> Dict[str, Any]:
         return {}
 
 
+DASHES_PATTERN = r"[\u2212\u2013\u2014\u2012\u2015\uFE63\uFF0D\u00ad]"
+MULT_SYMS_PATTERN = r"[\u00d7\u00b7\u2022\u2219\u22c5\u2715\u2716]"
+
+
 def normalize_answer(ans: Any) -> str:
     if ans is None:
         return ""
-    s = str(ans).strip().lower()
+    s = str(ans).strip()
 
-    # Bo'shliqlar va dollar belgilarini olib tashlash
-    s = re.sub(r"[\s\$]", "", s)
+    # 1. Bo'shliqlar, ko'rinmas belgilar va dollar belgilarini olib tashlash
+    s = re.sub(r"[\s\u200b\u200c\u200d\u00a0\uFEFF\$]", "", s)
 
-    # 1. Vergul va nuqta: "2,5" -> "2.5"
-    s = s.replace(",", ".")
+    # 2. Barcha klaviaturalardagi minus/chiziqchalarni bitta standart '-' belgisiga keltirish
+    s = re.sub(DASHES_PATTERN, "-", s)
 
-    # 2. Ko'paytirish belgilari: "×", "·" -> "*"
-    s = s.replace("×", "*").replace("·", "*")
+    # 3. Barcha ko'paytirish belgilarini '*' ga keltirish
+    s = re.sub(MULT_SYMS_PATTERN, "*", s)
     s = re.sub(r"\\+(?:cdot|times)\b", "*", s)
 
-    # 3. Pi soni: \pi, pi, π
-    s = re.sub(r"(^|[^a-zA-Z])\\*pi(?![a-zA-Z])", r"\g<1>π", s)
+    # 4. Bo'lish belgilarini '/' ga keltirish
+    s = re.sub(r"[\u00f7]", "/", s)
 
-    # 4. LaTeX residuallari: \frac, \sqrt, \sqrt[n]
+    # 5. O'nlik kasrlardagi vergul: 2,5 -> 2.5
+    s = re.sub(r"(\d+),(\d+)", r"\1.\2", s)
+
+    # 6. Plus-minus belgisi
+    s = re.sub(r"(\+\/\-|\+\s*\-|\+\-)", "±", s)
+
+    # 7. Pi soni: \pi, pi, PI -> π
+    s = re.sub(r"(^|[^a-zA-Z])\\*pi(?![a-zA-Z])", r"\g<1>π", s, flags=re.IGNORECASE)
+
+    # 8. Darajalarni standart ^ shakliga keltirish
+    for sup, norm in [("⁰", "^0"), ("¹", "^1"), ("²", "^2"), ("³", "^3"), ("⁴", "^4"),
+                      ("⁵", "^5"), ("⁶", "^6"), ("⁷", "^7"), ("⁸", "^8"), ("⁹", "^9"), ("ⁿ", "^n")]:
+        s = s.replace(sup, norm)
+
+    # 9. LaTeX residuallari: \frac, \sqrt, \sqrt[n]
     while re.search(r"\\+sqrt\[([^\]]+)\]\{([^{}]+)\}", s):
         s = re.sub(r"\\+sqrt\[([^\]]+)\]\{([^{}]+)\}", r"\1√\2", s)
     while re.search(r"\\+d?frac\{([^{}]+)\}\{([^{}]+)\}", s):
@@ -1372,69 +1391,129 @@ def normalize_answer(ans: Any) -> str:
     while "sqrt{" in s:
         s = re.sub(r"\\+sqrt\{([^{}]+)\}", r"√\1", s)
     s = re.sub(r"\\+sqrt([0-9a-zA-Z]+)", r"√\1", s)
+    s = re.sub(r"sqrt\(", "√(", s)
     s = s.replace("sqrt", "√")
 
-    # Ildizlar va darajalar:
-    s = s.replace("∛", "3√").replace("cbrt", "3√").replace("³√", "3√")
-    s = s.replace("∜", "4√").replace("⁴√", "4√")
-    s = s.replace("⁰√", "0√").replace("¹√", "1√").replace("²√", "2√")
-    s = s.replace("⁵√", "5√").replace("⁶√", "6√").replace("⁷√", "7√")
-    s = s.replace("⁸√", "8√").replace("⁹√", "9√").replace("ⁿ√", "n√")
+    # Ildizlar va darajalar
+    s = s.replace("∛", "3√").replace("cbrt", "3√")
+    s = s.replace("∜", "4√")
 
-    # 5. Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32", "3√(8)" -> "3√8"
+    # Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32"
     while re.search(r"([0-9a-zA-Z]*√)\(([^()]+)\)", s):
         s = re.sub(r"([0-9a-zA-Z]*√)\(([^()]+)\)", r"\1\2", s)
+    while re.search(r"^\(([0-9a-zA-Z]*√[^()]+)\)$", s):
+        s = re.sub(r"^\(([0-9a-zA-Z]*√[^()]+)\)$", r"\1", s)
 
-    # Agar ildiz butunligicha qavs ichida bo'lsa: "(√29)" -> "√29"
-    while re.search(r"\(([0-9a-zA-Z]*√[^()]+)\)", s):
-        s = re.sub(r"\(([0-9a-zA-Z]*√[^()]+)\)", r"\1", s)
+    # Raqam va qavsli ildiz: "8(√58)" -> "8√58"
+    s = re.sub(r"(\d)\((√[^()]+)\)", r"\1\2", s)
 
-    # 6. Ko'paytirish belgisi ko'rinishi: "8*√58" -> "8√58", "36*π" -> "36π"
-    # Raqam yoki qavsdan keyin kelgan * belgisini ildiz yoki pi oldidan olib tashlash:
-    s = re.sub(r"(\d|\))\*(√|[0-9a-zA-Z]+√|π|[a-zA-Z])", r"\1\2", s)
-    # Raqam va ildiz o'rtasidagi qavsli ko'paytirish: "8(√58)" -> "8√58"
-    s = re.sub(r"(\d)\((√|[0-9a-zA-Z]+√|π)", r"\1\2", s)
-    # Pi atrofidagi ko'paytirishni tozalash:
-    s = re.sub(r"\*(π)", r"\1", s)
-    s = re.sub(r"(π)\*", r"\1", s)
+    # Tashqi ortiqcha qavslar: (-3π/2) -> -3π/2
+    while s.startswith("(") and s.endswith(")") and s.count("(") == 1:
+        s = s[1:-1]
 
-    # Darajalarni standart ^ shakliga keltirish:
-    s = s.replace("⁰", "^0").replace("¹", "^1").replace("²", "^2").replace("³", "^3")
-    s = s.replace("⁴", "^4").replace("⁵", "^5").replace("⁶", "^6").replace("⁷", "^7").replace("⁸", "^8").replace("⁹", "^9")
+    # "x = ", "x1 = ", "javob:" kabi prefikslarni tozalash
+    s = re.sub(r"^(?:[a-zA-Z]|x\d*|y\d*|k\d*)\s*=\s*", "", s)
+    s = re.sub(r"^(?:javob|ans)\s*:\s*", "", s, flags=re.IGNORECASE)
 
     # Ortiqcha figurali qavslar va sleshlar
     s = re.sub(r"\{([^{}]+)\}", r"\1", s)
     s = s.replace("\\", "")
 
-    return s
+    return s.strip().lower()
 
 
-def parse_numeric_or_fraction(val: str) -> Optional[float]:
+def eval_numeric_val(expr: str) -> Optional[float]:
+    """Matematik ifodaning sonli qiymatini xavfsiz hisoblash (π, √, kasrlar va darajalar bilan)."""
+    s = normalize_answer(expr)
+    if not s or "±" in s:
+        return None
+
+    # Agar x, y, a kabi algebraik noma'lumlar bo'lsa, sonli hisoblab bo'lmaydi
+    clean_for_vars = re.sub(r"(math|sqrt|pi|abs|exp)", "", s)
+    if re.search(r"[a-df-oq-z]", clean_for_vars):
+        return None
+
+    # n-darajali ildizlar: masalan 3√8 -> ((8)**(1/3))
+    s = re.sub(r"(^|[\+\-\*\/\(])(\d+)√\(([^()]+)\)", r"\1((\3)**(1/\2))", s)
+    s = re.sub(r"(^|[\+\-\*\/\(])(\d+)√(\d+(?:\.\d+)?)", r"\1((\3)**(1/\2))", s)
+
+    # Kvadrat ildiz: 8√58 -> 8*math.sqrt(58), √29 -> math.sqrt(29)
+    s = re.sub(r"(\d)√", r"\1*math.sqrt", s)
+    s = re.sub(r"√\(([^()]+)\)", r"math.sqrt(\1)", s)
+    s = re.sub(r"√(\d+(?:\.\d+)?)", r"math.sqrt(\1)", s)
+    s = s.replace("√", "math.sqrt")
+
+    # Pi va ko'paytirish
+    s = re.sub(r"(\d)π", r"\1*math.pi", s)
+    s = re.sub(r"(\))π", r"\1*math.pi", s)
+    s = re.sub(r"π(\d)", r"math.pi*\1", s)
+    s = re.sub(r"(\))\s*\(", r"\1*(", s)
+    s = re.sub(r"(\d)\s*\(", r"\1*(", s)
+    s = re.sub(r"(\))\s*(\d)", r"\1*\2", s)
+    s = s.replace("π", "math.pi")
+    s = s.replace("^", "**")
+
+    allowed = set("0123456789.+-*/()math.sqrtpi ")
+    if not set(s).issubset(allowed):
+        return None
     try:
-        if "/" in val:
-            parts = val.split("/")
-            if len(parts) == 2:
-                num = float(parts[0])
-                den = float(parts[1])
-                if den != 0:
-                    return num / den
+        val = eval(s, {"__builtins__": None, "math": math})
         return float(val)
     except Exception:
         return None
 
 
 def is_answer_matching(user_ans: Any, correct_ans: Any) -> bool:
-    u = normalize_answer(user_ans)
-    c = normalize_answer(correct_ans)
-    if not u or not c:
+    """
+    Foydalanuvchi javobini to'g'ri kalitga solishtirish:
+    1. Barcha klaviatura chiziqchalari (Unicode minus, en-dash, em-dash), amallari va belgilarini tozalash
+    2. Kalitdagi muqobil javoblar (';', '|', 'yoki') bo'yicha tekshirish
+    3. To'g'ridan-to'g'ri matn tengligi
+    4. Yig'indi o'rin almashtirish qonuni (masalan, 120 + 36π == 36π + 120)
+    5. Matematik sonli qiymat tengligi (masalan, -3π/2 == -(3/2)π == -1.5π, 8*√58 == 8√58, π²/2 == 0.5π²)
+    """
+    if user_ans is None or correct_ans is None:
         return False
+    u_str = str(user_ans).strip()
+    c_str = str(correct_ans).strip()
+    if not u_str or not c_str:
+        return False
+
+    # Kalitda bir nechta to'g'ri variant berilgan bo'lsa (masalan: "2; 5" yoki "-3π/2 | 3π/2")
+    if any(sep in c_str for sep in [";", "|", "yoki", "or"]):
+        parts = [p.strip() for p in re.split(r";|\||\byoki\b|\bor\b", c_str) if p.strip()]
+        for p in parts:
+            if is_answer_matching(user_ans, p):
+                return True
+
+    u = normalize_answer(u_str)
+    c = normalize_answer(c_str)
+
+    # 1. Aniq matnli moslik
     if u == c:
         return True
-    num_u = parse_numeric_or_fraction(u)
-    num_c = parse_numeric_or_fraction(c)
-    if num_u is not None and num_c is not None:
-        if abs(num_u - num_c) < 1e-5:
+
+    # 2. Yulduzcha ko'paytirish belgisi farqi: 8*√58 == 8√58, 36*π == 36π
+    if u.replace("*", "") == c.replace("*", ""):
+        return True
+
+    # 3. Yig'indi hadlarining o'rin almashuvi: 120 + 36π == 36π + 120, 6 + 2√2 == 2√2 + 6
+    if "+" in u and "+" in c:
+        u_terms = sorted([t.strip().replace("*", "") for t in u.split("+") if t.strip()])
+        c_terms = sorted([t.strip().replace("*", "") for t in c.split("+") if t.strip()])
+        if u_terms == c_terms:
             return True
+
+    # 4. Matematik ifoda sonli qiymatlarini solishtirish
+    num_u = eval_numeric_val(u)
+    num_c = eval_numeric_val(c)
+    if num_u is not None and num_c is not None:
+        # Ishoralari qat'iy bir xil bo'lishi shart (-3π/2 musbat 3π/2 ga teng bo'lolmaydi)
+        if (num_u > 1e-6 and num_c < -1e-6) or (num_u < -1e-6 and num_c > 1e-6):
+            return False
+        if abs(num_u - num_c) < 1e-4:
+            return True
+
     return False
 
 
