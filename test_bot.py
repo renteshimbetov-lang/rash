@@ -2506,12 +2506,14 @@ async def admin_test_stats_detail(call: CallbackQuery):
         InlineKeyboardButton(text="📄 Matn shaklida reyting", callback_data=f"adm_restxt_{test_id}"),
         InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
     ])
-    yt_btn_text = "🎬 Video tahlil ✅" if yt_url else "🎬 Video tahlil ➕"
     buttons.append([
         InlineKeyboardButton(text="🧮 Rasch tahlil", callback_data=f"adm_rasch_{test_id}"),
-        InlineKeyboardButton(text=yt_btn_text, callback_data=f"adm_set_yt_{test_id}")
+        InlineKeyboardButton(text="🔍 Shovqin & Savollar", callback_data=f"adm_item_diag_{test_id}")
     ])
-    buttons.append([InlineKeyboardButton(text="⬅️ Testlar ro'yxatiga qaytish", callback_data="admin_leaderboard")])
+    buttons.append([
+        InlineKeyboardButton(text=yt_btn_text, callback_data=f"adm_set_yt_{test_id}"),
+        InlineKeyboardButton(text="⬅️ Testlar ro'yxati", callback_data="admin_leaderboard")
+    ])
 
     try:
         await call.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
@@ -2972,7 +2974,7 @@ async def admin_broadcast_rasch_cb(call: CallbackQuery):
         test_db.set_test_active_status(test_id, 0)
 
         # 2. Rasch modeli orqali yakuniy kalibrlash va bazani yangilash
-        test_db.evaluate_test_rasch(test_id, auto_update_db=True)
+        rasch_res = test_db.evaluate_test_rasch(test_id, auto_update_db=True)
 
         # 3. Test natijalarini e'lon qilingan holatga o'tkazish
         test_db.set_test_results_published(test_id, True)
@@ -2996,13 +2998,24 @@ async def admin_broadcast_rasch_cb(call: CallbackQuery):
                 fail_count += 1
 
         fail_text = f"⚠️ Yetkazilmadi (bot bloklangan): {fail_count} ta\n" if fail_count > 0 else ""
+
+        items = rasch_res.get("items", []) if rasch_res else []
+        noisy = [it for it in items if it.get("is_noisy")]
+        if noisy:
+            noisy_names = ", ".join([f"<code>{it['item_label']}</code>" for it in noisy[:10]])
+            noisy_info = f"⚠️ <b>Shovqinli savollar ({len(noisy)} ta):</b> {noisy_names}\n"
+        else:
+            noisy_info = "✨ <b>Savollar sifati:</b> Barcha savollar sifatli (shovqin yo'q)\n"
+
         back_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔍 Savollar qiyinligi va Shovqin tahlili", callback_data=f"adm_item_diag_{test_id}")],
             [InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")]
         ])
         await status_msg.edit_text(
             f"✅ <b>Rasch modeli bo'yicha natijalar e'lon qilindi!</b>\n\n"
             f"📨 <b>Yuborildi:</b> {sent_count} nafar o'quvchiga\n"
             f"{fail_text}"
+            f"{noisy_info}\n"
             f"📌 <i>O'quvchilar botda va mini ilovada o'z ballari va to'liq tahlilni ko'ra oladilar.</i>",
             reply_markup=back_kb
         )
@@ -3104,12 +3117,19 @@ async def admin_test_rasch_eval(call: CallbackQuery):
             f"Testni to'xtatib, barchaga natijalarni e'lon qilish uchun quyidagi tugmani bosing 👇\n\n"
         )
 
+    noisy = [it for it in items if it.get("is_noisy")]
+    if noisy:
+        noisy_summary = f"⚠️ <b>Shovqinli savollar ({len(noisy)} ta):</b> " + ", ".join([f"<code>{it['item_label']}</code>" for it in noisy[:10]]) + "\n\n"
+    else:
+        noisy_summary = "✨ <b>Savollar sifati:</b> Barcha savollar sifatli (shovqin yo'q)\n\n"
+
     text = (
         f"🧮 <b>Rasch Modeli (JMLE) Baholash Natijalari</b>\n\n"
         f"📖 <b>Test:</b> {test['title']} (<code>#{test['test_code']}</code>)\n"
         f"👥 <b>Talabalar:</b> {meta.get('n_students', meta.get('num_students', len(students)))} nafar\n"
         f"❓ <b>Elementlar:</b> {meta.get('n_items', meta.get('num_items', len(items)))} ta (55 ta band)\n"
         f"🔄 <b>Iteratsiyalar:</b> {meta.get('iterations', 0)} (Konvergensiya: {meta.get('converged', True)})\n\n"
+        f"{noisy_summary}"
         f"{status_note}"
         f"🏆 <b>O'quvchilar darajalari va yakuniy ballari (0-100):</b>\n"
     )
@@ -3125,10 +3145,79 @@ async def admin_test_rasch_eval(call: CallbackQuery):
         text += f"\n<i>...va yana {len(students) - 25} nafar talaba.</i>"
 
     buttons = [
+        [InlineKeyboardButton(text="🔍 Savollar qiyinligi va Shovqin tahlili", callback_data=f"adm_item_diag_{test_id}")],
         [InlineKeyboardButton(text="📢 Testni to'xtatish va Natijalarni e'lon qilish", callback_data=f"adm_broadcast_results_{test_id}")],
         [InlineKeyboardButton(text="⬅️ Orqaga", callback_data=f"adm_tstat_{test_id}")]
     ]
     await status_msg.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+@router.callback_query(F.data.startswith("adm_item_diag_"))
+async def admin_item_diag_cb(call: CallbackQuery):
+    """Admin uchun savollarning qiyinligi va shovqin (infit/outfit) tahlili."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    test_id = int(call.data.split("_")[3])
+    test = test_db.get_test_by_id(test_id)
+    if not test:
+        await call.answer("Test topilmadi!", show_alert=True)
+        return
+
+    res = test_db.evaluate_test_rasch(test_id)
+    if not res or not res.get("items"):
+        await call.answer("Tahlil uchun kamida 2 nafar o'quvchi topshirgan bo'lishi kerak!", show_alert=True)
+        return
+
+    items = res.get("items", [])
+    n_students = res.get("meta", {}).get("n_students", 0)
+    noisy = [it for it in items if it.get("is_noisy")]
+
+    # Sort by difficulty
+    items_sorted = sorted(items, key=lambda x: x.get("difficulty_b", 0), reverse=True)
+    hardest = items_sorted[:5]
+    easiest = items_sorted[-5:]
+    easiest.reverse()
+
+    text = (
+        f"🔍 <b>«{test['title']}» — Savollar Sifati va Shovqin Tahlili</b>\n\n"
+        f"👥 <b>Ishtirokchilar:</b> {n_students} nafar | ❓ <b>Jami elementlar:</b> 55 ta band\n\n"
+    )
+
+    if noisy:
+        text += f"⚠️ <b>SHOVQINLI SAVOLLAR ({len(noisy)} TA):</b>\n"
+        text += f"<i>(Infit yoki Outfit > 1.3 — kutilmagan javoblar yuqori bo'lgan):</i>\n"
+        for it in noisy:
+            solved = it.get('solved_count', 0)
+            score_pts = it.get('item_score', 0)
+            infit = it.get('infit_mnsq', 1.0)
+            outfit = it.get('outfit_mnsq', 1.0)
+            text += f"• <b>{it['item_label']}</b>: {solved}/{n_students} kishi yechgan | Ball: <b>{score_pts}</b> | Infit: <code>{infit}</code>, Outfit: <code>{outfit}</code>\n"
+        text += f"\nℹ️ <i>Eslatma: Ushbu savollarni to'g'ri topgan o'quvchilarga ball to'liq berilgan.</i>\n\n"
+    else:
+        text += f"✨ <b>SHOVQINLI SAVOLLAR:</b>\nHech qanday shovqinli savol aniqlanmadi. Barcha 55 ta savol Rasch modeliga ideal mos tushgan!\n\n"
+
+    text += f"🔥 <b>ENG QIYIN 5 TA SAVOL (Eng yuqori ball):</b>\n"
+    for it in hardest:
+        solved = it.get('solved_count', 0)
+        score_pts = it.get('item_score', 0)
+        b_val = it.get('difficulty_b', 0)
+        text += f"• <b>{it['item_label']}</b>: {solved}/{n_students} kishi topgan (Qiyinlik: <code>{b_val:+.2f}</code>) ➔ <b>{score_pts} ball</b>\n"
+
+    text += f"\n🟢 <b>ENG OSON 5 TA SAVOL (Ko'pchilik yechgan):</b>\n"
+    for it in easiest:
+        solved = it.get('solved_count', 0)
+        score_pts = it.get('item_score', 0)
+        b_val = it.get('difficulty_b', 0)
+        text += f"• <b>{it['item_label']}</b>: {solved}/{n_students} kishi topgan (Qiyinlik: <code>{b_val:+.2f}</code>) ➔ <b>{score_pts} ball</b>\n"
+
+    back_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🧮 Rasch reytingiga qaytish", callback_data=f"adm_rasch_{test_id}")],
+        [InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")]
+    ])
+
+    try:
+        await call.message.edit_text(text, reply_markup=back_kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=back_kb)
 
 @router.callback_query(F.data.startswith("adm_restxt_"))
 async def admin_test_res_text(call: CallbackQuery):
