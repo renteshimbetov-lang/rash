@@ -1008,7 +1008,7 @@ async def profile_delete_account_confirm(call: CallbackQuery):
 async def do_delete_my_account_handler(call: CallbackQuery, state: FSMContext):
     await state.clear()
     uid = call.from_user.id
-    user_info = test_db.delete_user(uid, reason="user_self_deleted_bot")
+    user_info = test_db.delete_user(uid)
     await call.message.answer(
         "🗑 <b>Akkauntingiz va barcha natijalaringiz butunlay o'chirildi.</b>\n\n"
         "Qaytadan ro'yxatdan o'tish uchun /start buyrug'ini bosing.",
@@ -4254,7 +4254,7 @@ async def handle_app_update_user_status(request):
 
         if action == 'delete':
             # Foydalanuvchini bazadan butunlay o'chirish
-            deleted_user = test_db.delete_user(target_uid, reason="admin_deleted")
+            deleted_user = test_db.delete_user(target_uid)
             return web.json_response({"success": bool(deleted_user), "status": "deleted"})
 
         if action not in ['approved', 'rejected', 'blocked', 'pending']:
@@ -4359,7 +4359,7 @@ async def handle_app_delete_my_account(request):
         if not tg_id:
             return web.json_response({"success": False, "message": "Foydalanuvchi aniqlanmadi"}, status=400)
 
-        user_info = test_db.delete_user(tg_id, reason="user_self_deleted_webapp")
+        user_info = test_db.delete_user(tg_id)
         if ADMIN_ID and user_info:
             try:
                 fn = user_info.get("fullname", "Noma'lum")
