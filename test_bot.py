@@ -447,7 +447,8 @@ async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
         "test_id": test["id"],
         "test_code": test["test_code"],
         "title": test["title"],
-        "subject": test.get("subject", "Matematika")
+        "subject": test.get("subject", "Matematika"),
+        "tg_id": user_tg_id
     }
     encoded_url = f"{WEBAPP_URL}?{urllib.parse.urlencode(params)}"
 
@@ -3393,6 +3394,12 @@ async def handle_submit_test_api(request):
                 except Exception:
                     pass
         user_answers = data.get("answers", {})
+
+        if not user_tg_id or int(user_tg_id) <= 0:
+            return web.json_response({
+                "success": False,
+                "message": "Foydalanuvchi aniqlanmadi! Testni faqat Telegram botimiz (@bm_rashtest_bot) orqali topshirish mumkin."
+            }, status=400)
 
         test_obj = test_db.get_test_by_id(test_id)
         if test_obj:

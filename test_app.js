@@ -74,6 +74,37 @@ const TestApp = {
 
     // 4. Mavzuga mos kirish animatsiyasini ishga tushirish
     this.runIntroAnimation();
+
+    // 5. Allaqachon topshirganlikni tekshirish
+    if (this.userTgId) {
+      fetch('/api/app/active-tests?tg_id=' + this.userTgId)
+        .then(function(res) { return res.json(); })
+        .then(function(d) {
+          if (d && d.tests) {
+            var cur = d.tests.find(function(t) { return Number(t.id) === Number(TestApp.testId); });
+            if (cur && cur.already_submitted) {
+              var submitBtn = document.getElementById('btn-submit-test');
+              if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Topshirilgan ✅';
+                submitBtn.style.background = '#10b981';
+                submitBtn.style.cursor = 'not-allowed';
+              }
+              setTimeout(function() {
+                alert("⛔️ Siz ushbu testni allaqachon topshirgansiz!\n\nJavoblaringiz qabul qilingan. Natijalar Rasch modeli tahlili e'lon qilingandan so'ng botingizga yuboriladi.");
+              }, 400);
+            }
+          }
+        }).catch(function(e) {});
+    } else {
+      var submitBtn = document.getElementById('btn-submit-test');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.5';
+        submitBtn.style.cursor = 'not-allowed';
+        submitBtn.textContent = 'Bot orqali kiring 🔒';
+      }
+    }
   },
 
   runIntroAnimation() {
@@ -370,6 +401,12 @@ const TestApp = {
   },
 
   async submitTestNow() {
+    if (!this.userTgId || this.userTgId <= 0) {
+      this.closeConfirmSubmitModal();
+      alert("⚠️ Foydalanuvchi aniqlanmadi! Testni faqat Telegram botingiz (@bm_rashtest_bot) orqali ochib topshirishingiz lozim. Noma'lum foydalanuvchilar javoblari qabul qilinmaydi.");
+      return;
+    }
+
     const submitBtn = document.getElementById('btn-final-submit');
     if (submitBtn) {
       submitBtn.disabled = true;

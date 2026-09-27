@@ -269,6 +269,18 @@ def init_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_msg_chat ON broadcast_messages(chat_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_bc_hist_created ON broadcast_history(created_at)")
 
+            try:
+                # Suhrob Olloyorovning (ID 106) brauzerdan topshirgan 25 ta to'g'ri javobini uning akkauntiga biriktirish
+                cur.execute("""
+                UPDATE submissions 
+                SET user_tg_id = 7829748474, fullname = 'Suhrob Olloyorov', phone = '+998332072205'
+                WHERE id = 106 AND (user_tg_id = 0 OR user_tg_id IS NULL)
+                """)
+                # Orphaned anonim test yozuvi 102 ni tozalash
+                cur.execute("DELETE FROM submissions WHERE id = 102 AND (user_tg_id = 0 OR user_tg_id IS NULL)")
+            except Exception:
+                pass
+
         else:
             # SQLite jadvallar (fallback)
             cur.execute("""
@@ -1569,21 +1581,23 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
     if not test:
         raise ValueError("Test topilmadi!")
 
-    if user_tg_id:
-        existing = get_user_submission_for_test(test_id, user_tg_id)
-        if existing:
-            if is_admin(user_tg_id, ADMIN_ID):
-                conn_del = get_connection()
-                try:
-                    cur_del = conn_del.cursor()
-                    cur_del.execute(
-                        f"DELETE FROM submissions WHERE id = {_ph()}", (existing["id"],)
-                    )
-                    conn_del.commit()
-                finally:
-                    _close_conn(conn_del)
-            else:
-                raise ValueError("Siz ushbu testni allaqachon topshirgansiz! Qayta topshirish mumkin emas.")
+    if not user_tg_id or int(user_tg_id) <= 0:
+        raise ValueError("Foydalanuvchi aniqlanmadi! Testni faqat Telegram botimiz (@bm_rashtest_bot) orqali topshirish lozim.")
+
+    existing = get_user_submission_for_test(test_id, user_tg_id)
+    if existing:
+        if is_admin(user_tg_id, ADMIN_ID):
+            conn_del = get_connection()
+            try:
+                cur_del = conn_del.cursor()
+                cur_del.execute(
+                    f"DELETE FROM submissions WHERE id = {_ph()}", (existing["id"],)
+                )
+                conn_del.commit()
+            finally:
+                _close_conn(conn_del)
+        else:
+            raise ValueError("Siz ushbu testni allaqachon topshirgansiz! Qayta topshirish taqiqlanadi.")
 
     user = get_user(user_tg_id) if user_tg_id else None
     fullname = user["fullname"] if user else "Foydalanuvchi"
