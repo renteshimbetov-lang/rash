@@ -3271,45 +3271,36 @@ async def handle_submit_test_api(request):
         # Bazada tekshirish va saqlash
         result = test_db.check_and_save_submission(test_id, user_tg_id, user_answers)
 
-        # Natijalar e'lon qilingan yoki yo'qligini tekshirish
-        is_published = test_db.is_test_results_published(test_id)
-
         # Foydalanuvchiga Telegram bot orqali shaxsiy xabar yuborish
+        # DIQQAT: Test topshirilganda HAR DOIM "Javoblaringiz qabul qilindi (Jarayonda ⏳)" holatida bo'ladi!
+        # Ball va natijalar srazu ko'rsatilmaydi. Admin Rasch modeli (JMLE) tahlilini
+        # o'tkazib natijalarni e'lon qilganda shaxsiy xabar qilib yakuniy ball yuboriladi.
         if user_tg_id:
-            if is_published:
-                test = test_db.get_test_by_id(test_id) or {"title": result.get('test_title', 'Test'), "test_code": result.get('test_code', '')}
-                msg_user, reply_kb = build_student_result_message(result, test, eval_type="rasch")
-                try:
-                    await bot.send_message(chat_id=user_tg_id, text=msg_user, reply_markup=reply_kb)
-                except Exception as ex:
-                    log.warning(f"Foydalanuvchiga xabar yuborishda xatolik: {ex}")
-            else:
-                msg_user = (
-                    f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
-                    f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
-                    f"📌 <b>Holat:</b> ⏳ <b>Javoblaringiz tekshirilmoqda...</b>\n"
-                    f"🕒 <b>Topshirilgan vaqt:</b> {format_uzb_time()}\n\n"
-                    f"ℹ️ <b>Eslatma:</b> Test hozirda barcha o'quvchilar uchun davom etmoqda. "
-                    f"Admin testni to'xtatib, Rasch tahlili o'tkazilgach, "
-                    f"to'g'ri ishlangan savollar soni, yakuniy ballingiz va Milliy sertifikat darajangiz botingizga shaxsiy xabar qilib yuboriladi!\n\n"
-                    f"🏆 <i>Javoblaringiz tizimda muvaffaqiyatli saqlandi.</i>"
-                )
+            msg_user = (
+                f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
+                f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
+                f"📌 <b>Holat:</b> ⏳ <b>Javoblaringiz qabul qilindi (Jarayonda)...</b>\n"
+                f"🕒 <b>Topshirilgan vaqt:</b> {format_uzb_time()}\n\n"
+                f"ℹ️ <b>Eslatma:</b> Test hozirda barcha o'quvchilar uchun davom etmoqda. "
+                f"Admin testni yakunlab, <b>Rasch modeli (JMLE)</b> bo'yicha tahlil o'tkazgach, "
+                f"to'g'ri ishlangan savollar soni, yakuniy ballingiz va Milliy sertifikat darajangiz botingizga shaxsiy xabar qilib yuboriladi!\n\n"
+                f"🏆 <i>Javoblaringiz tizimda muvaffaqiyatli saqlandi.</i>"
+            )
             try:
                 await bot.send_message(chat_id=user_tg_id, text=msg_user)
             except Exception as ex:
                 log.warning(f"Foydalanuvchiga xabar yuborishda xatolik: {ex}")
 
-        # WebApp uchun mijoz ma'lumotlari
+        # WebApp uchun mijoz ma'lumotlari: topshirish paytida har doim kutilmoqda (ball yashirin)
         client_data = dict(result)
-        client_data["is_published"] = is_published
-        if not is_published:
-            client_data["score"] = None
-            client_data["grade"] = "Kutilmoqda"
-            client_data["correct_count"] = None
-            client_data["incorrect_count"] = None
-            client_data["unanswered_count"] = None
-            client_data["rasch_theta"] = None
-            client_data["details"] = None
+        client_data["is_published"] = False
+        client_data["score"] = None
+        client_data["grade"] = "Kutilmoqda"
+        client_data["correct_count"] = None
+        client_data["incorrect_count"] = None
+        client_data["unanswered_count"] = None
+        client_data["rasch_theta"] = None
+        client_data["details"] = None
 
         return web.json_response({"success": True, "data": client_data})
 
@@ -3978,12 +3969,20 @@ async def handle_app_active_tests(request):
             if tg_id:
                 existing = test_db.get_user_submission_for_test(t['id'], tg_id)
                 td['already_submitted'] = bool(existing)
+                is_pub = bool(t.get('results_published', 0))
                 if existing:
-                    td['user_score'] = existing.get('score')
-                    td['user_correct'] = existing.get('correct_count')
-                    td['user_incorrect'] = existing.get('incorrect_count')
-                    td['user_total'] = existing.get('total_count')
-                    td['user_grade'] = existing.get('grade')
+                    if is_pub:
+                        td['user_score'] = existing.get('score')
+                        td['user_correct'] = existing.get('correct_count')
+                        td['user_incorrect'] = existing.get('incorrect_count')
+                        td['user_total'] = existing.get('total_count')
+                        td['user_grade'] = existing.get('grade')
+                    else:
+                        td['user_score'] = None
+                        td['user_correct'] = None
+                        td['user_incorrect'] = None
+                        td['user_total'] = None
+                        td['user_grade'] = "Kutilmoqda"
                     td['submitted_at'] = existing.get('submitted_at')
             else:
                 td['already_submitted'] = False

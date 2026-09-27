@@ -1284,12 +1284,20 @@ function renderTestDetailCard(test, type) {
     });
     if (matchingResult) {
       done = true;
-      if (test.user_score == null) test.user_score = matchingResult.score;
-      if (test.user_correct == null) test.user_correct = matchingResult.correct_count;
-      if (test.user_total == null) test.user_total = matchingResult.total_count;
+      var isPub = Boolean(matchingResult.results_published);
+      if (isPub) {
+        if (test.user_score == null) test.user_score = matchingResult.score;
+        if (test.user_correct == null) test.user_correct = matchingResult.correct_count;
+        if (test.user_total == null) test.user_total = matchingResult.total_count;
+        if (test.user_grade == null) test.user_grade = matchingResult.grade;
+      } else {
+        test.user_score = null;
+        test.user_correct = null;
+        test.user_total = null;
+        test.user_grade = "Kutilmoqda";
+      }
       if (test.submitted_at == null) test.submitted_at = matchingResult.submitted_at;
-      if (test.user_grade == null) test.user_grade = matchingResult.grade;
-      if (test.results_published == null) test.results_published = matchingResult.results_published;
+      test.results_published = matchingResult.results_published;
     }
   }
 
@@ -1299,7 +1307,7 @@ function renderTestDetailCard(test, type) {
     badgeHtml = '<span class="badge" style="background:rgba(245,158,11,0.15);color:#D97706;border:1px solid rgba(245,158,11,0.3);font-weight:800;">' + t('badge_upcoming') + '</span>';
   } else if (isActive) {
     if (done) {
-      badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#059669;border:1px solid rgba(16,185,129,0.3);font-weight:800;">' + t('badge_submitted') + '</span>';
+      badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#059669;border:1px solid rgba(16,185,129,0.3);font-weight:800;">' + (Boolean(test.results_published) ? t('badge_submitted') : '⏳ ' + t('badge_submitted')) + '</span>';
     } else {
       badgeHtml = '<span class="badge" style="background:rgba(16,185,129,0.15);color:#10B981;border:1px solid rgba(16,185,129,0.3);font-weight:800;">' + t('badge_active_now') + '</span>';
     }
@@ -1333,14 +1341,15 @@ function renderTestDetailCard(test, type) {
   var userStatusBannerHtml = '';
   if (isInactive) {
     if (done) {
-      var scoreText = (test.user_score != null) ? (test.user_score + ' ' + t('test_score_unit')) : '';
-      var correctPart = (test.user_correct != null) ? (' (' + test.user_correct + ' ' + t('tests_stat_correct') + ')') : '';
+      var isPub = Boolean(test.results_published);
+      var scoreText = (isPub && test.user_score != null) ? (test.user_score + ' ' + t('test_score_unit')) : '';
+      var correctPart = (isPub && test.user_correct != null) ? (' (' + test.user_correct + ' ' + t('tests_stat_correct') + ')') : '';
       userStatusBannerHtml =
         '<div class="test-user-status-banner status-participated">' +
-          '<span style="font-size:20px;">✅</span>' +
+          '<span style="font-size:20px;">' + (isPub ? '✅' : '⏳') + '</span>' +
           '<div class="status-content">' +
-            '<div class="status-title">' + t('user_status_participated') + '</div>' +
-            '<div class="status-desc">' + (scoreText ? (t('stat_score') + ': <b>' + scoreText + '</b>' + correctPart) : t('test_ended_user_took')) + '</div>' +
+            '<div class="status-title">' + (isPub ? t('user_status_participated') : 'Javoblaringiz qabul qilindi (Jarayonda)') + '</div>' +
+            '<div class="status-desc">' + (scoreText ? (t('stat_score') + ': <b>' + scoreText + '</b>' + correctPart) : (isPub ? t('test_ended_user_took') : '⏳ Test davom etmoqda. Admin Rasch tahlili o\'tkazgach, ballaringiz e\'lon qilinadi.')) + '</div>' +
           '</div>' +
         '</div>';
     } else {
@@ -1412,8 +1421,9 @@ function renderTestDetailCard(test, type) {
     '</button>';
   } else if (isActive) {
     if (done) {
+      var isPub = Boolean(test.results_published);
       html += '<button type="button" class="btn-rich-action btn-rich-success" style="width:100%" onclick="event.stopPropagation(); openPastTestResult(' + test.id + ')">' +
-        '<span>✅</span> ' + t('btn_view_result') +
+        '<span>' + (isPub ? '✅' : '⏳') + '</span> ' + (isPub ? t('btn_view_result') : 'Javoblar qabul qilindi (Jarayonda ⏳)') +
       '</button>';
     } else {
       html += '<button type="button" class="btn-rich-action btn-rich-primary" style="width:100%" onclick="event.stopPropagation(); startTestInBot(\'' + (test.test_code || '') + '\', ' + test.id + ')">' +
@@ -1464,16 +1474,16 @@ function openPastTestResult(testId) {
   }
   if (!matching) {
     var tObj = (window.availableActiveTests || []).find(function(t) { return t.id === testId; });
-    if (tObj && tObj.user_score != null) {
+    if (tObj && tObj.already_submitted) {
       matching = {
         test_id: tObj.id,
         test_title: tObj.title,
         score: tObj.user_score,
         correct_count: tObj.user_correct,
         total_count: tObj.user_total || 45,
-        grade: tObj.user_grade,
+        grade: tObj.user_grade || "Kutilmoqda",
         submitted_at: tObj.submitted_at,
-        results_published: tObj.results_published != null ? tObj.results_published : 1
+        results_published: Boolean(tObj.results_published)
       };
     }
   }

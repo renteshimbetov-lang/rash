@@ -451,14 +451,14 @@ const TestApp = {
           <span style="font-size: 26px;">⏳</span>
           <div style="text-align: left;">
             <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #D97706; letter-spacing: 0.5px;">Holat</div>
-            <div style="font-size: 16px; font-weight: 800; color: #B45309;">Javoblar tekshirilmoqda...</div>
+            <div style="font-size: 16px; font-weight: 800; color: #B45309;">Jarayonda (Kutilmoqda)...</div>
           </div>
         `;
       }
       if (detailsGrid) detailsGrid.style.display = 'none';
       if (analysisBtn) analysisBtn.style.display = 'none';
       if (noteEl) {
-        noteEl.innerHTML = `⏳ <b>Eslatma:</b> Test hozirda davom etmoqda. Admin testni to'xtatib, Rasch tahlili asosida natijalarni e'lon qilgach, to'g'ri ishlangan savollar soni, ball va Milliy sertifikat darajangiz botingizga yuboriladi va bu yerda ochiladi.`;
+        noteEl.innerHTML = `⏳ <b>Eslatma:</b> Javoblaringiz muvaffaqiyatli saqlandi. Test hozirda davom etmoqda. Admin testni to'xtatib, <b>Rasch modeli (JMLE)</b> asosida tahlil o'tkazgach, to'g'ri ishlangan savollar soni, ball va Milliy sertifikat darajangiz botingizga shaxsiy xabar qilib yuboriladi!`;
       }
     } else {
       if (titleEl) titleEl.textContent = "Test Yakunlandi! 🎉";
