@@ -2930,31 +2930,34 @@ function toggleTheme(event) {
   _themeSwitching = true;
   setTimeout(function() { _themeSwitching = false; }, 850);
 
+  var btn = document.getElementById('theme-btn');
+  if (btn) {
+    btn.classList.add('theme-spinning');
+    setTimeout(function() { btn.classList.remove('theme-spinning'); }, 600);
+  }
+
   var cur = document.documentElement.getAttribute('data-theme') || 'dark';
   var next = cur === 'dark' ? 'light' : 'dark';
 
   // Origin coordinates: from click position or top-right theme button
   var x, y;
-  if (event && typeof event.clientX === 'number' && event.clientX > 0) {
+  if (event && typeof event.clientX === 'number' && event.clientX > 0 && typeof event.clientY === 'number' && event.clientY > 0) {
     x = event.clientX;
     y = event.clientY;
+  } else if (btn) {
+    var rect = btn.getBoundingClientRect();
+    x = rect.left + rect.width / 2;
+    y = rect.top + rect.height / 2;
   } else {
-    var btn = document.getElementById('theme-btn');
-    if (btn) {
-      var rect = btn.getBoundingClientRect();
-      x = rect.left + rect.width / 2;
-      y = rect.top + rect.height / 2;
-    } else {
-      x = window.innerWidth - 32;
-      y = 32;
-    }
+    x = window.innerWidth - 36;
+    y = 36;
   }
 
   // Calculate radius to furthest screen corner
   var maxRadius = Math.hypot(
     Math.max(x, window.innerWidth - x),
     Math.max(y, window.innerHeight - y)
-  ) + 30;
+  ) + 40;
 
   function applyThemeChange() {
     document.documentElement.setAttribute('data-theme', next);
@@ -2970,8 +2973,15 @@ function toggleTheme(event) {
     }
   }
 
-  // Modern browsers: View Transitions API
-  if (typeof document.startViewTransition === 'function') {
+  // Check if native startViewTransition is safely usable without WebView restrictions
+  var canViewTransition = false;
+  try {
+    if (typeof document.startViewTransition === 'function' && !(window.Telegram && window.Telegram.WebApp)) {
+      canViewTransition = true;
+    }
+  } catch(e) {}
+
+  if (canViewTransition) {
     try {
       var transition = document.startViewTransition(function() {
         applyThemeChange();
@@ -2985,21 +2995,23 @@ function toggleTheme(event) {
             ]
           },
           {
-            duration: 720,
-            easing: 'cubic-bezier(0.18, 0.89, 0.32, 1)',
+            duration: 620,
+            easing: 'cubic-bezier(0.2, 0.85, 0.32, 1)',
             pseudoElement: '::view-transition-new(root)'
           }
         );
-      }).catch(function() {});
+      }).catch(function() {
+        applyThemeChange();
+      });
       return;
     } catch(err) {}
   }
 
-  // Universal circular expansion fallback (Safari / WebViews without View Transition)
-  runThemeRippleFallback(x, y, maxRadius, next, applyThemeChange);
+  // Universal GPU-accelerated Corner Wave (works 100% on iOS, Android, Telegram WebApp)
+  runCornerThemeWave(x, y, maxRadius, next, applyThemeChange);
 }
 
-function runThemeRippleFallback(x, y, maxRadius, nextTheme, callback) {
+function runCornerThemeWave(x, y, maxRadius, nextTheme, callback) {
   var overlay = document.getElementById('theme-ripple-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -3007,29 +3019,39 @@ function runThemeRippleFallback(x, y, maxRadius, nextTheme, callback) {
     document.body.appendChild(overlay);
   }
 
-  var circle = document.createElement('div');
-  circle.className = 'theme-circle-ripple';
-  var diameter = Math.round(maxRadius * 2);
-  circle.style.width = diameter + 'px';
-  circle.style.height = diameter + 'px';
-  circle.style.left = Math.round(x - maxRadius) + 'px';
-  circle.style.top = Math.round(y - maxRadius) + 'px';
-  circle.style.background = nextTheme === 'dark' ? '#0a0b14' : '#f0f4ff';
+  // Clear any existing waves
+  overlay.innerHTML = '';
 
-  overlay.appendChild(circle);
+  var wave = document.createElement('div');
+  wave.className = 'theme-corner-wave ' + (nextTheme === 'dark' ? 'wave-to-dark' : 'wave-to-light');
+  var size = Math.round(maxRadius * 2.3);
+  wave.style.width = size + 'px';
+  wave.style.height = size + 'px';
+  wave.style.left = Math.round(x) + 'px';
+  wave.style.top = Math.round(y) + 'px';
 
+  overlay.appendChild(wave);
+
+  // Force synchronous reflow to register scale(0)
+  void wave.offsetWidth;
+
+  // Animate expansion
   requestAnimationFrame(function() {
-    circle.classList.add('expanding');
-    setTimeout(function() {
-      callback();
-      setTimeout(function() {
-        circle.classList.add('fading');
-        setTimeout(function() {
-          if (circle.parentNode) circle.parentNode.removeChild(circle);
-        }, 360);
-      }, 140);
-    }, 400);
+    wave.classList.add('wave-expanded');
   });
+
+  // Switch underlying theme when wave covers the screen
+  setTimeout(function() {
+    callback();
+  }, 280);
+
+  // Fade out cleanly once expansion finishes
+  setTimeout(function() {
+    wave.classList.add('wave-fade');
+    setTimeout(function() {
+      if (wave.parentNode) wave.parentNode.removeChild(wave);
+    }, 280);
+  }, 580);
 }
 
 function checkRegistrationStatus() {
