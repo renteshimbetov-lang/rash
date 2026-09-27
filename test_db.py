@@ -165,7 +165,7 @@ def init_db():
                 fullname TEXT NOT NULL,
                 phone TEXT NOT NULL,
                 username TEXT,
-                status TEXT DEFAULT 'pending',
+                status TEXT DEFAULT 'approved',
                 pin_code TEXT,
                 registered_at BIGINT NOT NULL
             )
@@ -250,7 +250,7 @@ def init_db():
                 fullname TEXT NOT NULL,
                 phone TEXT NOT NULL,
                 username TEXT,
-                status TEXT DEFAULT 'pending',
+                status TEXT DEFAULT 'approved',
                 pin_code TEXT,
                 registered_at INTEGER NOT NULL
             )
@@ -356,6 +356,12 @@ def init_db():
                     conn.commit()
                 except Exception:
                     pass
+
+        # Kutilmoqda (pending) bo'lgan mavjud barcha foydalanuvchilarni to'g'ridan-to'g'ri faol (approved) holatiga o'tkazish
+        try:
+            cur.execute("UPDATE users SET status = 'approved' WHERE status = 'pending'")
+        except Exception:
+            pass
 
         conn.commit()
     finally:

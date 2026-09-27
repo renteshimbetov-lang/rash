@@ -512,18 +512,8 @@ async def check_access(message: Message) -> bool:
     if not u:
         await message.answer("⚠️ Iltimos, avval /start buyrug'i orqali ro'yxatdan o'ting.")
         return False
-    st = u.get("status", "pending")
-    if st == "pending":
-        req_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔔 Admindan ruxsat so'rash", callback_data=f"user_req_access_{uid}")]
-        ])
-        await message.answer(
-            "⏳ <b>Arizangiz ko'rib chiqilmoqda!</b>\n\n"
-            "Admin hali botdan foydalanish huquqini bermagan. Iltimos, admin tasdiqlashini kuting yoki pastdagi tugma orqali so'rov yuboring.",
-            reply_markup=req_kb
-        )
-        return False
-    elif st in ["blocked", "rejected"]:
+    st = u.get("status", "approved")
+    if st in ["blocked", "rejected"]:
         await message.answer(
             "⛔️ <b>Sizning botdan foydalanish huquqingiz to'xtatilgan yoki chiqarib yuborilgansiz!</b>\n\n"
             "Murojaat uchun: @eshmbetov"
@@ -555,17 +545,7 @@ async def start_handler(message: Message, state: FSMContext):
         is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
         st = user.get("status", "approved")
         if not is_adm:
-            if st == "pending":
-                req_kb = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="🔔 Admindan ruxsat so'rash", callback_data=f"user_req_access_{user_tg_id}")]
-                ])
-                await message.answer(
-                    f"⏳ <b>Hurmatli {user['fullname']}, arizangiz ko'rib chiqilmoqda!</b>\n\n"
-                    f"Admin hali botdan foydalanishga ruxsat bermagan. Iltimos, tasdiqlanishini kuting.",
-                    reply_markup=req_kb
-                )
-                return
-            elif st in ["blocked", "rejected"]:
+            if st in ["blocked", "rejected"]:
                 await message.answer(
                     "⛔️ <b>Sizning botdan foydalanish huquqingiz to'xtatilgan!</b>\n\n"
                     "Murojaat uchun: @eshmbetov"
@@ -613,46 +593,37 @@ async def reg_phone(message: Message, state: FSMContext):
     user_tg_id = message.from_user.id
     username = message.from_user.username
 
-    # 1. Yangi foydalanuvchi statusi 'pending' bo'ladi
-    status = "pending"
+    # 1. Yangi foydalanuvchi to'g'ridan-to'g'ri faol (approved) bo'ladi
+    status = "approved"
     test_db.add_or_update_user(user_tg_id, fullname, phone, username, status=status)
     await state.clear()
 
-    # 2. O'quvchiga kutish xabari
+    # 2. O'quvchiga darhol asosiy menyuni ochish
     await message.answer(
-        f"⏳ <b>Arizangiz qabul qilindi, {fullname}!</b>\n\n"
-        f"Test tizimidan foydalanish uchun <b>admin ruxsati so'ralmoqda</b>.\n"
-        f"Admin (yoki tayinlangan yordamchi adminlar) ruxsat berishi bilanoq sizga xabar keladi va bot to'liq ochiladi.",
-        reply_markup=ReplyKeyboardRemove()
+        f"🎉 <b>Tabriklaymiz, {fullname}! Siz muvaffaqiyatli ro'yxatdan o'tdingiz!</b>\n\n"
+        f"Kerakli bo'limni tanlang yoki to'g'ridan-to'g'ri test kodini yuboring 👇",
+        reply_markup=main_menu_kb(user_tg_id)
     )
 
-    # 3. Barcha adminlarga (Bosh admin + Tayinlangan adminlar) darhol so'rov yuborish
-    approve_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Ruxsat berish", callback_data=f"user_quick_approve_{user_tg_id}"),
-            InlineKeyboardButton(text="❌ Rad etish", callback_data=f"user_quick_reject_{user_tg_id}")
-        ]
-    ])
+    # 3. Adminga shunchaki yangi a'zo haqida ma'lumot (so'rovsiz)
     username_str = f"@{username}" if username else "Mavjud emas"
     admin_notify_text = (
-        f"🔔 <b>Yangi foydalanuvchi kirishga ruxsat so'ramoqda!</b>\n\n"
+        f"👤 <b>Yangi foydalanuvchi ro'yxatdan o'tdi:</b>\n\n"
         f"👤 <b>Ism-familiya:</b> {fullname}\n"
         f"📱 <b>Telefon:</b> <code>{phone}</code>\n"
         f"🆔 <b>Telegram ID:</b> <code>{user_tg_id}</code>\n"
         f"🔗 <b>Username:</b> {username_str}\n"
-        f"🕒 <b>So'rov vaqti:</b> {format_uzb_time()}\n\n"
-        f"<i>Ushbu foydalanuvchiga tizimdan foydalanishga ruxsat berasizmi?</i>"
+        f"🕒 <b>Vaqt:</b> {format_uzb_time()}"
     )
 
     for adm_id in get_all_admin_ids():
         try:
             await bot.send_message(
                 chat_id=adm_id,
-                text=admin_notify_text,
-                reply_markup=approve_kb
+                text=admin_notify_text
             )
         except Exception as ex:
-            log.warning(f"Adminga ({adm_id}) a'zolik so'rovini yuborishda xatolik: {ex}")
+            log.warning(f"Adminga ({adm_id}) yangi a'zo xabarini yuborishda xatolik: {ex}")
 
 # 1. 🔢 Test kodini kiritish (Prompt)
 @router.message(F.text == "🔢 Test kodini kiritish")
@@ -1442,40 +1413,25 @@ async def user_quick_reject_cb(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("user_req_access_"))
 async def user_req_access_cb(call: CallbackQuery):
-    """O'quvchi tomonidan qayta ruxsat so'rash tugmasi bosilganda"""
+    """O'quvchi tomonidan ruxsat so'rash tugmasi bosilganda - avtomatik darhol ruxsat berish"""
     uid = int(call.data.split("_")[3])
-    u = test_db.get_user(uid)
-    if not u:
-        await call.answer("Avval /start orqali ro'yxatdan o'ting!", show_alert=True)
-        return
-
-    approve_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="✅ Ruxsat berish", callback_data=f"user_quick_approve_{uid}"),
-            InlineKeyboardButton(text="❌ Rad etish", callback_data=f"user_quick_reject_{uid}")
-        ]
-    ])
-    username_str = f"@{u['username']}" if u.get('username') else "Mavjud emas"
-    admin_notify_text = (
-        f"🔔 <b>Kirish uchun qayta ruxsat so'ralmoqda!</b>\n\n"
-        f"👤 <b>Foydalanuvchi:</b> {u['fullname']}\n"
-        f"📱 <b>Telefon:</b> <code>{u['phone']}</code>\n"
-        f"🆔 <b>Telegram ID:</b> <code>{uid}</code>\n"
-        f"🔗 <b>Username:</b> {username_str}\n"
-        f"🕒 <b>So'rov vaqti:</b> {format_uzb_time()}\n\n"
-        f"<i>Ushbu foydalanuvchiga tizimdan foydalanishga ruxsat berasizmi?</i>"
-    )
-
-    for adm_id in get_all_admin_ids():
-        try:
-            await bot.send_message(
-                chat_id=adm_id,
-                text=admin_notify_text,
-                reply_markup=approve_kb
-            )
-        except Exception:
-            pass
-    await call.answer("🔔 Adminga so'rovingiz yuborildi! Iltimos, kuting.", show_alert=True)
+    test_db.approve_user(uid)
+    try:
+        await call.message.edit_text(
+            "🎉 <b>Xush kelibsiz! Botdan to'liq foydalanishingiz mumkin.</b>\n\n"
+            "Kerakli bo'limni tanlang yoki to'g'ridan-to'g'ri test kodini yuboring 👇",
+            reply_markup=None
+        )
+    except Exception:
+        pass
+    try:
+        await call.message.answer(
+            "Asosiy menyu:",
+            reply_markup=main_menu_kb(uid)
+        )
+    except Exception:
+        pass
+    await call.answer("✅ Sizga to'liq ruxsat berildi!", show_alert=True)
 
 @router.callback_query(F.data.startswith("ask_pdf_"))
 async def ask_pdf_cb(call: CallbackQuery, state: FSMContext):
