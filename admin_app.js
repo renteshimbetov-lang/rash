@@ -3,6 +3,8 @@
  */
 const AdminApp = {
   answers: {}, // {"1": {"ans": ""}, ...} — ball Rasch tomonidan avtomatik hisoblanadi
+  isEditMode: false,
+  editTestId: null,
 
   init() {
     if (window.BM_LOGO_B64) {
@@ -16,11 +18,23 @@ const AdminApp = {
       window.Telegram.WebApp.expand();
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit_test_id');
+    if (editId) {
+      this.isEditMode = true;
+      this.editTestId = parseInt(editId, 10);
+    }
+
     this.initAnswers();
     this.renderForm();
     this.updateRaschBadge();
     this.updateUnfilledStats();
     this.runIntroAnimation();
+
+    if (this.isEditMode) {
+      this.setupEditMode();
+      return;
+    }
 
     const dateInput = document.getElementById('adm-test-sched-date');
     if (dateInput && !dateInput.value) {
@@ -49,6 +63,93 @@ const AdminApp = {
         }
       })
       .catch(() => {});
+  },
+
+  setupEditMode() {
+    const titleEl = document.querySelector('.test-title');
+    if (titleEl) titleEl.textContent = '✏️ Test Kalitlarini Tahrirlash';
+    const subEl = document.querySelector('.test-subtitle');
+    if (subEl) subEl.textContent = "Kalitlarni o'zgartiring va saqlang — barcha o'quvchilar natijalari va reyting avtomatik qayta hisoblanadi";
+
+    const submitBtn = document.querySelector('.btn-submit-test');
+    if (submitBtn) {
+      submitBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
+    }
+
+    fetch(`/api/admin/get-test-keys?test_id=${this.editTestId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data || !data.success || !data.test) {
+          alert(data?.message || 'Test ma\'lumotlarini yuklashda xatolik yuz berdi!');
+          return;
+        }
+        const t = data.test;
+        if (titleEl && t.test_code) {
+          titleEl.textContent = `✏️ #${t.test_code} Test Kalitlarini Tahrirlash`;
+        }
+
+        const titleInput = document.getElementById('adm-test-title');
+        if (titleInput && t.title) titleInput.value = t.title;
+
+        const codeInput = document.getElementById('adm-test-code');
+        if (codeInput && t.test_code) {
+          codeInput.value = t.test_code;
+          codeInput.readOnly = true;
+          codeInput.style.opacity = '0.75';
+        }
+
+        const timeInput = document.getElementById('adm-test-time');
+        if (timeInput && t.time_limit_min !== undefined) timeInput.value = t.time_limit_min;
+
+        const schedDate = document.getElementById('adm-test-sched-date');
+        if (schedDate && t.scheduled_date) schedDate.value = t.scheduled_date;
+
+        const schedStart = document.getElementById('adm-test-sched-start');
+        if (schedStart && t.scheduled_start) schedStart.value = t.scheduled_start;
+
+        const schedEnd = document.getElementById('adm-test-sched-end');
+        if (schedEnd && t.scheduled_end) schedEnd.value = t.scheduled_end;
+
+        const keyCode = document.getElementById('adm-test-key-code');
+        if (keyCode && t.key_access_code) keyCode.value = t.key_access_code;
+
+        const ytUrl = document.getElementById('adm-test-youtube-url');
+        if (ytUrl && t.youtube_url) ytUrl.value = t.youtube_url;
+
+        // Kalitlarni AdminApp.answers ga ko'chirish
+        if (t.answers) {
+          for (let q = 1; q <= 32; q++) {
+            const val = t.answers[String(q)];
+            const ansVal = (typeof val === 'object' && val !== null) ? (val.ans || '') : String(val || '');
+            if (this.answers[String(q)]) {
+              this.answers[String(q)].ans = ansVal;
+            }
+          }
+          for (let q = 33; q <= 35; q++) {
+            const val = t.answers[String(q)];
+            const ansVal = (typeof val === 'object' && val !== null) ? (val.ans || '') : String(val || '');
+            if (this.answers[String(q)]) {
+              this.answers[String(q)].ans = ansVal;
+            }
+          }
+          for (let q = 36; q <= 45; q++) {
+            for (let sub of ['a', 'b']) {
+              const k = `${q}${sub}`;
+              const val = t.answers[k];
+              const ansVal = (typeof val === 'object' && val !== null) ? (val.ans || '') : String(val || '');
+              if (this.answers[k]) {
+                this.answers[k].ans = ansVal;
+              }
+            }
+          }
+        }
+
+        this.renderForm();
+        this.updateUnfilledStats();
+      })
+      .catch(err => {
+        alert('Server bilan bog\'lanishda xatolik: ' + err.message);
+      });
   },
 
   runIntroAnimation() {
@@ -398,11 +499,70 @@ const AdminApp = {
     const saveBtn = document.querySelector('.btn-submit-test');
     if (saveBtn) {
       saveBtn.disabled = true;
-      saveBtn.textContent = 'Saqlanmoqda... ⏳';
+      saveBtn.textContent = this.isEditMode ? 'Kalitlar yangilanmoqda... ⏳' : 'Saqlanmoqda... ⏳';
+    }
+
+    const initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
+
+    if (this.isEditMode) {
+      const editPayload = {
+        test_id: this.editTestId,
+        test_code: code,
+        title: title,
+        subject: subject,
+        time_limit_min: timeLimit,
+        key_access_code: keyCode,
+        scheduled_date: schedDate,
+        scheduled_start: schedStart,
+        scheduled_end: schedEnd,
+        youtube_url: youtubeUrl,
+        answers: this.answers,
+        init_data: initData
+      };
+
+      try {
+        const response = await fetch('/api/admin/update-test-keys', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Telegram-Init-Data': initData
+          },
+          body: JSON.stringify(editPayload)
+        });
+
+        const res = await response.json();
+        if (res.success) {
+          const recnt = res.recalculated_count !== undefined ? res.recalculated_count : 0;
+          const msg = `✅ Test kalitlari muvaffaqiyatli yangilandi!\n\n👥 ${recnt} nafar o'quvchi javoblari yangi kalitlar bo'yicha qayta tekshirildi, Rasch modeli va reyting avtomatik yangilandi.`;
+          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
+            window.Telegram.WebApp.showAlert(msg, () => {
+              window.Telegram.WebApp.close();
+            });
+            setTimeout(() => {
+              window.Telegram.WebApp.close();
+            }, 1600);
+          } else {
+            alert(msg);
+            window.location.reload();
+          }
+        } else {
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
+          }
+          alert(res.message || 'Kalitlarni yangilashda xatolik yuz berdi!');
+        }
+      } catch (e) {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
+        }
+        alert('Server bilan bog\'lanishda xatolik: ' + e.message);
+      }
+      return;
     }
 
     try {
-      const initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
       const response = await fetch('/api/create-test', {
         method: 'POST',
         headers: {

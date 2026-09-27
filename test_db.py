@@ -2101,5 +2101,198 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
         return None
 
 
+
+def update_test_keys(test_id: int, new_answers: Dict[str, Any],
+                     title: Optional[str] = None,
+                     time_limit_min: Optional[int] = None,
+                     key_access_code: Optional[str] = None,
+                     scheduled_date: Optional[str] = None,
+                     scheduled_start: Optional[str] = None,
+                     scheduled_end: Optional[str] = None,
+                     youtube_url: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Test kalitlarini yangilaydi va shu testga topshirilgan barcha o'quvchilar javoblarini
+    yangi kalitlar bo'yicha qayta tekshirib, Rasch modelini va PDF reytingni avtomatik yangilaydi.
+    """
+    test = get_test_by_id(test_id)
+    if not test:
+        raise ValueError(f"ID #{test_id} ga ega test topilmadi!")
+
+    answers_json = json.dumps(new_answers, ensure_ascii=False)
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+
+        # 1. Testning yangilangan ma'lumotlarini saqlash
+        update_fields = [f"answers_json = {_ph()}"]
+        params: List[Any] = [answers_json]
+
+        if title is not None and str(title).strip():
+            update_fields.append(f"title = {_ph()}")
+            params.append(str(title).strip())
+        if time_limit_min is not None:
+            update_fields.append(f"time_limit_min = {_ph()}")
+            params.append(int(time_limit_min))
+        if key_access_code is not None:
+            update_fields.append(f"key_access_code = {_ph()}")
+            params.append(str(key_access_code).strip())
+        if scheduled_date is not None:
+            update_fields.append(f"scheduled_date = {_ph()}")
+            params.append(str(scheduled_date).strip())
+        if scheduled_start is not None:
+            update_fields.append(f"scheduled_start = {_ph()}")
+            params.append(str(scheduled_start).strip())
+        if scheduled_end is not None:
+            update_fields.append(f"scheduled_end = {_ph()}")
+            params.append(str(scheduled_end).strip())
+        if youtube_url is not None:
+            update_fields.append(f"youtube_url = {_ph()}")
+            params.append(str(youtube_url).strip())
+
+        params.append(test_id)
+        sql = f"UPDATE tests SET {', '.join(update_fields)} WHERE id = {_ph()}"
+        cur.execute(sql, tuple(params))
+
+        # 2. Barcha topshirilgan javoblarni (submissions) yangi kalitlar bo'yicha qayta tekshirish
+        cur.execute(f"SELECT id, answers_json, user_tg_id FROM submissions WHERE test_id = {_ph()}", (test_id,))
+        subs = [_row_to_dict(r) for r in cur.fetchall()]
+
+        updated_count = 0
+        correct_answers_raw = new_answers
+
+        for sub in subs:
+            sub_id = sub["id"]
+            ans_raw = sub.get("answers_json")
+            if not ans_raw:
+                continue
+            try:
+                user_answers = json.loads(ans_raw)
+            except Exception:
+                user_answers = {}
+
+            correct_count = 0
+            incorrect_count = 0
+            unanswered_count = 0
+            details = {}
+            earned_score = 0.0
+            total_possible_score = 0.0
+
+            # 1-32 savollar (4 variant, default 2.0 ball)
+            for q in range(1, 33):
+                key = str(q)
+                q_raw = correct_answers_raw.get(key, "A")
+                correct_ans, q_score = get_key_and_score(q_raw, default_score=2.0)
+                total_possible_score += q_score
+                user_val = user_answers.get(key, "")
+                is_corr = False
+                if not user_val or not str(user_val).strip():
+                    status = "unanswered"
+                    unanswered_count += 1
+                elif is_answer_matching(user_val, correct_ans):
+                    is_corr = True
+                    status = "correct"
+                    correct_count += 1
+                    earned_score += q_score
+                else:
+                    status = "incorrect"
+                    incorrect_count += 1
+                details[key] = {
+                    "num": f"{q}-savol", "type": "choice_4",
+                    "user": user_val, "correct": correct_ans,
+                    "status": status,
+                    "score": q_score if is_corr else 0.0,
+                    "max_score": q_score
+                }
+
+            # 33, 34, 35 savollar (6 variant, default 2.0 ball)
+            for q in [33, 34, 35]:
+                key = str(q)
+                q_raw = correct_answers_raw.get(key, "A")
+                correct_ans, q_score = get_key_and_score(q_raw, default_score=2.0)
+                total_possible_score += q_score
+                user_val = user_answers.get(key, "")
+                is_corr = False
+                if not user_val or not str(user_val).strip():
+                    status = "unanswered"
+                    unanswered_count += 1
+                elif is_answer_matching(user_val, correct_ans):
+                    is_corr = True
+                    status = "correct"
+                    correct_count += 1
+                    earned_score += q_score
+                else:
+                    status = "incorrect"
+                    incorrect_count += 1
+                details[key] = {
+                    "num": f"{q}-savol", "type": "choice_6",
+                    "user": user_val, "correct": correct_ans,
+                    "status": status,
+                    "score": q_score if is_corr else 0.0,
+                    "max_score": q_score
+                }
+
+            # 36a–45b ochiq savollar (default 1.5 ball)
+            for q in range(36, 46):
+                for sub_part in ["a", "b"]:
+                    key = f"{q}{sub_part}"
+                    q_raw = correct_answers_raw.get(key, "1")
+                    correct_ans, q_score = get_key_and_score(q_raw, default_score=1.5)
+                    total_possible_score += q_score
+                    user_val = user_answers.get(key, "")
+                    is_corr = False
+                    if not user_val or not str(user_val).strip():
+                        status = "unanswered"
+                        unanswered_count += 1
+                    elif is_answer_matching(user_val, correct_ans):
+                        is_corr = True
+                        status = "correct"
+                        correct_count += 1
+                        earned_score += q_score
+                    else:
+                        status = "incorrect"
+                        incorrect_count += 1
+                    details[key] = {
+                        "num": f"{key}-savol", "type": "open",
+                        "user": user_val, "correct": correct_ans,
+                        "status": status,
+                        "score": q_score if is_corr else 0.0,
+                        "max_score": q_score
+                    }
+
+            earned_score = round(earned_score, 1)
+            cur.execute(f"""
+                UPDATE submissions
+                SET score = {_ph()}, correct_count = {_ph()}, details_json = {_ph()}
+                WHERE id = {_ph()}
+            """, (earned_score, correct_count, json.dumps(details, ensure_ascii=False), sub_id))
+            updated_count += 1
+
+        conn.commit()
+    finally:
+        _close_conn(conn)
+
+    # 3. Rasch modelini yangilangan kalitlar va javoblar bo'yicha qayta hisoblash
+    rasch_res = None
+    try:
+        rasch_res = evaluate_test_rasch(test_id, auto_update_db=True)
+    except Exception as e:
+        print(f"Rasch re-eval error: {e}")
+
+    # 4. Yangilangan natijalar bo'yicha PDF reytingni qayta generatsiya qilish
+    try:
+        generate_test_results_pdf(test_id)
+    except Exception as e:
+        print(f"PDF regeneration error: {e}")
+
+    return {
+        "success": True,
+        "test_id": test_id,
+        "recalculated_count": updated_count,
+        "rasch_updated": bool(rasch_res)
+    }
+
+
 # Baza inicializatsiyasi
 init_db()
+

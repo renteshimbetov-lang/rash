@@ -1225,7 +1225,9 @@ async def admin_manage_test_card(call: CallbackQuery):
         f"<i>Boshqarish uchun quyidagi amallardan birini tanlang:</i>"
     )
 
+    edit_keys_url = f"{WEBAPP_URL}/admin.html?edit_test_id={t['id']}"
     kb_rows = [
+        [make_webapp_button("✏️ Kalitlarni tahrirlash (Mini App)", edit_keys_url)],
         [InlineKeyboardButton(text=toggle_btn_text, callback_data=f"toggle_test_{t['id']}")],
         [InlineKeyboardButton(text=pdf_btn_text, callback_data=f"ask_pdf_{t['id']}")],
         [InlineKeyboardButton(text="🗑 O'chirish", callback_data=f"del_test_confirm_{t['id']}")],
@@ -2510,7 +2512,9 @@ async def admin_test_stats_detail(call: CallbackQuery):
         f"<i>Hisoblash, tahlil qilish va natijalarni e'lon qilish usulini tanlang 👇</i>"
     )
 
+    edit_keys_url = f"{WEBAPP_URL}/admin.html?edit_test_id={test_id}"
     buttons = [
+        [make_webapp_button("✏️ Kalitlarni tahrirlash (Mini App)", edit_keys_url)],
         [InlineKeyboardButton(text="🧮 Rasch modeli (JMLE) bo'yicha hisoblash", callback_data=f"adm_broadcast_rasch_{test_id}")],
         [InlineKeyboardButton(text="✅ Standart hisoblash (To'g'ri javoblar)", callback_data=f"adm_broadcast_std_{test_id}")],
     ]
@@ -3611,6 +3615,103 @@ async def handle_create_test_api(request):
         log.error(f"Create Test API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
 
+async def handle_admin_get_test_keys(request):
+    """Admin Mini App uchun test tafsilotlari va mavjud kalitlarini qaytaradi."""
+    try:
+        test_id_str = request.query.get("test_id", "")
+        if not test_id_str:
+            return web.json_response({"success": False, "message": "Test ID ko'rsatilmadi"}, status=400)
+        try:
+            test_id = int(test_id_str)
+        except ValueError:
+            return web.json_response({"success": False, "message": "Noto'g'ri test ID"}, status=400)
+
+        test = test_db.get_test_by_id(test_id)
+        if not test:
+            return web.json_response({"success": False, "message": "Test topilmadi"}, status=404)
+
+        answers = {}
+        if test.get("answers_json"):
+            try:
+                answers = json.loads(test["answers_json"])
+            except Exception:
+                answers = {}
+
+        return web.json_response({
+            "success": True,
+            "test": {
+                "id": test["id"],
+                "test_code": test.get("test_code", ""),
+                "title": test.get("title", ""),
+                "subject": test.get("subject", "Matematika"),
+                "time_limit_min": test.get("time_limit_min", 0),
+                "key_access_code": test.get("key_access_code", "") or "",
+                "scheduled_date": test.get("scheduled_date", "") or "",
+                "scheduled_start": test.get("scheduled_start", "") or "",
+                "scheduled_end": test.get("scheduled_end", "") or "",
+                "youtube_url": test.get("youtube_url", "") or "",
+                "answers": answers
+            }
+        })
+    except Exception as e:
+        log.error(f"Get Test Keys API Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=500)
+
+
+async def handle_admin_update_test_keys(request):
+    """Admin Mini App dan yuborilgan yangi kalitlarni saqlash va natijalarni avtomatik qayta hisoblash."""
+    try:
+        data = await request.json()
+        test_id = int(data.get("test_id", 0))
+        if not test_id:
+            return web.json_response({"success": False, "message": "Test ID ko'rsatilmadi"}, status=400)
+
+        answers = data.get("answers", {})
+        if not answers:
+            return web.json_response({"success": False, "message": "Kalitlar kiritilmadi"}, status=400)
+
+        title = data.get("title")
+        time_limit_min = data.get("time_limit_min")
+        key_access_code = data.get("key_access_code")
+        scheduled_date = data.get("scheduled_date")
+        scheduled_start = data.get("scheduled_start")
+        scheduled_end = data.get("scheduled_end")
+        youtube_url = data.get("youtube_url")
+
+        res = test_db.update_test_keys(
+            test_id=test_id,
+            new_answers=answers,
+            title=title,
+            time_limit_min=time_limit_min,
+            key_access_code=key_access_code,
+            scheduled_date=scheduled_date,
+            scheduled_start=scheduled_start,
+            scheduled_end=scheduled_end,
+            youtube_url=youtube_url
+        )
+
+        # Adminga Telegram orqali ham bildirishnoma yuborish
+        try:
+            t_obj = test_db.get_test_by_id(test_id)
+            code_str = t_obj.get("test_code", str(test_id)) if t_obj else str(test_id)
+            rec_cnt = res.get("recalculated_count", 0)
+            await bot.send_message(
+                chat_id=ADMIN_ID,
+                text=(
+                    f"✏️ <b>Test #{code_str} kalitlari Mini App orqali yangilandi!</b>\n\n"
+                    f"👥 <b>Qayta tekshirilgan o'quvchilar:</b> {rec_cnt} nafar\n"
+                    f"🧮 <b>Rasch modeli va reyting:</b> Qayta kalibrlandi ✅\n"
+                    f"📑 <b>PDF hisobot:</b> Yangilandi ✅"
+                )
+            )
+        except Exception as e_notify:
+            log.warning(f"Admin notify error on key update: {e_notify}")
+
+        return web.json_response(res)
+    except Exception as e:
+        log.error(f"Update Test Keys API Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=500)
+
 def sanitize_math_expression(val: str) -> str:
     """LaTeX formatidagi matematik ifodalarni toza Unicode formatiga o'tkazish."""
     if not isinstance(val, str):
@@ -4588,6 +4689,8 @@ async def create_web_app():
     app.router.add_get('/api/rasch/{test_id}', handle_rasch_evaluate_api)
     app.router.add_post('/api/submit-test', handle_submit_test_api)
     app.router.add_post('/api/create-test', handle_create_test_api)
+    app.router.add_get('/api/admin/get-test-keys', handle_admin_get_test_keys)
+    app.router.add_post('/api/admin/update-test-keys', handle_admin_update_test_keys)
     app.router.add_post('/api/scan-keys', handle_scan_keys_api)
     app.router.add_post('/api/set-gemini-key', handle_set_gemini_key_api)
     # Asosiy Mini App API
