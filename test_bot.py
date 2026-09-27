@@ -4443,6 +4443,19 @@ async def handle_next_test_code_api(request):
     except Exception as e:
         return web.json_response({"success": False, "next_code": "1", "message": str(e)})
 
+async def handle_app_test_submissions(request):
+    """Admin uchun test topshirgan barcha foydalanuvchilar va ularning tafsilotlari."""
+    try:
+        tg_id = int(request.rel_url.query.get('tg_id', 0))
+        if not test_db.is_admin(tg_id, ADMIN_ID):
+            return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
+        test_id = int(request.match_info.get('test_id', 0))
+        subs = test_db.get_test_submissions_with_users(test_id)
+        return web.json_response({"success": True, "submissions": subs})
+    except Exception as e:
+        log.error(f"App Test Submissions Error: {e}", exc_info=True)
+        return web.json_response({"success": False, "message": str(e)}, status=500)
+
 async def handle_rasch_evaluate_api(request):
     try:
         test_id = int(request.match_info.get('test_id', 0))
@@ -4538,6 +4551,7 @@ async def create_web_app():
     app.router.add_post('/api/app/update-profile', handle_app_update_profile)
     app.router.add_post('/api/app/delete-my-account', handle_app_delete_my_account)
     app.router.add_get('/api/app/active-tests', handle_app_active_tests)
+    app.router.add_get('/api/app/test-submissions/{test_id}', handle_app_test_submissions)
     app.router.add_get('/api/app/my-results', handle_app_my_results)
     app.router.add_get('/api/app/trigger-solve', handle_app_trigger_solve)
     app.router.add_post('/api/app/trigger-solve', handle_app_trigger_solve)
