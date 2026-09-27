@@ -123,7 +123,7 @@ const TestApp = {
       }
     }
 
-    // Qalpog'i tushganda (350ms)
+    // Harflar sakrab tusha boshlaganda (350ms)
     setTimeout(() => { triggerHaptic('light'); }, 350);
     // Harflar to'liq tushganda (1100ms)
     setTimeout(() => { triggerHaptic('light'); }, 1100);

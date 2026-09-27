@@ -701,7 +701,7 @@ function runSplash() {
     }
   }
 
-  // Qalpog'i tushganda (350ms) yengil tebranish
+  // Harflar sakrab tusha boshlaganda (350ms) yengil tebranish
   setTimeout(function() {
     triggerHaptic('light');
   }, 350);
