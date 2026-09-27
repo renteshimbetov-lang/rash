@@ -2506,6 +2506,7 @@ async def admin_test_stats_detail(call: CallbackQuery):
         InlineKeyboardButton(text="📄 Matn shaklida reyting", callback_data=f"adm_restxt_{test_id}"),
         InlineKeyboardButton(text="📑 PDF hisobot", callback_data=f"adm_respdf_{test_id}")
     ])
+    yt_btn_text = "🎬 Video tahlil ✅" if yt_url else "🎬 Video tahlil ➕"
     buttons.append([
         InlineKeyboardButton(text="🧮 Rasch tahlil", callback_data=f"adm_rasch_{test_id}"),
         InlineKeyboardButton(text="🔍 Shovqin & Savollar", callback_data=f"adm_item_diag_{test_id}")
@@ -2636,7 +2637,7 @@ async def adm_del_test_exec_cb(call: CallbackQuery):
     if ok:
         await call.answer("🗑 Test muvaffaqiyatli o'chirildi!", show_alert=True)
         call.data = "admin_leaderboard"
-        await admin_leaderboard_cb(call)
+        await admin_leaderboard(call)
     else:
         await call.answer("O'chirishda xatolik yuz berdi!", show_alert=True)
 
@@ -4680,7 +4681,7 @@ async def adm_sched_clear(call: CallbackQuery):
     await call.answer("✅ Jadval vaqti bekor qilindi!", show_alert=True)
     # test boshqaruv sahifasiga qaytish
     call.data = f"adm_tstat_{test_id}"
-    await admin_test_detail_cb(call)
+    await admin_test_stats_detail(call)
 
 
 @router.callback_query(F.data.startswith("adm_sched_set_"))
