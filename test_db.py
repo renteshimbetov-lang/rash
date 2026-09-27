@@ -964,17 +964,56 @@ def restrict_all_users(super_admin_id: int = 8039427064) -> int:
         _close_conn(conn)
 
 
-def delete_user(tg_id: int) -> bool:
+def delete_user(tg_id: int, reason: str = "self_deleted") -> Optional[Dict[str, Any]]:
     conn = get_connection()
     try:
         cur = conn.cursor()
+        cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()}", (tg_id,))
+        user_row = _row_to_dict(cur.fetchone())
+
+        # Audit logga saqlash (kim o'chirgani tarixda qolishi uchun)
+        if user_row:
+            create_tbl = """
+                CREATE TABLE IF NOT EXISTS deleted_users_log (
+                    id SERIAL PRIMARY KEY,
+                    tg_id BIGINT,
+                    fullname TEXT,
+                    phone TEXT,
+                    username TEXT,
+                    deleted_at BIGINT,
+                    reason TEXT
+                );
+            """ if USE_POSTGRES else """
+                CREATE TABLE IF NOT EXISTS deleted_users_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tg_id INTEGER,
+                    fullname TEXT,
+                    phone TEXT,
+                    username TEXT,
+                    deleted_at INTEGER,
+                    reason TEXT
+                );
+            """
+            cur.execute(create_tbl)
+            cur.execute(f"""
+                INSERT INTO deleted_users_log (tg_id, fullname, phone, username, deleted_at, reason)
+                VALUES ({_ph()}, {_ph()}, {_ph()}, {_ph()}, {_ph()}, {_ph()})
+            """, (
+                tg_id,
+                user_row.get("fullname", ""),
+                user_row.get("phone", ""),
+                user_row.get("username", ""),
+                int(time.time()),
+                reason
+            ))
+
         cur.execute(f"DELETE FROM submissions WHERE user_tg_id = {_ph()}", (tg_id,))
         cur.execute(f"DELETE FROM users WHERE tg_id = {_ph()}", (tg_id,))
         conn.commit()
-        return True
+        return user_row or {"tg_id": tg_id, "fullname": "Noma'lum", "phone": "—", "username": ""}
     except Exception as e:
         print(f"Error deleting user: {e}")
-        return False
+        return None
     finally:
         _close_conn(conn)
 

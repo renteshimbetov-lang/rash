@@ -1007,13 +1007,33 @@ async def profile_delete_account_confirm(call: CallbackQuery):
 @router.callback_query(F.data == "do_delete_my_account")
 async def do_delete_my_account_handler(call: CallbackQuery, state: FSMContext):
     await state.clear()
-    test_db.delete_user(call.from_user.id)
+    uid = call.from_user.id
+    user_info = test_db.delete_user(uid, reason="user_self_deleted_bot")
     await call.message.answer(
         "🗑 <b>Akkauntingiz va barcha natijalaringiz butunlay o'chirildi.</b>\n\n"
         "Qaytadan ro'yxatdan o'tish uchun /start buyrug'ini bosing.",
         reply_markup=ReplyKeyboardRemove()
     )
     await call.answer()
+
+    # Adminga zudlik bilan bildirishnoma jo'natish
+    if ADMIN_ID:
+        try:
+            fn = user_info.get("fullname") if user_info else (call.from_user.full_name or "Noma'lum")
+            ph = user_info.get("phone", "—") if user_info else "—"
+            un = f"@{user_info.get('username')}" if (user_info and user_info.get("username")) else (f"@{call.from_user.username}" if call.from_user.username else "Mavjud emas")
+            alert_text = (
+                f"🗑 <b>OGOHLANTIRISH: Foydalanuvchi akkauntini o'chirdi!</b>\n\n"
+                f"👤 <b>Ism:</b> {fn}\n"
+                f"📞 <b>Telefon:</b> <code>{ph}</code>\n"
+                f"🔗 <b>Username:</b> {un}\n"
+                f"🆔 <b>Telegram ID:</b> <code>{uid}</code>\n"
+                f"🕒 <b>Vaqt:</b> {format_uzb_time()}\n\n"
+                f"<i>Foydalanuvchi Telegram botidagi «Akkauntni o'chirish» tugmasini bosib chiqib ketdi.</i>"
+            )
+            await bot.send_message(chat_id=ADMIN_ID, text=alert_text)
+        except Exception as ex:
+            log.warning(f"Admin alert yuborishda xatolik: {ex}")
 
 # 4. ℹ️ Yordam va murojaat
 @router.message(F.text == "ℹ️ Yordam")
@@ -4234,8 +4254,8 @@ async def handle_app_update_user_status(request):
 
         if action == 'delete':
             # Foydalanuvchini bazadan butunlay o'chirish
-            ok = test_db.delete_user(target_uid)
-            return web.json_response({"success": ok, "status": "deleted"})
+            deleted_user = test_db.delete_user(target_uid, reason="admin_deleted")
+            return web.json_response({"success": bool(deleted_user), "status": "deleted"})
 
         if action not in ['approved', 'rejected', 'blocked', 'pending']:
             return web.json_response({"success": False, "message": "Noto'g'ri amal"}, status=400)
@@ -4339,8 +4359,25 @@ async def handle_app_delete_my_account(request):
         if not tg_id:
             return web.json_response({"success": False, "message": "Foydalanuvchi aniqlanmadi"}, status=400)
 
-        ok = test_db.delete_user(tg_id)
-        return web.json_response({"success": ok})
+        user_info = test_db.delete_user(tg_id, reason="user_self_deleted_webapp")
+        if ADMIN_ID and user_info:
+            try:
+                fn = user_info.get("fullname", "Noma'lum")
+                ph = user_info.get("phone", "—")
+                un = f"@{user_info.get('username')}" if user_info.get("username") else "Mavjud emas"
+                alert_text = (
+                    f"🗑 <b>OGOHLANTIRISH: Foydalanuvchi akkauntini o'chirdi (Mini App)!</b>\n\n"
+                    f"👤 <b>Ism:</b> {fn}\n"
+                    f"📞 <b>Telefon:</b> <code>{ph}</code>\n"
+                    f"🔗 <b>Username:</b> {un}\n"
+                    f"🆔 <b>Telegram ID:</b> <code>{tg_id}</code>\n"
+                    f"🕒 <b>Vaqt:</b> {format_uzb_time()}\n\n"
+                    f"<i>Foydalanuvchi Mini ilovadagi Profil bo'limidan akkauntini o'chirdi.</i>"
+                )
+                await bot.send_message(chat_id=ADMIN_ID, text=alert_text)
+            except Exception as ex:
+                log.warning(f"Admin alert yuborishda xatolik: {ex}")
+        return web.json_response({"success": bool(user_info)})
     except Exception as e:
         log.error(f"App Delete My Account Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
