@@ -1052,6 +1052,9 @@ async function loadActiveTests() {
     var tgId = (state.tgUser && state.tgUser.id) || 0;
     var data = await apiGet('/api/app/active-tests?tg_id=' + tgId);
     if (data.success) {
+      if (data.server_time) {
+        window._serverTimeOffset = (data.server_time * 1000) - Date.now();
+      }
       window.availableActiveTests = data.tests || [];
       renderHomeTab(data.tests);
     }
@@ -1200,13 +1203,27 @@ function startTestInBot(testCode, testId) {
 
 function isTestUpcoming(test) {
   if (!test) return false;
-  if (test.code_hidden || test.is_upcoming) return true;
-  if (!test.scheduled_start) return false;
+
+  // 1. Agar backend server testni allaqachon boshlangan deb belgilagan bo'lsa (is_upcoming === false):
+  // Demak, Toshkent vaqti bilan test allaqachon faol! Foydalanuvchining kompyuter/telefon soati noto'g'ri bo'lsa ham hech qachon bloklanmaydi!
+  if (test.is_upcoming === false && !test.code_hidden) {
+    return false;
+  }
+
+  // 2. Agar server testni kutilmoqda (is_upcoming) deb belgilagan bo'lsa:
+  // Sahifada turgan paytda boshlanish vaqti yetib kelganligini server bilan sinxronlangan vaqt orqali tekshiramiz:
+  if (!test.scheduled_start) {
+    return Boolean(test.code_hidden || test.is_upcoming);
+  }
+
   try {
-    var now = new Date();
-    // Toshkent vaqti (UTC+5)
-    var utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    var uzbDate = new Date(utc + (3600000 * 5));
+    // Server vaqti bilan to'liq kalibrlangan Toshkent vaqti (UTC+5)
+    var serverNowMs = Date.now() + (window._serverTimeOffset || 0);
+    var uzbDate = new Date(serverNowMs + (5 * 3600000));
+    var todayYear = uzbDate.getUTCFullYear();
+    var todayMonth = uzbDate.getUTCMonth();
+    var todayDay = uzbDate.getUTCDate();
+    var nowMinutes = uzbDate.getUTCHours() * 60 + uzbDate.getUTCMinutes();
 
     var sdate = (test.scheduled_date || '').trim();
     if (sdate) {
@@ -1221,19 +1238,15 @@ function isTestUpcoming(test) {
         tMonth = parseInt(parts[1], 10) - 1;
         tYear = parseInt(parts[2], 10);
       }
-      var todayYear = uzbDate.getFullYear();
-      var todayMonth = uzbDate.getMonth();
-      var todayDay = uzbDate.getDate();
 
-      var tDateOnly = new Date(tYear, tMonth, tDay);
-      var curDateOnly = new Date(todayYear, todayMonth, todayDay);
+      var tDateOnly = Date.UTC(tYear, tMonth, tDay);
+      var curDateOnly = Date.UTC(todayYear, todayMonth, todayDay);
       if (tDateOnly > curDateOnly) return true;
       if (tDateOnly < curDateOnly) return false;
     }
 
     var startParts = test.scheduled_start.split(':');
     var startMinutes = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10);
-    var nowMinutes = uzbDate.getHours() * 60 + uzbDate.getMinutes();
 
     var endMinutes = null;
     if (test.scheduled_end) {
@@ -1253,9 +1266,13 @@ function isTestUpcoming(test) {
     } else {
       if (nowMinutes < startMinutes) {
         return true;
+      } else {
+        return false;
       }
     }
   } catch(e) {}
+
+  if (test.is_upcoming || test.code_hidden) return true;
   return false;
 }
 
@@ -1695,9 +1712,11 @@ function renderHomeTab(tests) {
 
 // Har 15 soniyada rejalashtirilgan testlar vaqtini tekshirib, boshlanish vaqti kelganda avtomatik ochish
 setInterval(function() {
-  if (state.activeTab === 'home' && window.availableActiveTests && window.availableActiveTests.length > 0) {
-    var hasScheduled = window.availableActiveTests.some(function(t) { return Boolean(t.scheduled_start); });
-    if (hasScheduled) {
+  if (state.activeTab === 'home') {
+    var hasUpcoming = window.availableActiveTests && window.availableActiveTests.some(function(t) { return isTestUpcoming(t); });
+    if (hasUpcoming) {
+      loadActiveTests();
+    } else if (window.availableActiveTests && window.availableActiveTests.length > 0) {
       renderHomeTab(window.availableActiveTests);
     }
   }

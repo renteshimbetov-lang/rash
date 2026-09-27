@@ -4129,7 +4129,13 @@ async def handle_app_active_tests(request):
                 td['code_hidden'] = False
 
             result.append(td)
-        return web.json_response({"success": True, "tests": result})
+        now_uzb = datetime.now(UZB_TZ)
+        return web.json_response({
+            "success": True, 
+            "tests": result,
+            "server_time": int(time.time()),
+            "server_uzb": now_uzb.strftime('%Y-%m-%d %H:%M:%S')
+        })
     except Exception as e:
         log.error(f"App Active Tests API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
