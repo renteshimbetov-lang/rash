@@ -1407,17 +1407,16 @@ def normalize_answer(ans: Any) -> str:
     s = s.replace("sqrt", "√")
 
     # Ildizlar va darajalar
-    s = s.replace("∛", "3√").replace("cbrt", "3√")
-    s = s.replace("∜", "4√")
+    s = s.replace("cbrt", "∛")
 
     # Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32"
-    while re.search(r"([0-9a-zA-Z]*√)\(([^()]+)\)", s):
-        s = re.sub(r"([0-9a-zA-Z]*√)\(([^()]+)\)", r"\1\2", s)
-    while re.search(r"^\(([0-9a-zA-Z]*√[^()]+)\)$", s):
-        s = re.sub(r"^\(([0-9a-zA-Z]*√[^()]+)\)$", r"\1", s)
+    while re.search(r"([0-9a-zA-Z]*√)\(([0-9a-zA-Z]+)\)", s):
+        s = re.sub(r"([0-9a-zA-Z]*√)\(([0-9a-zA-Z]+)\)", r"\1\2", s)
+    while re.search(r"^\(([0-9a-zA-Z]*√[0-9a-zA-Z]+)\)$", s):
+        s = re.sub(r"^\(([0-9a-zA-Z]*√[0-9a-zA-Z]+)\)$", r"\1", s)
 
-    # Raqam va qavsli ildiz: "8(√58)" -> "8√58"
-    s = re.sub(r"(\d)\((√[^()]+)\)", r"\1\2", s)
+    # Raqam va qavsli ildiz: "8(√58)" -> "8√58" (lekin 32(√2+1) emas!)
+    s = re.sub(r"(\d)\((√[0-9a-zA-Z]+)\)", r"\1\2", s)
 
     # Tashqi ortiqcha qavslar: (-3π/2) -> -3π/2
     while s.startswith("(") and s.endswith(")") and s.count("(") == 1:
@@ -1445,17 +1444,23 @@ def eval_numeric_val(expr: str) -> Optional[float]:
     if re.search(r"[a-df-oq-z]", clean_for_vars):
         return None
 
-    # n-darajali ildizlar: masalan 3√8 -> ((8)**(1/3))
-    s = re.sub(r"(^|[\+\-\*\/\(])(\d+)√\(([^()]+)\)", r"\1((\3)**(1/\2))", s)
-    s = re.sub(r"(^|[\+\-\*\/\(])(\d+)√(\d+(?:\.\d+)?)", r"\1((\3)**(1/\2))", s)
+    # 1. LaTeX va maxsus n-darajali ildizlar
+    s = re.sub(r"\\+sqrt\[([^\]]+)\]\{([^{}]+)\}", r"((\2)**(1/(\1)))", s)
+    s = re.sub(r"∛\(([^()]+)\)", r"((\1)**(1/3))", s)
+    s = re.sub(r"∛(\d+(?:\.\d+)?)", r"((\1)**(1/3))", s)
+    s = re.sub(r"∜\(([^()]+)\)", r"((\1)**(1/4))", s)
+    s = re.sub(r"∜(\d+(?:\.\d+)?)", r"((\1)**(1/4))", s)
 
-    # Kvadrat ildiz: 8√58 -> 8*math.sqrt(58), √29 -> math.sqrt(29)
-    s = re.sub(r"(\d)√", r"\1*math.sqrt", s)
+    # 2. Kvadrat ildiz: avval √(...) va √son larni math.sqrt(...) ga aylantiramiz
     s = re.sub(r"√\(([^()]+)\)", r"math.sqrt(\1)", s)
     s = re.sub(r"√(\d+(?:\.\d+)?)", r"math.sqrt(\1)", s)
     s = s.replace("√", "math.sqrt")
 
-    # Pi va ko'paytirish
+    # 3. math.sqrt oldidagi ko'paytirish (masalan: 32math.sqrt(2) -> 32*math.sqrt(2))
+    s = re.sub(r"(\d)math\.sqrt", r"\1*math.sqrt", s)
+    s = re.sub(r"(\))math\.sqrt", r"\1*math.sqrt", s)
+
+    # 4. Pi va ko'paytirish
     s = re.sub(r"(\d)π", r"\1*math.pi", s)
     s = re.sub(r"(\))π", r"\1*math.pi", s)
     s = re.sub(r"π(\d)", r"math.pi*\1", s)

@@ -3312,19 +3312,18 @@ function renderKeyComparison(correct, user, container) {
     s = s.replace(/sqrt/g, '√');
 
     // Ildizlar va darajalar:
-    s = s.replace(/∛/g, '3√').replace(/cbrt/g, '3√');
-    s = s.replace(/∜/g, '4√');
+    s = s.replace(/cbrt/g, '∛');
 
     // Ildiz qavslari: "√(29)" -> "√29", "5√(32)" -> "5√32"
-    while (/([0-9a-zA-Z]*√)\(([^()]+)\)/.test(s)) {
-      s = s.replace(/([0-9a-zA-Z]*√)\(([^()]+)\)/g, '$1$2');
+    while (/([0-9a-zA-Z]*√)\(([0-9a-zA-Z]+)\)/.test(s)) {
+      s = s.replace(/([0-9a-zA-Z]*√)\(([0-9a-zA-Z]+)\)/g, '$1$2');
     }
-    while (/^\(([0-9a-zA-Z]*√[^()]+)\)$/.test(s)) {
-      s = s.replace(/^\(([0-9a-zA-Z]*√[^()]+)\)$/, '$1');
+    while (/^\(([0-9a-zA-Z]*√[0-9a-zA-Z]+)\)$/.test(s)) {
+      s = s.replace(/^\(([0-9a-zA-Z]*√[0-9a-zA-Z]+)\)$/, '$1');
     }
 
-    // Raqam va qavsli ildiz: "8(√58)" -> "8√58"
-    s = s.replace(/(\d)\((√[^()]+)\)/g, '$1$2');
+    // Raqam va qavsli ildiz: "8(√58)" -> "8√58" (lekin 32(√2+1) emas!)
+    s = s.replace(/(\d)\((√[0-9a-zA-Z]+)\)/g, '$1$2');
 
     // Tashqi ortiqcha qavslar: (-3π/2) -> -3π/2
     while (s.startsWith('(') && s.endsWith(')') && (s.split('(').length === 2)) {
@@ -3349,17 +3348,23 @@ function renderKeyComparison(correct, user, container) {
     var cleanForVars = s.replace(/(math|sqrt|pi|abs|exp)/g, '');
     if (/[a-df-oq-z]/.test(cleanForVars)) return null;
 
-    // n-darajali ildiz: 3√8 -> ((8)**(1/3))
-    s = s.replace(/(^|[\+\-\*\/\(])(\d+)√\(([^()]+)\)/g, '$1(Math.pow($3, 1/$2))');
-    s = s.replace(/(^|[\+\-\*\/\(])(\d+)√(\d+(?:\.\d+)?)/g, '$1(Math.pow($3, 1/$2))');
+    // 1. LaTeX va maxsus n-darajali ildizlar
+    s = s.replace(/\\+sqrt\[([^\]]+)\]\{([^{}]+)\}/g, '(Math.pow($2, 1/($1)))');
+    s = s.replace(/∛\(([^()]+)\)/g, '(Math.pow($1, 1/3))');
+    s = s.replace(/∛(\d+(?:\.\d+)?)/g, '(Math.pow($1, 1/3))');
+    s = s.replace(/∜\(([^()]+)\)/g, '(Math.pow($1, 1/4))');
+    s = s.replace(/∜(\d+(?:\.\d+)?)/g, '(Math.pow($1, 1/4))');
 
-    // Kvadrat ildiz: 8√58 -> 8*Math.sqrt(58)
-    s = s.replace(/(\d)√/g, '$1*Math.sqrt');
+    // 2. Kvadrat ildiz: avval √(...) va √son larni Math.sqrt(...) ga aylantiramiz
     s = s.replace(/√\(([^()]+)\)/g, 'Math.sqrt($1)');
     s = s.replace(/√(\d+(?:\.\d+)?)/g, 'Math.sqrt($1)');
     s = s.replace(/√/g, 'Math.sqrt');
 
-    // Pi va ko'paytirish
+    // 3. Math.sqrt oldidagi ko'paytirish (masalan: 32Math.sqrt(2) -> 32*Math.sqrt(2))
+    s = s.replace(/(\d)Math\.sqrt/g, '$1*Math.sqrt');
+    s = s.replace(/(\))Math\.sqrt/g, '$1*Math.sqrt');
+
+    // 4. Pi va ko'paytirish
     s = s.replace(/(\d)π/g, '$1*Math.PI');
     s = s.replace(/(\))π/g, '$1*Math.PI');
     s = s.replace(/π(\d)/g, 'Math.PI*$1');
@@ -3370,7 +3375,7 @@ function renderKeyComparison(correct, user, container) {
 
     s = s.replace(/\^/g, '**');
 
-    var allowed = '0123456789.+-*/()Math.sqrtPI ';
+    var allowed = '0123456789.+-*/()Math.sqrtPIpow ';
     for (var ci = 0; ci < s.length; ci++) {
       if (allowed.indexOf(s[ci]) === -1) return null;
     }
