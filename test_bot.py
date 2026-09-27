@@ -3375,6 +3375,23 @@ async def handle_submit_test_api(request):
         data = await request.json()
         test_id = data.get("test_id", 1)
         user_tg_id = data.get("user_tg_id")
+        if not user_tg_id:
+            init_data = data.get("init_data") or request.headers.get("X-Telegram-Init-Data", "")
+            if init_data:
+                import urllib.parse
+                try:
+                    parsed = dict(urllib.parse.parse_qsl(init_data))
+                    if "user" in parsed:
+                        u_dict = json.loads(parsed["user"])
+                        if u_dict and u_dict.get("id"):
+                            user_tg_id = int(u_dict["id"])
+                except Exception:
+                    pass
+            if not user_tg_id and request.rel_url.query.get("tg_id"):
+                try:
+                    user_tg_id = int(request.rel_url.query.get("tg_id", 0))
+                except Exception:
+                    pass
         user_answers = data.get("answers", {})
 
         test_obj = test_db.get_test_by_id(test_id)

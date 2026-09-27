@@ -45,7 +45,13 @@ const TestApp = {
     if (params.has('test_id')) this.testId = parseInt(params.get('test_id')) || 1;
     if (params.has('title')) this.testTitle = params.get('title');
     if (params.has('subject')) this.subject = params.get('subject');
-    // Xavfsizlik: userTgId faqat Telegram WebApp orqali olinadi, URL dan olinmaydi
+    // Agar Telegram WebApp orqali olinmagan bo'lsa, URL parametridagi tg_id dan olish
+    if (!this.userTgId && params.has('tg_id')) {
+      const parsedId = parseInt(params.get('tg_id'), 10);
+      if (parsedId && !isNaN(parsedId)) {
+        this.userTgId = parsedId;
+      }
+    }
     if (!this.userTgId) {
       this.userFullname = 'Mehmon';
     }
