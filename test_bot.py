@@ -2969,6 +2969,27 @@ async def admin_broadcast_rasch_cb(call: CallbackQuery):
         f"⏳ <b>«{test['title']}»</b> testi to'xtatilmoqda, Rasch modeli (JMLE) bo'yicha yakuniy ballar kalibrlanmoqda va o'quvchilarga shaxsiy natijalar yuborilmoqda..."
     )
 
+    submissions = test_db.get_test_submissions_with_users(test_id)
+    if not submissions:
+        await status_msg.edit_text(
+            f"⚠️ <b>«{test['title']}»</b> testini hali hech kim topshirmagan!",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")]
+            ])
+        )
+        return
+
+    if len(submissions) < 2:
+        await status_msg.edit_text(
+            f"⚠️ <b>Rasch modeli (JMLE) uchun kamida 2 nafar o'quvchi topshirgan bo'lishi kerak!</b>\n\n"
+            f"Hozirda testni faqat 1 nafar o'quvchi topshirgan. O'quvchilar soni ko'payishini kuting yoki Standart baholash bo'yicha e'lon qiling.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Standart baholash bilan e'lon qilish", callback_data=f"adm_broadcast_std_{test_id}")],
+                [InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")]
+            ])
+        )
+        return
+
     try:
         # 1. Testni to'xtatish (is_active = 0)
         test_db.set_test_active_status(test_id, 0)
@@ -3040,6 +3061,16 @@ async def admin_broadcast_std_cb(call: CallbackQuery):
         f"⏳ <b>«{test['title']}»</b> testi to'xtatilmoqda va standart to'g'ri javoblar soni bo'yicha natijalar yuborilmoqda..."
     )
 
+    submissions = test_db.get_test_submissions_with_users(test_id)
+    if not submissions:
+        await status_msg.edit_text(
+            f"⚠️ <b>«{test['title']}»</b> testini hali hech kim topshirmagan!",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Test boshqaruviga qaytish", callback_data=f"adm_tstat_{test_id}")]
+            ])
+        )
+        return
+
     try:
         # 1. Testni to'xtatish (is_active = 0)
         test_db.set_test_active_status(test_id, 0)
@@ -3048,7 +3079,6 @@ async def admin_broadcast_std_cb(call: CallbackQuery):
         test_db.set_test_results_published(test_id, True)
 
         # 3. Topshirgan barcha o'quvchilarga shaxsiy Telegram xabarini yuborish
-        submissions = test_db.get_test_submissions_with_users(test_id)
         sent_count = 0
         fail_count = 0
 
