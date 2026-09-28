@@ -3136,6 +3136,85 @@ async def admin_broadcast_std_cb(call: CallbackQuery):
         log.error(f"Xatolik broadcastda: {e}", exc_info=True)
         await status_msg.edit_text(f"❌ <b>Natijalarni e'lon qilishda xatolik yuz berdi:</b>\n<code>{e}</code>")
 
+# ── KECH TOPSHIRILGAN NATIJANI TESTGA QO'SHISH YOKI RAD ETISH ──
+@router.callback_query(F.data.startswith("adm_accept_late_"))
+async def admin_accept_late_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    sub_id = int(call.data.split("_")[3])
+    sub = test_db.get_submission_by_id(sub_id)
+    if not sub:
+        await call.answer("Topshiriq topilmadi!", show_alert=True)
+        return
+
+    # 1. Bazada statusni yangilash: is_late = 0
+    test_db.set_submission_late_status(sub_id, 0)
+    test_id = sub["test_id"]
+    test = test_db.get_test_by_id(test_id)
+
+    # 2. Agar test natijalari e'lon qilingan bo'lsa, Rasch va PDF ni yangilash
+    if test and test.get("results_published", 0) == 1:
+        try:
+            test_db.evaluate_test_rasch(test_id, auto_update_db=True)
+        except Exception as e:
+            log.warning(f"Rasch re-eval error: {e}")
+        try:
+            test_db.generate_test_results_pdf(test_id)
+        except Exception as e:
+            log.warning(f"PDF regeneration error: {e}")
+
+    # 3. O'quvchiga natijani yuborish
+    uid = sub.get("user_tg_id")
+    if uid:
+        try:
+            updated_sub = test_db.get_submission_by_id(sub_id) or sub
+            msg_text, reply_kb = build_student_result_message(updated_sub, test, eval_type="rasch")
+            await bot.send_message(
+                chat_id=uid,
+                text=(
+                    f"🎉 <b>Xushxabar!</b>\n\n"
+                    f"Admin sizning kech topshirgan javoblaringizni qabul qildi va test natijalariga qo'shdi!\n\n"
+                    f"{msg_text}"
+                ),
+                reply_markup=reply_kb
+            )
+        except Exception as ex:
+            log.warning(f"O'quvchiga tasdiq xabarini yuborishda xatolik: {ex}")
+
+    try:
+        cur_html = call.message.html_text or call.message.text or ""
+        await call.message.edit_text(
+            cur_html + "\n\n✅ <b>Natija testga muvaffaqiyatli qo'shildi va o'quvchiga yuborildi!</b>",
+            reply_markup=None
+        )
+    except Exception:
+        pass
+    await call.answer("Natija testga qo'shildi!", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("adm_reject_late_"))
+async def admin_reject_late_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    sub_id = int(call.data.split("_")[3])
+    sub = test_db.get_submission_by_id(sub_id)
+    if not sub:
+        await call.answer("Topshiriq topilmadi!", show_alert=True)
+        return
+
+    # 2 = rad etilgan
+    test_db.set_submission_late_status(sub_id, 2)
+
+    try:
+        cur_html = call.message.html_text or call.message.text or ""
+        await call.message.edit_text(
+            cur_html + "\n\n❌ <b>Ushbu kech topshirilgan natija hisobga olinmadi (rad etildi).</b>",
+            reply_markup=None
+        )
+    except Exception:
+        pass
+    await call.answer("Natija rad etildi!", show_alert=True)
+
 @router.callback_query(F.data.startswith("adm_rasch_"))
 async def admin_test_rasch_eval(call: CallbackQuery):
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
@@ -3426,51 +3505,138 @@ async def handle_submit_test_api(request):
             }, status=403)
 
         test_obj = test_db.get_test_by_id(test_id)
-        if test_obj:
-            sched_stat = get_test_schedule_status(test_obj)
-            if sched_stat["is_upcoming"] and not test_db.is_admin(user_tg_id, ADMIN_ID):
-                sdate = test_obj.get('scheduled_date') or 'Bugun'
-                sstart = test_obj.get('scheduled_start') or ''
-                return web.json_response({
-                    "success": False,
-                    "message": f"Test hali boshlanmagan! Boshlanish vaqti: {sdate} {sstart} (UZB)"
-                }, status=400)
+        if not test_obj:
+            return web.json_response({
+                "success": False,
+                "message": "Test topilmadi!"
+            }, status=404)
 
-        # Bazada tekshirish va saqlash
-        result = test_db.check_and_save_submission(test_id, user_tg_id, user_answers)
+        sched_stat = get_test_schedule_status(test_obj)
+        if sched_stat["is_upcoming"] and not test_db.is_admin(user_tg_id, ADMIN_ID):
+            sdate = test_obj.get('scheduled_date') or 'Bugun'
+            sstart = test_obj.get('scheduled_start') or ''
+            return web.json_response({
+                "success": False,
+                "message": f"Test hali boshlanmagan! Boshlanish vaqti: {sdate} {sstart} (UZB)"
+            }, status=400)
 
-        # Foydalanuvchiga Telegram bot orqali shaxsiy xabar yuborish
-        # DIQQAT: Test topshirilganda HAR DOIM "Javoblaringiz qabul qilindi (Jarayonda ⏳)" holatida bo'ladi!
-        # Ball va natijalar srazu ko'rsatilmaydi. Admin Rasch modeli (JMLE) tahlilini
-        # o'tkazib natijalarni e'lon qilganda shaxsiy xabar qilib yakuniy ball yuboriladi.
-        if user_tg_id:
-            msg_user = (
-                f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
+        # Kech topshirilgan holatni aniqlash
+        is_late_submission = False
+        if not test_db.is_admin(user_tg_id, ADMIN_ID):
+            if sched_stat.get("is_closed") or test_obj.get("is_active", 1) == 0 or test_obj.get("results_published", 0) == 1:
+                is_late_submission = True
+
+        # Bazada tekshirish va saqlash (is_late=1 agar kech topshirilgan bo'lsa)
+        result = test_db.check_and_save_submission(
+            test_id, user_tg_id, user_answers,
+            is_late=1 if is_late_submission else 0
+        )
+
+        now_uzb = datetime.now(UZB_TZ)
+        time_str_sec = now_uzb.strftime("%H:%M:%S")
+        datetime_str_sec = now_uzb.strftime("%d.%m.%Y %H:%M:%S")
+
+        if is_late_submission:
+            # 1. Foydalanuvchiga Telegram xabari: kech topshirdingiz, hisobga olinmaydi
+            if user_tg_id:
+                msg_user = (
+                    f"⚠️ <b>Hurmatli {result['fullname']}, siz testni belgilangan vaqtdan kech topshirdingiz!</b>\n\n"
+                    f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
+                    f"🕒 <b>Topshirilgan vaqt:</b> <b>{time_str_sec}</b> ({datetime_str_sec})\n"
+                    f"🚫 <b>Holat:</b> <b>Natijangiz umumiy hisobga olinmaydi!</b>\n\n"
+                    f"ℹ️ Test javoblaringiz qabul qilindi va ko'rib chiqish uchun <b>adminga yuborildi</b>. "
+                    f"Agar admin ruxsat bersa, natijangiz umumiy testga qo'shiladi va bu haqda sizga xabar beriladi."
+                )
+                try:
+                    await bot.send_message(chat_id=user_tg_id, text=msg_user)
+                except Exception as ex:
+                    log.warning(f"Foydalanuvchiga kechikish xabari yuborishda xatolik: {ex}")
+
+            # 2. Adminga bildirishnoma: nechta ishlagan, vaqti soniyasigacha va qaror tugmalari
+            sub_id = result.get("submission_id")
+            corr_cnt = result.get("correct_count", 0)
+            score_val = result.get("score", 0.0)
+            u_info = test_db.get_user(user_tg_id)
+            username_str = f" (@{u_info.get('username')})" if (u_info and u_info.get('username')) else ""
+            phone_str = f"\n📞 <b>Telefon:</b> {result.get('phone', '—')}" if result.get('phone') else ""
+
+            admin_text = (
+                f"⏰ <b>DIQQAT: Kech topshirilgan test javobi keldi!</b>\n\n"
+                f"👤 <b>O'quvchi:</b> {result['fullname']}{username_str}\n"
+                f"🆔 <b>Telegram ID:</b> <code>{user_tg_id}</code>{phone_str}\n"
                 f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
-                f"📌 <b>Holat:</b> ⏳ <b>Javoblaringiz qabul qilindi (Jarayonda)...</b>\n"
-                f"🕒 <b>Topshirilgan vaqt:</b> {format_uzb_time()}\n\n"
-                f"ℹ️ <b>Eslatma:</b> Test hozirda barcha o'quvchilar uchun davom etmoqda. "
-                f"Admin testni yakunlab, <b>Rasch modeli (JMLE)</b> bo'yicha tahlil o'tkazgach, "
-                f"to'g'ri ishlangan savollar soni, yakuniy ballingiz va Milliy sertifikat darajangiz botingizga shaxsiy xabar qilib yuboriladi!\n\n"
-                f"🏆 <i>Javoblaringiz tizimda muvaffaqiyatli saqlandi.</i>"
+                f"🕒 <b>Topshirilgan vaqt:</b> <b>{datetime_str_sec}</b>\n\n"
+                f"📊 <b>Ishlagan natijasi:</b> <b>{corr_cnt} ta to'g'ri</b> (55 tadan) — <b>{score_val} ball</b>\n\n"
+                f"❓ <b>Ushbu o'quvchining natijasini testga qo'shamizmi?</b>"
             )
+
+            admin_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Testga natijasini qo'shish", callback_data=f"adm_accept_late_{sub_id}")],
+                [InlineKeyboardButton(text="❌ Hisobga olmaslik (Rad etish)", callback_data=f"adm_reject_late_{sub_id}")]
+            ])
+
+            target_admin = ADMIN_ID
+            if test_obj.get("created_by") and test_db.is_admin(test_obj.get("created_by"), ADMIN_ID):
+                target_admin = test_obj.get("created_by")
+
             try:
-                await bot.send_message(chat_id=user_tg_id, text=msg_user)
-            except Exception as ex:
-                log.warning(f"Foydalanuvchiga xabar yuborishda xatolik: {ex}")
+                await bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=admin_kb)
+            except Exception as ex_a:
+                log.warning(f"Admin alert error: {ex_a}")
 
-        # WebApp uchun mijoz ma'lumotlari: topshirish paytida har doim kutilmoqda (ball yashirin)
-        client_data = dict(result)
-        client_data["is_published"] = False
-        client_data["score"] = None
-        client_data["grade"] = "Kutilmoqda"
-        client_data["correct_count"] = None
-        client_data["incorrect_count"] = None
-        client_data["unanswered_count"] = None
-        client_data["rasch_theta"] = None
-        client_data["details"] = None
+            if target_admin != ADMIN_ID:
+                try:
+                    await bot.send_message(chat_id=target_admin, text=admin_text, reply_markup=admin_kb)
+                except Exception:
+                    pass
 
-        return web.json_response({"success": True, "data": client_data})
+            client_data = dict(result)
+            client_data["is_published"] = False
+            client_data["is_late"] = True
+            client_data["score"] = None
+            client_data["grade"] = "Kech topshirildi"
+            client_data["correct_count"] = None
+            client_data["incorrect_count"] = None
+            client_data["unanswered_count"] = None
+            client_data["rasch_theta"] = None
+            client_data["details"] = None
+
+            return web.json_response({
+                "success": True,
+                "is_late": True,
+                "message": f"⚠️ Siz testni belgilangan vaqtdan kech topshirdingiz (Soat: {time_str_sec})! Natijangiz hisobga olinmaydi va adminga ko'rib chiqish uchun yuborildi.",
+                "data": client_data
+            })
+        else:
+            # Oddiy, vaqtida topshirilgan test
+            if user_tg_id:
+                msg_user = (
+                    f"✅ <b>Hurmatli {result['fullname']}, javoblaringiz qabul qilindi!</b>\n\n"
+                    f"📚 <b>Test:</b> {result['test_title']} (<code>#{result['test_code']}</code>)\n"
+                    f"📌 <b>Holat:</b> ⏳ <b>Javoblaringiz qabul qilindi (Jarayonda)...</b>\n"
+                    f"🕒 <b>Topshirilgan vaqt:</b> {format_uzb_time()}\n\n"
+                    f"ℹ️ <b>Eslatma:</b> Test hozirda barcha o'quvchilar uchun davom etmoqda. "
+                    f"Admin testni yakunlab, <b>Rasch modeli (JMLE)</b> bo'yicha tahlil o'tkazgach, "
+                    f"to'g'ri ishlangan savollar soni, yakuniy ballingiz va Milliy sertifikat darajangiz botingizga shaxsiy xabar qilib yuboriladi!\n\n"
+                    f"🏆 <i>Javoblaringiz tizimda muvaffaqiyatli saqlandi.</i>"
+                )
+                try:
+                    await bot.send_message(chat_id=user_tg_id, text=msg_user)
+                except Exception as ex:
+                    log.warning(f"Foydalanuvchiga xabar yuborishda xatolik: {ex}")
+
+            client_data = dict(result)
+            client_data["is_published"] = False
+            client_data["is_late"] = False
+            client_data["score"] = None
+            client_data["grade"] = "Kutilmoqda"
+            client_data["correct_count"] = None
+            client_data["incorrect_count"] = None
+            client_data["unanswered_count"] = None
+            client_data["rasch_theta"] = None
+            client_data["details"] = None
+
+            return web.json_response({"success": True, "data": client_data})
 
     except Exception as e:
         log.error(f"Submit API Error: {e}", exc_info=True)

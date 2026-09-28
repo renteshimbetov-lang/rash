@@ -206,7 +206,8 @@ def init_db():
                 correct_count INTEGER NOT NULL,
                 total_count INTEGER DEFAULT 45,
                 details_json TEXT NOT NULL,
-                submitted_at BIGINT NOT NULL
+                submitted_at BIGINT NOT NULL,
+                is_late INTEGER DEFAULT 0
             )
             """)
 
@@ -331,6 +332,7 @@ def init_db():
                 total_count INTEGER DEFAULT 45,
                 details_json TEXT NOT NULL,
                 submitted_at INTEGER NOT NULL,
+                is_late INTEGER DEFAULT 0,
                 FOREIGN KEY(test_id) REFERENCES tests(id)
             )
             """)
@@ -423,6 +425,20 @@ def init_db():
                     conn.commit()
                 except Exception:
                     pass
+
+        # submissions jadvaliga is_late ustunini qo'shish
+        if USE_POSTGRES:
+            try:
+                cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_late INTEGER DEFAULT 0")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+        else:
+            try:
+                cur.execute("ALTER TABLE submissions ADD COLUMN is_late INTEGER DEFAULT 0")
+                conn.commit()
+            except Exception:
+                pass
 
         # Kutilmoqda (pending) bo'lgan mavjud barcha foydalanuvchilarni to'g'ridan-to'g'ri faol (approved) holatiga o'tkazish
         try:
@@ -1221,15 +1237,16 @@ def is_test_results_published(test_id: int) -> bool:
         _close_conn(conn)
 
 
-def get_test_submissions_with_users(test_id: int) -> List[Dict[str, Any]]:
+def get_test_submissions_with_users(test_id: int, include_late: bool = False) -> List[Dict[str, Any]]:
     conn = get_connection()
     try:
         cur = conn.cursor()
+        late_cond = "" if include_late else "AND (s.is_late = 0 OR s.is_late IS NULL)"
         cur.execute(f"""
         SELECT s.*, t.title as test_title, t.test_code, t.results_published, t.youtube_url
         FROM submissions s
         JOIN tests t ON s.test_id = t.id
-        WHERE s.test_id = {_ph()}
+        WHERE s.test_id = {_ph()} {late_cond}
         ORDER BY s.score DESC, s.submitted_at ASC
         """, (test_id,))
         rows = cur.fetchall()
@@ -1551,6 +1568,34 @@ def get_user_submission_for_test(test_id: int, user_tg_id: int) -> Optional[Dict
         _close_conn(conn)
 
 
+def get_submission_by_id(submission_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM submissions WHERE id = {_ph()}", (submission_id,))
+        row = cur.fetchone()
+        return _row_to_dict(row)
+    finally:
+        _close_conn(conn)
+
+
+def set_submission_late_status(submission_id: int, is_late: int) -> bool:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE submissions SET is_late = {_ph()} WHERE id = {_ph()}",
+            (is_late, submission_id)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error updating late status: {e}")
+        return False
+    finally:
+        _close_conn(conn)
+
+
 def get_key_and_score(q_data: Any, default_score: float) -> tuple:
     if isinstance(q_data, dict):
         ans = str(q_data.get("ans", q_data.get("answer", "")))
@@ -1584,7 +1629,7 @@ def calculate_grade(score: float, correct_count: Optional[int] = None) -> str:
         return "—"
 
 
-def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[str, str]) -> Dict[str, Any]:
+def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[str, str], is_late: int = 0) -> Dict[str, Any]:
     test = get_test_by_id(test_id)
     if not test:
         raise ValueError("Test topilmadi!")
@@ -1725,14 +1770,14 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
             INSERT INTO submissions (
                 test_id, test_code, user_tg_id, fullname, phone,
                 answers_json, score, max_score, correct_count, total_count,
-                details_json, submitted_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                details_json, submitted_at, is_late
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """, (
                 test["id"], test["test_code"], user_tg_id, fullname, phone,
                 json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
                 correct_count, 55,
-                json.dumps(details, ensure_ascii=False), now
+                json.dumps(details, ensure_ascii=False), now, is_late
             ))
             sub_row = cur.fetchone()
             submission_id = _row_to_dict(sub_row).get("id") if sub_row else None
@@ -1741,13 +1786,13 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
             INSERT INTO submissions (
                 test_id, test_code, user_tg_id, fullname, phone,
                 answers_json, score, max_score, correct_count, total_count,
-                details_json, submitted_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                details_json, submitted_at, is_late
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 test["id"], test["test_code"], user_tg_id, fullname, phone,
                 json.dumps(user_answers, ensure_ascii=False), earned_score, total_possible_score,
                 correct_count, 55,
-                json.dumps(details, ensure_ascii=False), now
+                json.dumps(details, ensure_ascii=False), now, is_late
             ))
             submission_id = cur.lastrowid
         conn.commit()
@@ -1756,6 +1801,8 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
 
     return {
         "submission_id": submission_id,
+        "is_late": is_late,
+        "submitted_at": now,
         "test_title": test["title"],
         "test_code": test["test_code"],
         "fullname": fullname,
@@ -1810,7 +1857,9 @@ def get_test_results_leaderboard(test_id: int) -> List[Dict[str, Any]]:
         cur = conn.cursor()
         cur.execute(f"""
         SELECT fullname, phone, score, correct_count, submitted_at
-        FROM submissions WHERE test_id = {_ph()} ORDER BY score DESC, submitted_at ASC
+        FROM submissions
+        WHERE test_id = {_ph()} AND (is_late = 0 OR is_late IS NULL)
+        ORDER BY score DESC, submitted_at ASC
         """, (test_id,))
         rows = cur.fetchall()
         return [_row_to_dict(r) for r in rows if r]
@@ -1827,7 +1876,7 @@ def get_tests_with_stats() -> List[Dict[str, Any]]:
                COALESCE(AVG(s.score), 0) as avg_score,
                COALESCE(MAX(s.score), 0) as max_score_achieved
         FROM tests t
-        LEFT JOIN submissions s ON t.id = s.test_id
+        LEFT JOIN submissions s ON t.id = s.test_id AND (s.is_late = 0 OR s.is_late IS NULL)
         GROUP BY t.id, t.test_code, t.title, t.subject, t.pdf_file_id, t.pdf_file_name,
                  t.answers_json, t.total_questions, t.time_limit_min, t.is_active,
                  t.key_access_code, t.results_published, t.created_at, t.created_by, t.created_by_name
@@ -1851,6 +1900,7 @@ def get_test_submissions_for_rasch(test_id: int) -> List[Dict[str, Any]]:
         SELECT user_tg_id, fullname, details_json, score, correct_count, submitted_at
         FROM submissions
         WHERE test_id = {_ph()} AND details_json IS NOT NULL AND details_json != ''
+          AND (is_late = 0 OR is_late IS NULL)
         ORDER BY submitted_at ASC
         """, (test_id,))
         rows = cur.fetchall()

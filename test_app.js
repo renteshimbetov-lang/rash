@@ -506,7 +506,25 @@ const TestApp = {
 
     const isPublished = Boolean(data.is_published);
 
-    if (!isPublished) {
+    if (data.is_late) {
+      if (titleEl) titleEl.textContent = "Test kech topshirildi! ⚠️";
+      if (gradeContainer) {
+        gradeContainer.style.borderColor = "rgba(239, 68, 68, 0.4)";
+        gradeContainer.style.background = "rgba(239, 68, 68, 0.12)";
+        gradeContainer.innerHTML = `
+          <span style="font-size: 26px;">⏰</span>
+          <div style="text-align: left;">
+            <div style="font-size: 11px; text-transform: uppercase; font-weight: 800; color: #EF4444; letter-spacing: 0.5px;">Holat</div>
+            <div style="font-size: 15px; font-weight: 800; color: #DC2626;">Kech topshirildi (Hisobga olinmaydi)</div>
+          </div>
+        `;
+      }
+      if (detailsGrid) detailsGrid.style.display = 'none';
+      if (analysisBtn) analysisBtn.style.display = 'none';
+      if (noteEl) {
+        noteEl.innerHTML = `⚠️ <b>Siz testni belgilangan vaqtdan kech topshirdingiz!</b> Natijangiz umumiy hisobga olinmaydi. Javoblaringiz ko'rib chiqish uchun adminga yuborildi. Agar admin ruxsat bersa, natijangiz umumiy reytingga qo'shiladi.`;
+      }
+    } else if (!isPublished) {
       if (titleEl) titleEl.textContent = "Javoblaringiz qabul qilindi! ⏳";
       if (gradeContainer) {
         gradeContainer.style.borderColor = "rgba(245, 158, 11, 0.4)";
