@@ -1169,7 +1169,8 @@ async def admin_check_blocks_handler(message: Message):
         res_text += "<b>Bloklagan foydalanuvchilar ro'yxati:</b>\n"
         for i, bu in enumerate(blocked_list[:30], 1):
             bun = f" (@{bu.get('username')})" if bu.get('username') else ""
-            res_text += f"{i}. <b>{bu.get('fullname', 'Noma\'lum')}</b>{bun} — <code>{bu.get('tg_id')}</code>\n"
+            nomalum = bu.get('fullname') or 'Noma\'lum'
+            res_text += f"{i}. <b>{nomalum}</b>{bun} — <code>{bu.get('tg_id')}</code>\n"
         if len(blocked_list) > 30:
             res_text += f"\n<i>...va yana {len(blocked_list) - 30} ta foydalanuvchi.</i>"
     else:
