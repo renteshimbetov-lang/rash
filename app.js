@@ -2654,20 +2654,10 @@ function renderFilteredAdminUsers() {
       sb = '<span class="badge" style="padding:3px 8px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.3);border-radius:12px;">' + st + '</span>';
     }
 
-    var userSub = '';
-    if (u.username) {
-      userSub += '<span style="color:var(--primary,#00A389);font-size:11.5px;font-weight:700;">@' + escHtml(u.username.replace(/^@/, '')) + '</span>';
-    }
-    if (u.phone && u.phone !== '-') {
-      if (userSub) userSub += ' <span style="opacity:0.4;font-size:10px;">•</span> ';
-      userSub += '<span style="color:var(--text-muted,#94a3b8);font-size:11px;">' + escHtml(u.phone) + '</span>';
-    }
-
     return '<div class="user-row clickable" onclick="openAdminUserModal(' + u.tg_id + ')">' +
       '<div class="user-row-avatar">' + letter + '</div>' +
       '<div class="user-row-info">' +
         '<div class="user-row-name" style="font-size:14.5px;font-weight:700;">' + escHtml(u.fullname || t('user_unknown')) + '</div>' +
-        (userSub ? '<div class="user-row-meta" style="margin-top:2px;display:flex;align-items:center;gap:4px;">' + userSub + '</div>' : '') +
       '</div>' +
       sb +
       '<span style="color:var(--text-muted);font-size:16px;margin-left:4px">›</span>' +
