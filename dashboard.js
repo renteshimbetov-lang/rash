@@ -81,12 +81,26 @@ function startBootCanvas() {
 
 var _bootCanvasStop = null;
 
+function enterFullscreen() {
+  var el = document.documentElement;
+  try {
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.mozRequestFullScreen) el.mozRequestFullScreen();
+    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+  } catch(e) {}
+}
+
 function skipBootSplash() {
   var splash = document.getElementById('mac-boot-splash');
   if (!splash) return;
   if (_bootCanvasStop) _bootCanvasStop();
   splash.classList.add('hidden');
-  setTimeout(() => { if (splash.parentNode) splash.remove(); }, 700);
+  setTimeout(() => {
+    if (splash.parentNode) splash.remove();
+    // To'liq ekranga o'tish
+    enterFullscreen();
+  }, 700);
 }
 window.skipBootSplash = skipBootSplash;
 
