@@ -20,13 +20,14 @@ from aiogram import Bot, Dispatcher, F, Router, BaseMiddleware
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
+from aiogram.filters.chat_member_updated import ChatMemberUpdatedFilter, KICKED, MEMBER
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
     KeyboardButton, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove,
-    WebAppInfo, FSInputFile, MenuButtonWebApp, BotCommand
+    WebAppInfo, FSInputFile, MenuButtonWebApp, BotCommand, ChatMemberUpdated
 )
 from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError, TelegramBadRequest, TelegramAPIError
 from aiohttp import web
@@ -1034,6 +1035,149 @@ async def do_delete_my_account_handler(call: CallbackQuery, state: FSMContext):
             await bot.send_message(chat_id=ADMIN_ID, text=alert_text)
         except Exception as ex:
             log.warning(f"Admin alert yuborishda xatolik: {ex}")
+
+# ──────────────────────────────────────────────────────────
+# BOTNI BLOKLASH / O'CHIRISHNI REAL-VAQTDA ANIQLASH (MY_CHAT_MEMBER)
+# ──────────────────────────────────────────────────────────
+
+@router.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=KICKED))
+async def user_blocked_bot_handler(event: ChatMemberUpdated):
+    """
+    Foydalanuvchi botni to'xtatganda (Stop bot), bloklaganda yoki chatni o'chirganda
+    Telegram avtomatik ravishda botga ushbu hodisani yuboradi (foydalanuvchiga xabar bormaydi).
+    """
+    try:
+        user_id = event.from_user.id
+        u = test_db.get_user(user_id)
+        
+        # Bazadagi holatini 'blocked' qilib yangilaymiz
+        test_db.block_user(user_id)
+        
+        fn = (u and u.get("fullname")) or event.from_user.full_name or "Noma'lum"
+        un = f"@{u.get('username')}" if (u and u.get('username')) else (f"@{event.from_user.username}" if event.from_user.username else "Mavjud emas")
+        ph = (u and u.get("phone")) or "—"
+        now_str = format_uzb_time(fmt="%d.%m.%Y %H:%M:%S")
+        
+        alert_text = (
+            f"🚫 <b>OGOHLANTIRISH: Foydalanuvchi botni blokladi/o'chirdi!</b>\n\n"
+            f"👤 <b>Foydalanuvchi:</b> {fn}\n"
+            f"🔗 <b>Username:</b> {un}\n"
+            f"📞 <b>Telefon:</b> <code>{ph}</code>\n"
+            f"🆔 <b>Telegram ID:</b> <code>{user_id}</code>\n"
+            f"🕒 <b>Vaqt:</b> <b>{now_str}</b>\n\n"
+            f"ℹ️ <i>Telegram serveri orqali real-vaqt rejimida aniqlandi (foydalanuvchiga xabar bormadi). "
+            f"Bazada uning holati «Bloklangan» qilib belgilandi.</i>"
+        )
+        
+        for adm_id in get_all_admin_ids():
+            try:
+                await bot.send_message(chat_id=adm_id, text=alert_text)
+            except Exception as ex:
+                log.warning(f"Admin {adm_id} ga blok bildirishnomasi yuborishda xatolik: {ex}")
+    except Exception as e:
+        log.error(f"user_blocked_bot_handler error: {e}", exc_info=True)
+
+
+@router.my_chat_member(ChatMemberUpdatedFilter(member_status_changed=MEMBER))
+async def user_unblocked_bot_handler(event: ChatMemberUpdated):
+    """
+    Foydalanuvchi botni blokdan chiqarganda (Unblock/Restart).
+    """
+    try:
+        user_id = event.from_user.id
+        u = test_db.get_user(user_id)
+        
+        # Agar avval ro'yxatdan o'tgan bo'lsa va bloklangan bo'lsa, 'approved' qilamiz
+        if u and u.get("status") == "blocked":
+            test_db.approve_user(user_id)
+            note = "<i>Bazada holati qayta «Faol» qilindi.</i>"
+        else:
+            note = "<i>Botdan qayta foydalanishi mumkin.</i>"
+            
+        fn = (u and u.get("fullname")) or event.from_user.full_name or "Noma'lum"
+        un = f"@{u.get('username')}" if (u and u.get('username')) else (f"@{event.from_user.username}" if event.from_user.username else "Mavjud emas")
+        ph = (u and u.get("phone")) or "—"
+        now_str = format_uzb_time(fmt="%d.%m.%Y %H:%M:%S")
+        
+        alert_text = (
+            f"🟢 <b>Foydalanuvchi botni qayta faollashtirdi (Unblock)!</b>\n\n"
+            f"👤 <b>Foydalanuvchi:</b> {fn}\n"
+            f"🔗 <b>Username:</b> {un}\n"
+            f"📞 <b>Telefon:</b> <code>{ph}</code>\n"
+            f"🆔 <b>Telegram ID:</b> <code>{user_id}</code>\n"
+            f"🕒 <b>Vaqt:</b> <b>{now_str}</b>\n\n"
+            f"ℹ️ {note}"
+        )
+        
+        for adm_id in get_all_admin_ids():
+            try:
+                await bot.send_message(chat_id=adm_id, text=alert_text)
+            except Exception as ex:
+                log.warning(f"Admin {adm_id} ga unblock bildirishnomasi yuborishda xatolik: {ex}")
+    except Exception as e:
+        log.error(f"user_unblocked_bot_handler error: {e}", exc_info=True)
+
+
+@router.message(Command("check_blocks"))
+async def admin_check_blocks_handler(message: Message):
+    """
+    Admin uchun: Bazadagi barcha foydalanuvchilarni xabar yubormasdan
+    ko'rinmas usulda (send_chat_action) tekshirib chiqish.
+    """
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        return
+    
+    users = test_db.get_all_users()
+    total = len(users)
+    status_msg = await message.answer(
+        f"🔍 <b>Bazadagi {total} ta foydalanuvchi tekshirilmoqda...</b>\n\n"
+        f"<i>(Ko'rinmas usul: foydalanuvchilarga xabar yoki bildirishnoma bormaydi)</i>"
+    )
+    
+    blocked_list = []
+    active_count = 0
+    
+    for u in users:
+        uid = u.get("tg_id")
+        if not uid or uid <= 0:
+            continue
+        try:
+            # Ko'rinmas ping: yozmoqda effekti so'rovi (agar bloklagan bo'lsa xato qaytadi)
+            await bot.send_chat_action(chat_id=uid, action="typing")
+            active_count += 1
+        except (TelegramForbiddenError, TelegramBadRequest) as ex:
+            err_text = str(ex).lower()
+            if "blocked" in err_text or "deactivated" in err_text or "chat not found" in err_text:
+                test_db.block_user(uid)
+                blocked_list.append(u)
+            else:
+                active_count += 1
+        except Exception:
+            active_count += 1
+        
+        await asyncio.sleep(0.04) # Telegram rate-limit
+    
+    res_text = (
+        f"📊 <b>Foydalanuvchilar holati tekshiruvi yakunlandi:</b>\n\n"
+        f"👥 <b>Jami foydalanuvchilar:</b> {total} ta\n"
+        f"✅ <b>Faol (bot ochiq):</b> {active_count} ta\n"
+        f"🚫 <b>Botni bloklaganlar:</b> {len(blocked_list)} ta\n\n"
+    )
+    
+    if blocked_list:
+        res_text += "<b>Bloklagan foydalanuvchilar ro'yxati:</b>\n"
+        for i, bu in enumerate(blocked_list[:30], 1):
+            bun = f" (@{bu.get('username')})" if bu.get('username') else ""
+            res_text += f"{i}. <b>{bu.get('fullname', 'Noma\'lum')}</b>{bun} — <code>{bu.get('tg_id')}</code>\n"
+        if len(blocked_list) > 30:
+            res_text += f"\n<i>...va yana {len(blocked_list) - 30} ta foydalanuvchi.</i>"
+    else:
+        res_text += "🎉 <i>Hozirda botni bloklagan foydalanuvchilar aniqlanmadi!</i>"
+    
+    try:
+        await status_msg.edit_text(res_text)
+    except Exception:
+        await message.answer(res_text)
 
 # 4. ℹ️ Yordam va murojaat
 @router.message(F.text == "ℹ️ Yordam")
