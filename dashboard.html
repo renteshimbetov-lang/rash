@@ -14,15 +14,37 @@
 </head>
 <body>
 
-  <!-- macOS Boot Splash Screen -->
+  <!-- macOS Boot Splash Screen (Main App style) -->
   <div id="mac-boot-splash">
-    <div class="boot-logo">📐</div>
-    <div class="boot-title">Shohruh Matematika</div>
-    <div class="boot-subtitle">Admin Boshqaruv Markazi</div>
-    <div class="boot-progress-wrap">
-      <div class="boot-progress-bar" id="boot-progress-bar"></div>
+    <!-- Floating math canvas background -->
+    <canvas id="boot-splash-canvas"></canvas>
+
+    <!-- Central content -->
+    <div class="boot-inner">
+      <!-- Logo -->
+      <div class="boot-logo-wrap">
+        <img src="/img/bm_logo.png" alt="Shohruh Matematika" class="boot-logo-img" onerror="this.style.display='none';document.querySelector('.boot-logo-emoji').style.display='block'">
+        <span class="boot-logo-emoji" style="display:none">📐</span>
+      </div>
+
+      <!-- Bouncing letters -->
+      <div class="boot-brand-text">
+        <span class="boot-char" style="--bd:0.10s">S</span><span class="boot-char" style="--bd:0.17s">H</span><span class="boot-char" style="--bd:0.24s">O</span><span class="boot-char" style="--bd:0.31s">H</span><span class="boot-char" style="--bd:0.38s">R</span><span class="boot-char" style="--bd:0.45s">U</span><span class="boot-char" style="--bd:0.52s">H</span>
+        <span class="boot-char-space">&nbsp;</span>
+        <span class="boot-char teal" style="--bd:0.63s">M</span><span class="boot-char teal" style="--bd:0.70s">A</span><span class="boot-char teal" style="--bd:0.77s">T</span><span class="boot-char teal" style="--bd:0.84s">E</span><span class="boot-char teal" style="--bd:0.91s">M</span><span class="boot-char teal" style="--bd:0.98s">A</span><span class="boot-char teal" style="--bd:1.05s">T</span><span class="boot-char teal" style="--bd:1.12s">I</span><span class="boot-char teal" style="--bd:1.19s">K</span><span class="boot-char teal" style="--bd:1.26s">A</span>
+      </div>
+
+      <!-- Subtitle -->
+      <div class="boot-subtitle">ADMIN BOSHQARUV MARKAZI &nbsp;·&nbsp; MacBook Dashboard Pro</div>
+
+      <!-- Progress bar -->
+      <div class="boot-progress-wrap">
+        <div class="boot-progress-bar" id="boot-progress-bar"></div>
+      </div>
+
+      <!-- Skip button -->
+      <div class="boot-skip" onclick="skipBootSplash()">Davom etish ➔</div>
     </div>
-    <div class="boot-version">MacBook Dashboard Pro · v2.0</div>
   </div>
 
   <!-- MacBook Desktop App Window Shell -->

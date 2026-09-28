@@ -20,36 +20,104 @@ const State = {
 };
 
 // ----------------------------------------------------
-// macOS BOOT ANIMATION
+// macOS BOOT ANIMATION — MAIN APP STYLE
 // ----------------------------------------------------
+function startBootCanvas() {
+  var canvas = document.getElementById('boot-splash-canvas');
+  if (!canvas) return null;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  var symbols = ['∞', 'π', '∑', '∫', '√x', 'f(x)', '∆', 'θ', 'λ', '≈', '≠', 'e²', 'α', 'β', '∂y', 'lim', 'dx', '∇'];
+  var count = Math.min(28, Math.max(16, Math.floor(canvas.width / 18)));
+  var particles = [];
+  for (var i = 0; i < count; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      char: symbols[Math.floor(Math.random() * symbols.length)],
+      size: 13 + Math.random() * 20,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: -0.3 - Math.random() * 0.7,
+      opacity: 0.1 + Math.random() * 0.4,
+      pulseSpeed: 0.018 + Math.random() * 0.025,
+      angle: Math.random() * Math.PI * 2,
+      spinSpeed: (Math.random() - 0.5) * 0.012
+    });
+  }
+
+  var animId = null;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (var i = 0; i < particles.length; i++) {
+      var p = particles[i];
+      p.x += p.vx; p.y += p.vy; p.angle += p.spinSpeed;
+      p.opacity += Math.sin(Date.now() * p.pulseSpeed) * 0.004;
+      if (p.opacity < 0.08) p.opacity = 0.08;
+      if (p.opacity > 0.55) p.opacity = 0.55;
+      if (p.y < -30) { p.y = canvas.height + 30; p.x = Math.random() * canvas.width; }
+      if (p.x < -30) p.x = canvas.width + 30;
+      if (p.x > canvas.width + 30) p.x = -30;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.font = 'bold ' + p.size + 'px serif';
+      ctx.fillStyle = 'rgba(0, 200, 167, ' + p.opacity + ')';
+      ctx.shadowColor = 'rgba(0, 163, 137, 0.4)';
+      ctx.shadowBlur = 8;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.char, 0, 0);
+      ctx.restore();
+    }
+    animId = requestAnimationFrame(draw);
+  }
+  animId = requestAnimationFrame(draw);
+  return function stop() { if (animId) cancelAnimationFrame(animId); };
+}
+
+var _bootCanvasStop = null;
+
+function skipBootSplash() {
+  var splash = document.getElementById('mac-boot-splash');
+  if (!splash) return;
+  if (_bootCanvasStop) _bootCanvasStop();
+  splash.classList.add('hidden');
+  setTimeout(() => { if (splash.parentNode) splash.remove(); }, 700);
+}
+window.skipBootSplash = skipBootSplash;
+
 function runBootAnimation() {
-  const splash = document.getElementById('mac-boot-splash');
-  const bar = document.getElementById('boot-progress-bar');
-  if (!splash || !bar) return;
+  var splash = document.getElementById('mac-boot-splash');
+  var bar = document.getElementById('boot-progress-bar');
+  if (!splash) return;
 
-  // Progress bar animation: 0% → 100% over ~2.2s
-  let pct = 0;
-  const steps = [
-    { target: 30, delay: 0,    speed: 18 },
-    { target: 65, delay: 300,  speed: 22 },
-    { target: 88, delay: 700,  speed: 35 },
-    { target: 100, delay: 400, speed: 20 }
+  // Start floating math particles
+  _bootCanvasStop = startBootCanvas();
+
+  if (!bar) { setTimeout(skipBootSplash, 3200); return; }
+
+  // Progress animation: 4 natural steps
+  var pct = 0;
+  var steps = [
+    { target: 28, delay: 200,  speed: 20 },
+    { target: 62, delay: 500,  speed: 18 },
+    { target: 87, delay: 600,  speed: 30 },
+    { target: 100, delay: 350, speed: 16 }
   ];
-
-  let stepIdx = 0;
+  var stepIdx = 0;
   function runStep() {
     if (stepIdx >= steps.length) {
-      // Done — fade out splash
-      setTimeout(() => {
-        splash.classList.add('hidden');
-        setTimeout(() => { splash.remove(); }, 700);
-      }, 180);
+      setTimeout(skipBootSplash, 220);
       return;
     }
-    const s = steps[stepIdx++];
+    var s = steps[stepIdx++];
     setTimeout(() => {
-      const interval = setInterval(() => {
-        if (pct >= s.target) { clearInterval(interval); runStep(); return; }
+      var iv = setInterval(() => {
+        if (pct >= s.target) { clearInterval(iv); runStep(); return; }
         pct = Math.min(pct + 1, s.target);
         bar.style.width = pct + '%';
       }, s.speed);
