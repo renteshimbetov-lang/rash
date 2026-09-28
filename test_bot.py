@@ -5001,6 +5001,13 @@ async def handle_dashboard(request):
     fpath = await find_web_file('dashboard.html')
     if os.path.exists(fpath) and os.path.isfile(fpath):
         return set_no_cache_headers(web.FileResponse(fpath))
+    try:
+        import web_assets_fallback
+        data, mime = web_assets_fallback.get_asset_bytes('dashboard.html')
+        if data:
+            return set_no_cache_headers(web.Response(body=data, content_type=mime or 'text/html', charset='utf-8'))
+    except Exception as e:
+        log.error(f"dashboard.html yuklashda xatolik: {e}")
     return web.Response(status=404, text="dashboard.html topilmadi")
 
 async def handle_dashboard_overview(request):
