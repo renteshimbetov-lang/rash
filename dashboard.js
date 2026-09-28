@@ -1,0 +1,990 @@
+/**
+ * Shohruh Matematika — MacBook Pro Admin Dashboard
+ * High-performance, Real-time Desktop Web Application
+ */
+
+const State = {
+  activeTab: 'overview',
+  overview: null,
+  submissions: [],
+  users: [],
+  tests: [],
+  logs: [],
+  submissionsFilter: 'all',
+  submissionsTestFilter: '',
+  usersFilter: 'all',
+  globalSearch: '',
+  autoRefresh: true,
+  refreshTimer: null,
+  currentModalSubmission: null
+};
+
+// ----------------------------------------------------
+// INITIALIZATION
+// ----------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  initLiveClock();
+  setupKeyboardShortcuts();
+  fetchDashboardData();
+  startAutoRefresh();
+});
+
+// Live Tashkent Clock (UTC+5)
+function initLiveClock() {
+  const update = () => {
+    const el = document.getElementById('live-clock');
+    if (!el) return;
+    const now = new Date();
+    // UTC+5 calculation
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const uzbDate = new Date(utc + (3600000 * 5));
+    const h = String(uzbDate.getHours()).padStart(2, '0');
+    const m = String(uzbDate.getMinutes()).padStart(2, '0');
+    const s = String(uzbDate.getSeconds()).padStart(2, '0');
+    el.textContent = `${h}:${m}:${s}`;
+  };
+  update();
+  setInterval(update, 1000);
+}
+
+// ----------------------------------------------------
+// TAB SWITCHING
+// ----------------------------------------------------
+function switchDashboardTab(tabId) {
+  State.activeTab = tabId;
+
+  // Update navigation classes
+  document.querySelectorAll('.sidebar-nav .nav-item').forEach(el => {
+    el.classList.toggle('active', el.getAttribute('data-tab') === tabId);
+  });
+
+  // Update Views
+  document.querySelectorAll('.page-view').forEach(el => {
+    el.classList.remove('active');
+  });
+  const targetView = document.getElementById(`view-${tabId}`);
+  if (targetView) targetView.classList.add('active');
+
+  // Update Title & Subtitle
+  const titles = {
+    overview: { t: 'Dashboard', sub: 'Umumiy tizim holati, statistika va faolliklar' },
+    submissions: { t: 'Natijalar Bazasi', sub: 'O\'quvchilarning ishlagan barcha test javoblari va vaqtlari' },
+    users: { t: 'Foydalanuvchilar Bazasi', sub: 'Bot a\'zolari va o\'quvchilar ro\'yxati' },
+    tests: { t: 'Testlar Boshqaruvi', sub: 'Yaratilgan barcha milliy sertifikat va blok testlar' },
+    activity: { t: 'Jarayonlar & Audit', sub: 'Tizimda sodir bo\'lgan barcha hodisalar jurnali' },
+    database: { t: 'Baza & SQL Konsoli', sub: 'PostgreSQL Cloud ma\'lumotlar bazasi va to\'g\'ridan-to\'g\'ri so\'rovlar' }
+  };
+
+  const info = titles[tabId] || { t: 'Boshqaruv', sub: '' };
+  document.getElementById('page-title').textContent = info.t;
+  document.getElementById('page-subtitle').textContent = info.sub;
+
+  // Render view
+  renderCurrentView();
+}
+
+function renderCurrentView() {
+  if (State.activeTab === 'overview') renderOverview();
+  else if (State.activeTab === 'submissions') renderSubmissions();
+  else if (State.activeTab === 'users') renderUsers();
+  else if (State.activeTab === 'tests') renderTests();
+  else if (State.activeTab === 'activity') renderLogs();
+  else if (State.activeTab === 'database') renderDatabase();
+}
+
+// ----------------------------------------------------
+// DATA FETCHING (REAL-TIME)
+// ----------------------------------------------------
+async function fetchDashboardData(manual = false) {
+  try {
+    // 1. Overview & Stats
+    const resOverview = await fetch('/api/dashboard/overview');
+    if (resOverview.ok) {
+      const data = await resOverview.json();
+      if (data.success) {
+        State.overview = data.summary;
+        State.tests = data.tests || [];
+        updateHeaderAndBadges(data.summary);
+        if (State.activeTab === 'overview') {
+          renderOverviewData(data);
+        }
+      }
+    }
+
+    // 2. Fetch specific tab data if active
+    if (State.activeTab === 'submissions') {
+      await fetchSubmissionsData();
+    } else if (State.activeTab === 'users') {
+      await fetchUsersData();
+    } else if (State.activeTab === 'tests') {
+      await fetchTestsData();
+    } else if (State.activeTab === 'activity') {
+      await fetchLogsData();
+    }
+
+    if (manual) {
+      showToast('Ma\'lumotlar muvaffaqiyatli yangilandi! ⚡️', 'success');
+    }
+  } catch (err) {
+    console.error('Fetch error:', err);
+    if (manual) showToast('Bog\'lanishda xatolik yuz berdi', 'danger');
+  }
+}
+
+async function fetchSubmissionsData() {
+  const res = await fetch('/api/dashboard/submissions?limit=1500');
+  if (res.ok) {
+    const data = await res.json();
+    if (data.success) {
+      State.submissions = data.submissions || [];
+      renderSubmissions();
+      // Populate test filter dropdown
+      populateTestFilterDropdown();
+    }
+  }
+}
+
+async function fetchUsersData() {
+  const res = await fetch('/api/dashboard/users');
+  if (res.ok) {
+    const data = await res.json();
+    if (data.success) {
+      State.users = data.users || [];
+      renderUsers();
+    }
+  }
+}
+
+async function fetchTestsData() {
+  const res = await fetch('/api/dashboard/tests');
+  if (res.ok) {
+    const data = await res.json();
+    if (data.success) {
+      State.tests = data.tests || [];
+      renderTests();
+    }
+  }
+}
+
+async function fetchLogsData() {
+  const res = await fetch('/api/dashboard/logs?limit=150');
+  if (res.ok) {
+    const data = await res.json();
+    if (data.success) {
+      State.logs = data.logs || [];
+      renderLogs();
+    }
+  }
+}
+
+function updateHeaderAndBadges(summary) {
+  if (!summary) return;
+  document.getElementById('badge-submissions-count').textContent = summary.total_submissions || 0;
+  document.getElementById('badge-users-count').textContent = summary.total_users || 0;
+  document.getElementById('badge-tests-count').textContent = summary.total_tests || 0;
+
+  // Stat Cards in Overview
+  const elTotalUsers = document.getElementById('stat-total-users');
+  if (elTotalUsers) {
+    elTotalUsers.textContent = summary.total_users || 0;
+    document.getElementById('stat-approved-users').textContent = `${summary.approved_users || 0} faol`;
+    document.getElementById('stat-pending-users').textContent = `${summary.pending_users || 0} kutilmoqda`;
+    document.getElementById('stat-blocked-users').textContent = `${summary.blocked_users || 0} blok`;
+    
+    document.getElementById('stat-total-subs').textContent = summary.total_submissions || 0;
+    document.getElementById('stat-today-subs').textContent = `+${summary.today_submissions || 0} bugun`;
+    document.getElementById('stat-late-subs').textContent = `${summary.late_submissions || 0} kechikkan`;
+
+    document.getElementById('stat-avg-score').textContent = `${summary.avg_score || 0} ball`;
+    document.getElementById('stat-avg-corr').textContent = `${summary.avg_correct || 0} ta`;
+
+    document.getElementById('stat-total-tests').textContent = `${summary.total_tests || 0} ta`;
+    document.getElementById('stat-active-tests').textContent = `${summary.active_tests || 0} ta faol`;
+    
+    // DB Explorer counts
+    const elTblUsers = document.getElementById('db-tbl-users');
+    if (elTblUsers) elTblUsers.textContent = `${summary.total_users || 0} qator`;
+    const elTblSubs = document.getElementById('db-tbl-subs');
+    if (elTblSubs) elTblSubs.textContent = `${summary.total_submissions || 0} qator`;
+    const elTblTests = document.getElementById('db-tbl-tests');
+    if (elTblTests) elTblTests.textContent = `${summary.total_tests || 0} qator`;
+  }
+}
+
+// ----------------------------------------------------
+// OVERVIEW RENDERING
+// ----------------------------------------------------
+function renderOverview() {
+  fetchDashboardData();
+}
+
+function renderOverviewData(data) {
+  // Recent Submissions
+  const subsBody = document.getElementById('overview-recent-subs-body');
+  if (subsBody) {
+    const list = data.recent_submissions || [];
+    if (list.length === 0) {
+      subsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Natijalar mavjud emas</td></tr>';
+    } else {
+      subsBody.innerHTML = list.slice(0, 7).map(s => {
+        const usernameTag = s.username ? `<span style="color:var(--primary);font-size:11px;font-weight:700;">@${esc(s.username.replace(/^@/, ''))}</span>` : '';
+        const lateBadge = s.is_late == 1 ? '<span class="badge badge-warning" style="margin-left:4px;">⏰ Kech</span>' : '';
+        return `
+          <tr>
+            <td>
+              <div style="font-weight:700;font-size:13.5px;">${esc(s.fullname || 'Foydalanuvchi')}</div>
+              ${usernameTag}
+            </td>
+            <td><b style="color:var(--text-main);">#${esc(s.test_code || '')}</b></td>
+            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">${esc(s.submitted_at_fmt || '')}</td>
+            <td>
+              <span style="font-weight:800;color:var(--success);">${s.correct_count || 0} / ${s.total_count || 55}</span>
+              ${lateBadge}
+            </td>
+            <td><b style="color:var(--primary);font-size:14px;">${s.score || 0} ball</b></td>
+            <td>
+              <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">Ko'rish 👁</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // Activity Logs List
+  const logsContainer = document.getElementById('overview-activity-list');
+  if (logsContainer) {
+    const logs = data.activity_logs || [];
+    if (logs.length === 0) {
+      logsContainer.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Faolliklar yo\'q</div>';
+    } else {
+      logsContainer.innerHTML = logs.slice(0, 10).map(l => {
+        const usernameTag = l.username ? ` (@${esc(l.username.replace(/^@/, ''))})` : '';
+        return `
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
+              ${l.type === 'submission' ? '🏆' : (l.type === 'late_submission' ? '⏰' : '👤')}
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:12.5px;font-weight:700;color:var(--text-main);">${esc(l.title)}</div>
+              <div style="font-size:11.5px;color:var(--text-muted);margin-top:1px;">
+                ${esc(l.user_name || '')}${usernameTag}
+              </div>
+              <div style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-dim);margin-top:2px;">
+                ${esc(l.time_fmt || '')}
+              </div>
+            </div>
+            <span class="badge badge-${l.badge_color || 'info'}" style="font-size:10px;">${esc(l.badge || '')}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+}
+
+// ----------------------------------------------------
+// SUBMISSIONS RENDERING & FILTERING
+// ----------------------------------------------------
+function setSubmissionsFilter(filter, btn) {
+  State.submissionsFilter = filter;
+  if (btn && btn.parentElement) {
+    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  renderSubmissions();
+}
+
+function filterSubmissionsByTest(testCode) {
+  State.submissionsTestFilter = testCode;
+  renderSubmissions();
+}
+
+function populateTestFilterDropdown() {
+  const sel = document.getElementById('filter-test-select');
+  if (!sel) return;
+  const codes = [...new Set(State.submissions.map(s => String(s.test_code)).filter(Boolean))];
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Barcha testlar</option>' + 
+    codes.map(c => `<option value="${esc(c)}" ${cur === c ? 'selected' : ''}>#${esc(c)} testi</option>`).join('');
+}
+
+function renderSubmissions() {
+  const body = document.getElementById('submissions-table-body');
+  if (!body) return;
+
+  const q = State.globalSearch.toLowerCase().trim();
+  const cleanQ = q.replace(/^@+/, '').trim();
+
+  let filtered = State.submissions.filter(s => {
+    // 1. Status filter
+    if (State.submissionsFilter === 'ontime' && s.is_late == 1) return false;
+    if (State.submissionsFilter === 'late' && s.is_late != 1) return false;
+
+    // 2. Test filter
+    if (State.submissionsTestFilter && String(s.test_code) !== String(State.submissionsTestFilter)) return false;
+
+    // 3. Search query
+    if (q) {
+      const uName = (s.username || '').toLowerCase().replace(/^@+/, '').trim();
+      const fn = (s.fullname || '').toLowerCase();
+      const code = String(s.test_code || '').toLowerCase();
+      const idStr = String(s.user_tg_id || '');
+      const match = fn.includes(q) || fn.includes(cleanQ) || (uName && (uName.includes(cleanQ) || ('@' + uName).includes(q))) || code.includes(cleanQ) || idStr.includes(cleanQ);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const countBadge = document.getElementById('submissions-count-badge');
+  if (countBadge) countBadge.textContent = `${filtered.length} ta`;
+
+  if (filtered.length === 0) {
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">Qidiruv bo\'yicha hech narsa topilmadi</td></tr>';
+    return;
+  }
+
+  body.innerHTML = filtered.map((s, idx) => {
+    const usernameTag = s.username ? `<span style="color:var(--primary);font-size:11.5px;font-weight:700;">@${esc(s.username.replace(/^@/, ''))}</span>` : '<span style="color:var(--text-dim);font-size:11px;">—</span>';
+    
+    // Status Badge
+    let stBadge = '';
+    if (s.is_late == 1) {
+      stBadge = '<span class="badge badge-warning">⏰ Kechikkan</span>';
+    } else {
+      stBadge = '<span class="badge badge-success">✅ O\'z vaqtida</span>';
+    }
+
+    // Grade Badge
+    const gr = s.grade || '—';
+    let grColor = 'purple';
+    if (gr === 'A+' || gr === 'A') grColor = 'success';
+    else if (gr === 'B+' || gr === 'B') grColor = 'info';
+    else if (gr === 'C+' || gr === 'C') grColor = 'warning';
+
+    return `
+      <tr>
+        <td style="color:var(--text-dim);font-family:var(--font-mono);">${idx + 1}</td>
+        <td>
+          <div style="font-weight:700;font-size:13.5px;">${esc(s.fullname || 'Foydalanuvchi')}</div>
+          <div style="font-size:11px;color:var(--text-dim);font-family:var(--font-mono);">ID: ${s.user_tg_id}</div>
+        </td>
+        <td>${usernameTag}</td>
+        <td><span class="badge badge-info" style="font-family:var(--font-mono);font-size:11.5px;">#${esc(s.test_code || '')}</span></td>
+        <td style="font-family:var(--font-mono);font-size:12.5px;color:var(--text-main);font-weight:600;">
+          ${esc(s.submitted_at_fmt || '—')}
+        </td>
+        <td>
+          <b style="color:var(--success);font-size:13px;">${s.correct_count || 0}</b>
+          <span style="color:var(--text-muted);font-size:11px;">/ ${s.total_count || 55}</span>
+        </td>
+        <td><b style="color:var(--primary);font-size:14.5px;">${s.score || 0} ball</b></td>
+        <td><span class="badge badge-${grColor}">${esc(gr)}</span></td>
+        <td>${stBadge}</td>
+        <td style="text-align:right;">
+          <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">
+            Ko'rish 👁
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ----------------------------------------------------
+// USERS RENDERING & FILTERING
+// ----------------------------------------------------
+function setUsersFilter(filter, btn) {
+  State.usersFilter = filter;
+  if (btn && btn.parentElement) {
+    btn.parentElement.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  renderUsers();
+}
+
+function renderUsers() {
+  const body = document.getElementById('users-table-body');
+  if (!body) return;
+
+  const q = State.globalSearch.toLowerCase().trim();
+  const cleanQ = q.replace(/^@+/, '').trim();
+
+  let filtered = State.users.filter(u => {
+    // 1. Status Filter
+    const st = (u.status || 'pending').toLowerCase();
+    if (State.usersFilter === 'approved' && st !== 'approved') return false;
+    if (State.usersFilter === 'pending' && st !== 'pending') return false;
+    if (State.usersFilter === 'blocked' && st !== 'blocked') return false;
+
+    // 2. Search query
+    if (q) {
+      const uName = (u.username || '').toLowerCase().replace(/^@+/, '').trim();
+      const fn = (u.fullname || '').toLowerCase();
+      const ph = (u.phone || '').toLowerCase();
+      const idStr = String(u.tg_id || '');
+      const match = fn.includes(q) || fn.includes(cleanQ) || (uName && (uName.includes(cleanQ) || ('@' + uName).includes(q))) || ph.includes(cleanQ) || idStr.includes(cleanQ);
+      if (!match) return false;
+    }
+    return true;
+  });
+
+  const countBadge = document.getElementById('users-count-badge');
+  if (countBadge) countBadge.textContent = `${filtered.length} nafar`;
+
+  if (filtered.length === 0) {
+    body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">Foydalanuvchilar topilmadi</td></tr>';
+    return;
+  }
+
+  body.innerHTML = filtered.map(u => {
+    const usernameTag = u.username ? `<span style="color:var(--primary);font-size:12px;font-weight:700;">@${esc(u.username.replace(/^@/, ''))}</span>` : '<span style="color:var(--text-dim);">—</span>';
+    
+    // Status Badge
+    let stBadge = '';
+    const st = (u.status || 'pending').toLowerCase();
+    if (st === 'approved') stBadge = '<span class="badge badge-success">✅ Faol</span>';
+    else if (st === 'pending') stBadge = '<span class="badge badge-warning">⏳ Kutilmoqda</span>';
+    else if (st === 'blocked') stBadge = '<span class="badge badge-danger">⛔️ Bloklangan</span>';
+
+    return `
+      <tr>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);">${u.tg_id}</td>
+        <td><div style="font-weight:700;font-size:14px;">${esc(u.fullname || 'Foydalanuvchi')}</div></td>
+        <td>${usernameTag}</td>
+        <td style="font-size:12.5px;color:var(--text-muted);">${esc(u.phone || '—')}</td>
+        <td>${stBadge}</td>
+        <td style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);">${esc(u.registered_at_fmt || '—')}</td>
+        <td><b style="color:var(--primary);font-size:13px;">${u.tests_count || 0} ta</b></td>
+        <td style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);">${esc(u.last_test_at_fmt || '—')}</td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex;gap:6px;">
+            ${st !== 'approved' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'approve')">✅ Faol</button>` : ''}
+            ${st !== 'blocked' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'block')">⛔️ Blok</button>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="changeUserStatus(${u.tg_id}, 'delete')">🗑 O'chirish</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ----------------------------------------------------
+// TESTS RENDERING & ACTIONS
+// ----------------------------------------------------
+function renderTests() {
+  const body = document.getElementById('tests-table-body');
+  if (!body) return;
+
+  const list = State.tests || [];
+  if (list.length === 0) {
+    body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">Mavjud testlar topilmadi</td></tr>';
+    return;
+  }
+
+  body.innerHTML = list.map(t => {
+    const isAct = t.is_active == 1;
+    const isPub = t.results_published == 1;
+
+    return `
+      <tr>
+        <td><b style="color:var(--primary);font-size:14px;font-family:var(--font-mono);">#${esc(t.test_code || '')}</b></td>
+        <td><div style="font-weight:700;font-size:14px;">${esc(t.title || 'Test')}</div></td>
+        <td>${esc(t.subject || 'Matematika')}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${esc(t.scheduled_date || '')} ${esc(t.scheduled_start || '')}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;">${esc(t.scheduled_end || '')}</td>
+        <td><b>${t.total_questions || 55} ta</b></td>
+        <td><b style="color:var(--success);font-size:13.5px;">${t.submissions_count || 0} kishi</b></td>
+        <td>
+          <span class="badge badge-${isAct ? 'success' : 'danger'}">
+            ${isAct ? '🟢 Faol (Ochiq)' : '🔴 To\'xtatilgan'}
+          </span>
+        </td>
+        <td>
+          <span class="badge badge-${isPub ? 'success' : 'warning'}">
+            ${isPub ? '📢 E\'lon qilingan' : '🔒 Yashirin'}
+          </span>
+        </td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex;gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="toggleTestStatus(${t.id})">
+              ${isAct ? '⏸ To\'xtatish' : '▶️ Yoqish'}
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleTestPublish(${t.id})">
+              ${isPub ? 'Yashirish' : 'E\'lon qilish'}
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ----------------------------------------------------
+// ACTIVITY LOGS RENDERING
+// ----------------------------------------------------
+function renderLogs() {
+  const body = document.getElementById('activity-table-body');
+  if (!body) return;
+
+  const list = State.logs || [];
+  if (list.length === 0) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Faolliklar jurnali bo\'sh</td></tr>';
+    return;
+  }
+
+  body.innerHTML = list.map(l => {
+    const un = l.username ? ` (@${esc(l.username.replace(/^@/, ''))})` : '';
+    return `
+      <tr>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);font-weight:600;">${esc(l.time_fmt || '—')}</td>
+        <td>
+          <span class="badge badge-${l.badge_color || 'info'}">${esc(l.type || 'hodisa')}</span>
+        </td>
+        <td>
+          <div style="font-weight:700;">${esc(l.user_name || 'Foydalanuvchi')}</div>
+          <div style="font-size:11px;color:var(--text-dim);">${un} (ID: ${l.user_id})</div>
+        </td>
+        <td><div style="font-size:13px;color:var(--text-main);">${esc(l.title || '')}</div></td>
+        <td><b style="color:var(--primary);font-size:12px;">${esc(l.badge || '')}</b></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ----------------------------------------------------
+// DATABASE & SQL CONSOLE
+// ----------------------------------------------------
+function renderDatabase() {
+  fetchDashboardData();
+}
+
+async function runSqlConsoleQuery() {
+  const input = document.getElementById('sql-query-input');
+  const resContainer = document.getElementById('sql-result-container');
+  if (!input || !resContainer) return;
+
+  const q = input.value.trim();
+  if (!q) return;
+
+  resContainer.innerHTML = '<div style="color:var(--text-muted);padding:10px;">So\'rov bajarilmoqda...</div>';
+
+  try {
+    const res = await fetch('/api/dashboard/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: q })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      resContainer.innerHTML = `<div style="color:var(--danger);padding:10px;font-family:var(--font-mono);background:rgba(239,68,68,0.1);border-radius:6px;">Xatolik: ${esc(data.error || 'Noma\'lum xatolik')}</div>`;
+      return;
+    }
+
+    const rows = data.rows || [];
+    if (rows.length === 0) {
+      resContainer.innerHTML = '<div style="color:var(--text-muted);padding:10px;">Natija topilmadi (0 qator).</div>';
+      return;
+    }
+
+    const cols = Object.keys(rows[0]);
+    let tableHtml = `
+      <div style="margin-bottom:8px;font-size:12px;color:var(--text-muted);">Qaytarildi: <b>${rows.length} ta qator</b></div>
+      <table class="mac-table" style="font-size:12px;">
+        <thead>
+          <tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `<tr>${cols.map(c => `<td style="font-family:var(--font-mono);">${esc(String(r[c] !== null ? r[c] : 'NULL'))}</td>`).join('')}</tr>`).join('')}
+        </tbody>
+      </table>
+    `;
+    resContainer.innerHTML = tableHtml;
+  } catch (e) {
+    resContainer.innerHTML = `<div style="color:var(--danger);padding:10px;">Server xatosi: ${esc(String(e))}</div>`;
+  }
+}
+
+// ----------------------------------------------------
+// SUBMISSION DETAILS MODAL
+// ----------------------------------------------------
+async function openSubmissionModal(subId) {
+  const modal = document.getElementById('submission-modal');
+  if (!modal) return;
+  modal.classList.add('open');
+
+  document.getElementById('modal-sub-title').textContent = 'Yuklanmoqda...';
+  document.getElementById('modal-sub-answers-grid').innerHTML = '<div style="color:var(--text-muted);padding:20px;">Yuklanmoqda...</div>';
+
+  try {
+    const res = await fetch(`/api/dashboard/submission/${subId}`);
+    if (!res.ok) throw new Error('Not found');
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    const s = data.submission;
+    State.currentModalSubmission = s;
+
+    const un = s.username ? ` (@${esc(s.username.replace(/^@/, ''))})` : '';
+    document.getElementById('modal-sub-title').textContent = `${s.fullname || 'O\'quvchi'}${un} — #${s.test_code} Natijasi`;
+    document.getElementById('modal-sub-time').textContent = `Topshirilgan vaqt: ${s.submitted_at_fmt || '—'}`;
+    document.getElementById('modal-sub-score').textContent = `${s.score || 0} ball`;
+    document.getElementById('modal-sub-correct').textContent = `${s.correct_count || 0} / ${s.total_count || 55}`;
+    document.getElementById('modal-sub-grade').textContent = s.grade || '—';
+
+    // Late badge & Late decision box
+    const lateBadgeEl = document.getElementById('modal-sub-late-badge');
+    const lateBox = document.getElementById('modal-sub-late-box');
+    if (s.is_late == 1) {
+      lateBadgeEl.innerHTML = '<span class="badge badge-warning">⏰ Kechikkan</span>';
+      if (lateBox) lateBox.style.display = 'block';
+    } else {
+      lateBadgeEl.innerHTML = '<span class="badge badge-success">✅ O\'z vaqtida</span>';
+      if (lateBox) lateBox.style.display = 'none';
+    }
+
+    // Question-by-question breakdown
+    renderSubmissionAnswersGrid(s);
+  } catch (err) {
+    document.getElementById('modal-sub-answers-grid').innerHTML = `<div style="color:var(--danger);padding:20px;">Xatolik: ${esc(String(err))}</div>`;
+  }
+}
+
+function renderSubmissionAnswersGrid(s) {
+  const grid = document.getElementById('modal-sub-answers-grid');
+  if (!grid) return;
+
+  const details = s.details || {};
+  const userAnswers = s.answers || {};
+
+  // Build list of keys: 1..35, 36a..45b
+  const keys = [];
+  for (let i = 1; i <= 35; i++) keys.push(String(i));
+  for (let i = 36; i <= 45; i++) {
+    keys.push(`${i}a`);
+    keys.push(`${i}b`);
+  }
+
+  let html = '';
+  keys.forEach(k => {
+    const qInfo = details[k] || {};
+    const uVal = qInfo.user !== undefined ? qInfo.user : (userAnswers[k] || '');
+    const cVal = qInfo.correct !== undefined ? qInfo.correct : '';
+    const status = qInfo.status || (uVal ? 'incorrect' : 'unanswered');
+
+    let statusClass = 'unanswered';
+    let statusLabel = '—';
+    if (status === 'correct') {
+      statusClass = 'correct';
+      statusLabel = '✓ To\'g\'ri';
+    } else if (status === 'incorrect') {
+      statusClass = 'incorrect';
+      statusLabel = '✗ Noto\'g\'ri';
+    }
+
+    html += `
+      <div class="answer-card ${statusClass}">
+        <div style="display:flex;justify-content:space-between;font-weight:700;">
+          <span>${k}-savol</span>
+          <span style="font-size:10px;">${statusLabel}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-main);">
+          Javob: <b>${esc(uVal || 'Belgilanmagan')}</b>
+        </div>
+        <div style="font-size:10.5px;color:var(--text-muted);">
+          Kalit: <span style="color:var(--primary);font-weight:700;">${esc(cVal || '—')}</span>
+        </div>
+      </div>
+    `;
+  });
+
+  grid.innerHTML = html;
+}
+
+function closeSubmissionModal() {
+  const modal = document.getElementById('submission-modal');
+  if (modal) modal.classList.remove('open');
+  State.currentModalSubmission = null;
+}
+
+async function handleModalLateAction(action) {
+  if (!State.currentModalSubmission) return;
+  const subId = State.currentModalSubmission.id;
+
+  try {
+    const res = await fetch('/api/dashboard/late-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ submission_id: subId, action: action })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || 'Muvaffaqiyatli bajarildi', 'success');
+      closeSubmissionModal();
+      fetchDashboardData();
+    } else {
+      showToast(data.error || 'Xatolik', 'danger');
+    }
+  } catch (e) {
+    showToast('Server bilan bog\'lanishda xatolik', 'danger');
+  }
+}
+
+// ----------------------------------------------------
+// ACTIONS (USER, TEST)
+// ----------------------------------------------------
+async function changeUserStatus(userId, action) {
+  const confirmMsg = action === 'delete' 
+    ? 'Haqiqatan ham bu foydalanuvchini bazadan butunlay o\'chirmoqchimisiz?' 
+    : (action === 'block' ? 'Foydalanuvchini bloklamoqchimisiz?' : 'Foydalanuvchini tasdiqlaysizmi?');
+
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch('/api/dashboard/user-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, action: action })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message, 'success');
+      fetchUsersData();
+      fetchDashboardData();
+    } else {
+      showToast(data.error || 'Xatolik', 'danger');
+    }
+  } catch (e) {
+    showToast('Xatolik yuz berdi', 'danger');
+  }
+}
+
+async function toggleTestStatus(testId) {
+  try {
+    const res = await fetch('/api/dashboard/test-toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ test_id: testId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message, 'success');
+      fetchTestsData();
+      fetchDashboardData();
+    }
+  } catch (e) {
+    showToast('Xatolik', 'danger');
+  }
+}
+
+async function toggleTestPublish(testId) {
+  try {
+    const res = await fetch('/api/dashboard/test-publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ test_id: testId })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message, 'success');
+      fetchTestsData();
+      fetchDashboardData();
+    }
+  } catch (e) {
+    showToast('Xatolik', 'danger');
+  }
+}
+
+// ----------------------------------------------------
+// CSV EXPORT
+// ----------------------------------------------------
+function exportCurrentTable() {
+  if (State.activeTab === 'submissions') {
+    exportSubmissionsToCSV();
+  } else if (State.activeTab === 'users') {
+    exportUsersToCSV();
+  } else {
+    showToast('Hozirgi bo\'lim eksportini tanlash uchun Natijalar yoki Foydalanuvchilar bo\'limiga o\'ting.', 'info');
+  }
+}
+
+function exportSubmissionsToCSV() {
+  if (!State.submissions || State.submissions.length === 0) {
+    showToast('Eksport qilish uchun natijalar yo\'q', 'warning');
+    return;
+  }
+  let csv = 'ID,Foydalanuvchi,Username,Telefon,Test Kodi,Topshirilgan Vaqt,Togri Javoblar,Jami Savollar,Ball,Daraja,Kechikkan\n';
+  State.submissions.forEach(s => {
+    const fn = (s.fullname || '').replace(/,/g, ' ');
+    const un = (s.username || '').replace(/,/g, ' ');
+    const ph = (s.phone || '').replace(/,/g, ' ');
+    csv += `${s.id},"${fn}","${un}","${ph}",#${s.test_code},"${s.submitted_at_fmt || ''}",${s.correct_count || 0},${s.total_count || 55},${s.score || 0},"${s.grade || ''}",${s.is_late == 1 ? 'HA' : 'YOQ'}\n`;
+  });
+  downloadFile(csv, `natijalar_baza_${Date.now()}.csv`, 'text/csv;charset=utf-8;');
+  showToast('Natijalar CSV fayli yuklab olindi! 📥', 'success');
+}
+
+function exportUsersToCSV() {
+  if (!State.users || State.users.length === 0) {
+    showToast('Eksport qilish uchun foydalanuvchilar yo\'q', 'warning');
+    return;
+  }
+  let csv = 'Telegram ID,Foydalanuvchi Ismi,Username,Telefon,Holati,Qoshilgan Vaqt,Testlar Soni\n';
+  State.users.forEach(u => {
+    const fn = (u.fullname || '').replace(/,/g, ' ');
+    const un = (u.username || '').replace(/,/g, ' ');
+    const ph = (u.phone || '').replace(/,/g, ' ');
+    csv += `${u.tg_id},"${fn}","${un}","${ph}","${u.status || ''}","${u.registered_at_fmt || ''}",${u.tests_count || 0}\n`;
+  });
+  downloadFile(csv, `foydalanuvchilar_baza_${Date.now()}.csv`, 'text/csv;charset=utf-8;');
+  showToast('Foydalanuvchilar CSV fayli yuklab olindi! 📥', 'success');
+}
+
+function downloadFile(content, fileName, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ----------------------------------------------------
+// AUTO-REFRESH & THEME & SHORTCUTS
+// ----------------------------------------------------
+function toggleAutoRefresh() {
+  State.autoRefresh = !State.autoRefresh;
+  const label = document.getElementById('refresh-label');
+  const icon = document.getElementById('refresh-icon');
+  if (State.autoRefresh) {
+    startAutoRefresh();
+    if (label) label.textContent = 'Jonli (10s)';
+    if (icon) icon.textContent = '⚡️';
+    showToast('Avtomatik yangilanish yoqildi (har 10s)', 'success');
+  } else {
+    stopAutoRefresh();
+    if (label) label.textContent = 'To\'xtatilgan';
+    if (icon) icon.textContent = '⏸';
+    showToast('Avtomatik yangilanish to\'xtatildi', 'info');
+  }
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  State.refreshTimer = setInterval(() => {
+    if (State.autoRefresh) {
+      fetchDashboardData();
+    }
+  }, 10000);
+}
+
+function stopAutoRefresh() {
+  if (State.refreshTimer) {
+    clearInterval(State.refreshTimer);
+    State.refreshTimer = null;
+  }
+}
+
+function toggleTheme() {
+  const html = document.documentElement;
+  const cur = html.getAttribute('data-theme') || 'dark';
+  const nxt = cur === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', nxt);
+  document.getElementById('btn-theme-toggle').textContent = nxt === 'dark' ? '🌙' : '☀️';
+  showToast(`Rejim o'zgartirildi: ${nxt === 'dark' ? 'Qorong\'u' : 'Yorug'}`, 'info');
+}
+
+function handleGlobalSearch(val) {
+  State.globalSearch = val || '';
+  if (State.activeTab === 'submissions') renderSubmissions();
+  else if (State.activeTab === 'users') renderUsers();
+}
+
+function setupKeyboardShortcuts() {
+  window.addEventListener('keydown', (e) => {
+    // Cmd+K or Ctrl+K to focus search
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      const inp = document.getElementById('global-search-input');
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+    }
+    // Cmd+R to refresh data
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      fetchDashboardData(true);
+    }
+    // Escape to close modals
+    if (e.key === 'Escape') {
+      closeSubmissionModal();
+    }
+    // Cmd+1..6 tab switching
+    if ((e.metaKey || e.ctrlKey) && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
+      e.preventDefault();
+      const tabs = ['overview', 'submissions', 'users', 'tests', 'activity', 'database'];
+      const idx = parseInt(e.key) - 1;
+      if (tabs[idx]) switchDashboardTab(tabs[idx]);
+    }
+  });
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+function closeDashboardWindow() {
+  if (confirm('Boshqaruv panelini yopmoqchimisiz?')) {
+    window.close();
+  }
+}
+
+function minimizeDashboardWindow() {
+  showToast('MacBook oynasi kichraytirildi (Dock rejimi)', 'info');
+}
+
+// ----------------------------------------------------
+// TOAST NOTIFICATIONS
+// ----------------------------------------------------
+function showToast(msg, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const t = document.createElement('div');
+  t.className = 'mac-toast';
+  
+  let icon = 'ℹ️';
+  let color = 'var(--info)';
+  if (type === 'success') { icon = '✅'; color = 'var(--success)'; }
+  else if (type === 'danger') { icon = '🚫'; color = 'var(--danger)'; }
+  else if (type === 'warning') { icon = '⚠️'; color = 'var(--warning)'; }
+
+  t.style.borderLeft = `4px solid ${color}`;
+  t.innerHTML = `<span style="font-size:16px;">${icon}</span><span style="flex:1;">${esc(msg)}</span>`;
+  container.appendChild(t);
+
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateY(10px)';
+    t.style.transition = 'all 0.3s ease';
+    setTimeout(() => t.remove(), 300);
+  }, 3200);
+}
+
+// Helper: Escape HTML
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}

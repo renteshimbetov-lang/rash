@@ -2343,6 +2343,223 @@ def update_test_keys(test_id: int, new_answers: Dict[str, Any],
     }
 
 
+# ──────────────────────────────────────────────────────────
+# MACBOOK DASHBOARD / ADMIN APIS
+# ──────────────────────────────────────────────────────────
+
+def _fetch_scalar(row, key: str = "cnt") -> Any:
+    if row is None:
+        return 0
+    if isinstance(row, dict):
+        return row.get(key, list(row.values())[0]) if row else 0
+    return row[0]
+
+
+def get_dashboard_summary() -> Dict[str, Any]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        
+        # Foydalanuvchilar
+        cur.execute("SELECT COUNT(*) as cnt FROM users")
+        total_users = _fetch_scalar(cur.fetchone())
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE status = 'approved'")
+        approved_users = _fetch_scalar(cur.fetchone())
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE status = 'pending'")
+        pending_users = _fetch_scalar(cur.fetchone())
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE status = 'blocked'")
+        blocked_users = _fetch_scalar(cur.fetchone())
+        
+        # Testlar
+        cur.execute("SELECT COUNT(*) as cnt FROM tests")
+        total_tests = _fetch_scalar(cur.fetchone())
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM tests WHERE is_active = 1")
+        active_tests = _fetch_scalar(cur.fetchone())
+        
+        # Topshirilgan ishlar
+        cur.execute("SELECT COUNT(*) as cnt FROM submissions")
+        total_submissions = _fetch_scalar(cur.fetchone())
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM submissions WHERE is_late = 1")
+        late_submissions = _fetch_scalar(cur.fetchone())
+        
+        # Bugungi topshirilganlar (Toshkent vaqti bilan bugun)
+        now_ts = int(time.time())
+        today_midnight = now_ts - (now_ts % 86400) - (5 * 3600)
+        if today_midnight > now_ts:
+            today_midnight -= 86400
+        cur.execute(f"SELECT COUNT(*) as cnt FROM submissions WHERE submitted_at >= {_ph()}", (today_midnight,))
+        today_submissions = _fetch_scalar(cur.fetchone())
+        
+        # O'rtacha ball
+        cur.execute("SELECT AVG(score) as cnt FROM submissions WHERE score IS NOT NULL")
+        avg_row = cur.fetchone()
+        avg_score_raw = _fetch_scalar(avg_row)
+        avg_score = round(float(avg_score_raw), 1) if avg_score_raw is not None else 0.0
+        
+        # O'rtacha to'g'ri javoblar
+        cur.execute("SELECT AVG(correct_count) as cnt FROM submissions WHERE correct_count IS NOT NULL")
+        avg_corr_row = cur.fetchone()
+        avg_corr_raw = _fetch_scalar(avg_corr_row)
+        avg_correct = round(float(avg_corr_raw), 1) if avg_corr_raw is not None else 0.0
+
+        return {
+            "total_users": total_users,
+            "approved_users": approved_users,
+            "pending_users": pending_users,
+            "blocked_users": blocked_users,
+            "total_tests": total_tests,
+            "active_tests": active_tests,
+            "total_submissions": total_submissions,
+            "today_submissions": today_submissions,
+            "late_submissions": late_submissions,
+            "avg_score": avg_score,
+            "avg_correct": avg_correct,
+            "db_type": "PostgreSQL (Neon Cloud)" if USE_POSTGRES else "SQLite (Local)"
+        }
+    finally:
+        _close_conn(conn)
+
+
+def get_all_submissions_for_admin(limit: int = 1000) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT s.id, s.test_id, s.test_code, s.user_tg_id, s.fullname, s.phone,
+               s.score, s.max_score, s.correct_count, s.total_count,
+               s.submitted_at, s.is_late,
+               u.username, u.status as user_status,
+               t.title as test_title, t.subject as test_subject,
+               t.results_published, t.is_active as test_is_active
+        FROM submissions s
+        LEFT JOIN users u ON s.user_tg_id = u.tg_id
+        LEFT JOIN tests t ON s.test_id = t.id
+        ORDER BY s.submitted_at DESC
+        LIMIT {int(limit)}
+        """)
+        rows = cur.fetchall()
+        results = []
+        for r in rows:
+            d = _row_to_dict(r)
+            if not d:
+                continue
+            d["grade"] = calculate_grade(d.get("score", 0), correct_count=d.get("correct_count", 0))
+            results.append(d)
+        return results
+    finally:
+        _close_conn(conn)
+
+
+def get_submission_details_for_admin(sub_id: int) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT s.*, u.username, u.status as user_status,
+               t.title as test_title, t.subject as test_subject, t.answers_json as test_keys_json
+        FROM submissions s
+        LEFT JOIN users u ON s.user_tg_id = u.tg_id
+        LEFT JOIN tests t ON s.test_id = t.id
+        WHERE s.id = {_ph()}
+        """, (sub_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        d = _row_to_dict(row)
+        d["grade"] = calculate_grade(d.get("score", 0), correct_count=d.get("correct_count", 0))
+        return d
+    finally:
+        _close_conn(conn)
+
+
+def get_activity_logs(limit: int = 60) -> List[Dict[str, Any]]:
+    """Tizimdagi so'nggi jarayonlar va voqealar xronologiyasi."""
+    events = []
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        # 1. So'nggi topshirilgan testlar
+        cur.execute(f"""
+        SELECT s.id, s.user_tg_id, s.fullname, s.submitted_at, s.score, s.correct_count, s.is_late,
+               s.test_code, t.title as test_title, u.username
+        FROM submissions s
+        LEFT JOIN tests t ON s.test_id = t.id
+        LEFT JOIN users u ON s.user_tg_id = u.tg_id
+        ORDER BY s.submitted_at DESC
+        LIMIT {int(limit)}
+        """)
+        for r in cur.fetchall():
+            d = _row_to_dict(r)
+            if d:
+                events.append({
+                    "type": "late_submission" if d.get("is_late") else "submission",
+                    "time": d.get("submitted_at"),
+                    "title": f"Test topshirildi: {d.get('test_title') or '#' + str(d.get('test_code'))}",
+                    "user_name": d.get("fullname"),
+                    "username": d.get("username"),
+                    "user_id": d.get("user_tg_id"),
+                    "badge": f"{d.get('correct_count', 0)} to'g'ri • {d.get('score', 0)} ball" + (" (Kech)" if d.get("is_late") else ""),
+                    "badge_color": "warning" if d.get("is_late") else "success",
+                    "data_id": d.get("id")
+                })
+        
+        # 2. So'nggi ro'yxatdan o'tgan foydalanuvchilar
+        cur.execute(f"""
+        SELECT id, tg_id, fullname, username, phone, status, registered_at
+        FROM users
+        ORDER BY registered_at DESC
+        LIMIT {int(limit // 2)}
+        """)
+        for r in cur.fetchall():
+            d = _row_to_dict(r)
+            if d:
+                events.append({
+                    "type": "registration",
+                    "time": d.get("registered_at"),
+                    "title": "Yangi foydalanuvchi qo'shildi",
+                    "user_name": d.get("fullname"),
+                    "username": d.get("username"),
+                    "user_id": d.get("tg_id"),
+                    "badge": d.get("status", "approved").capitalize(),
+                    "badge_color": "danger" if d.get("status") == "blocked" else ("warning" if d.get("status") == "pending" else "info"),
+                    "data_id": d.get("id")
+                })
+
+        # Vaqt bo'yicha kamayish tartibida saralash
+        events.sort(key=lambda x: x.get("time") or 0, reverse=True)
+        return events[:limit]
+    finally:
+        _close_conn(conn)
+
+
+def execute_admin_safe_query(query: str, limit: int = 100) -> Dict[str, Any]:
+    """Admin uchun xavfsiz SELECT so'rovlarini bajarish."""
+    q = (query or "").strip()
+    if not q.lower().startswith("select"):
+        return {"success": False, "error": "Faqat SELECT so'rovlarini bajarish mumkin!"}
+    
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(q)
+        rows = cur.fetchmany(limit)
+        results = [_row_to_dict(r) for r in rows if r]
+        return {
+            "success": True,
+            "count": len(results),
+            "rows": results
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        _close_conn(conn)
+
+
 # Baza inicializatsiyasi
 init_db()
 

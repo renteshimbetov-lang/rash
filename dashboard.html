@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="uz" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shohruh Matematika — Admin Dashboard (MacBook)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/dashboard.css?v=20260928_mac1">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+
+  <!-- MacBook Desktop App Window Shell -->
+  <div class="mac-window" id="mac-window">
+
+    <!-- Top Window Titlebar -->
+    <header class="window-header">
+      <div class="traffic-lights">
+        <div class="t-dot t-red" onclick="closeDashboardWindow()" title="Yopish"></div>
+        <div class="t-dot t-yellow" onclick="minimizeDashboardWindow()" title="Kichraytirish"></div>
+        <div class="t-dot t-green" onclick="toggleFullscreen()" title="To'liq ekran"></div>
+      </div>
+
+      <div class="window-title">
+        <span></span>
+        <span>Shohruh Matematika</span>
+        <span style="opacity:0.4;">|</span>
+        <span style="font-weight:600;color:var(--text-muted);">Admin Boshqaruv Markazi</span>
+      </div>
+
+      <div class="window-controls-right">
+        <div class="status-indicator" id="db-status-indicator">
+          <span class="dot"></span>
+          <span id="db-status-text">Neon PostgreSQL Online</span>
+        </div>
+
+        <button class="header-btn" onclick="toggleAutoRefresh()" id="btn-auto-refresh" title="Avtomatik yangilanish">
+          <span id="refresh-icon">⚡️</span>
+          <span id="refresh-label">Jonli (10s)</span>
+        </button>
+
+        <button class="header-btn" onclick="fetchDashboardData(true)" title="Qayta yuklash (Cmd+R)">
+          🔄 Yangilash
+        </button>
+
+        <button class="header-btn" onclick="toggleTheme()" id="btn-theme-toggle" title="Yorug'/Qorong'u mavzu">
+          🌙
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <div class="app-container">
+
+      <!-- Left macOS Sidebar -->
+      <aside class="app-sidebar">
+        <div>
+          <div class="sidebar-brand">
+            <div class="sidebar-brand-logo">📐</div>
+            <div class="sidebar-brand-text">
+              <h2>Shohruh Test</h2>
+              <span>MacBook Desktop Pro</span>
+            </div>
+          </div>
+
+          <div class="nav-group-title">Boshqaruv</div>
+          <nav class="sidebar-nav">
+            <a class="nav-item active" data-tab="overview" onclick="switchDashboardTab('overview')">
+              <div class="nav-item-left">
+                <span class="nav-icon">📊</span>
+                <span>Dashboard</span>
+              </div>
+            </a>
+
+            <a class="nav-item" data-tab="submissions" onclick="switchDashboardTab('submissions')">
+              <div class="nav-item-left">
+                <span class="nav-icon">🏆</span>
+                <span>Natijalar Bazasi</span>
+              </div>
+              <span class="nav-badge" id="badge-submissions-count">0</span>
+            </a>
+
+            <a class="nav-item" data-tab="users" onclick="switchDashboardTab('users')">
+              <div class="nav-item-left">
+                <span class="nav-icon">👥</span>
+                <span>Foydalanuvchilar</span>
+              </div>
+              <span class="nav-badge" id="badge-users-count">0</span>
+            </a>
+
+            <a class="nav-item" data-tab="tests" onclick="switchDashboardTab('tests')">
+              <div class="nav-item-left">
+                <span class="nav-icon">📝</span>
+                <span>Testlar Bazasi</span>
+              </div>
+              <span class="nav-badge" id="badge-tests-count">0</span>
+            </a>
+
+            <div class="nav-group-title" style="margin-top:10px;">Monitoring & Tizim</div>
+
+            <a class="nav-item" data-tab="activity" onclick="switchDashboardTab('activity')">
+              <div class="nav-item-left">
+                <span class="nav-icon">⚡️</span>
+                <span>Jarayonlar & Audit</span>
+              </div>
+            </a>
+
+            <a class="nav-item" data-tab="database" onclick="switchDashboardTab('database')">
+              <div class="nav-item-left">
+                <span class="nav-icon">🗄</span>
+                <span>Baza & SQL</span>
+              </div>
+            </a>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="system-info-card">
+            <div style="display:flex;justify-content:space-between;font-weight:700;">
+              <span>Vaqt (Toshkent):</span>
+              <span id="live-clock" style="color:var(--primary);font-family:var(--font-mono);">--:--:--</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span>Baza turi:</span>
+              <span id="sidebar-db-type" style="font-weight:600;color:var(--text-main);">PostgreSQL</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span>Admin:</span>
+              <span style="font-weight:700;color:var(--primary);">Boshqaruvchi</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Main Content Area -->
+      <main class="app-content">
+
+        <!-- Top Content Toolbar -->
+        <div class="content-toolbar">
+          <div class="page-title-wrap">
+            <h1 id="page-title">Dashboard</h1>
+            <p id="page-subtitle">Umumiy tizim holati, statistika va faolliklar</p>
+          </div>
+
+          <div class="toolbar-actions">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="global-search-input" placeholder="Qidiruv (Ism, @username, test...)" oninput="handleGlobalSearch(this.value)">
+              <span class="search-shortcut">⌘K</span>
+            </div>
+
+            <button class="btn btn-secondary" onclick="exportCurrentTable()" title="Excel / CSV eksport">
+              📥 Eksport
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Views Container -->
+        <div class="views-container">
+
+          <!-- TAB 1: OVERVIEW -->
+          <section id="view-overview" class="page-view active">
+            <!-- Key Metric Cards -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-card-header">
+                  <span class="stat-card-title">Foydalanuvchilar</span>
+                  <div class="stat-card-icon" style="color:#3b82f6;">👥</div>
+                </div>
+                <div class="stat-card-value" id="stat-total-users">0</div>
+                <div class="stat-card-sub">
+                  <span class="badge badge-success" id="stat-approved-users">0 faol</span>
+                  <span class="badge badge-warning" id="stat-pending-users">0 kutilmoqda</span>
+                  <span class="badge badge-danger" id="stat-blocked-users">0 blok</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-header">
+                  <span class="stat-card-title">Topshirilgan Ishlar</span>
+                  <div class="stat-card-icon" style="color:#10b981;">🏆</div>
+                </div>
+                <div class="stat-card-value" id="stat-total-subs">0</div>
+                <div class="stat-card-sub">
+                  <span style="color:var(--primary);font-weight:700;" id="stat-today-subs">+0 bugun</span>
+                  <span style="color:var(--text-dim);">•</span>
+                  <span id="stat-late-subs" style="color:var(--warning);font-weight:700;">0 kechikkan</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-header">
+                  <span class="stat-card-title">O'rtacha Natija</span>
+                  <div class="stat-card-icon" style="color:#f59e0b;">📈</div>
+                </div>
+                <div class="stat-card-value" id="stat-avg-score">0.0 ball</div>
+                <div class="stat-card-sub">
+                  <span>O'rtacha to'g'ri: <b id="stat-avg-corr" style="color:var(--text-main);">0 ta</b> (55 tadan)</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-card-header">
+                  <span class="stat-card-title">Testlar Bazasi</span>
+                  <div class="stat-card-icon" style="color:#8b5cf6;">📝</div>
+                </div>
+                <div class="stat-card-value" id="stat-total-tests">0 ta</div>
+                <div class="stat-card-sub">
+                  <span class="badge badge-success" id="stat-active-tests">0 ta faol</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Two-Column Layout: Recent Submissions + Recent Activities -->
+            <div style="display:grid;grid-template-columns: 1.6fr 1fr;gap:20px;align-items:start;">
+              <!-- Recent Submissions Table -->
+              <div class="table-card">
+                <div class="table-card-header">
+                  <div class="table-title">
+                    <span>🏆</span>
+                    <span>So'nggi topshirilgan natijalar</span>
+                  </div>
+                  <button class="btn btn-secondary btn-sm" onclick="switchDashboardTab('submissions')">
+                    Barchasini ko'rish →
+                  </button>
+                </div>
+                <div class="table-responsive">
+                  <table class="mac-table">
+                    <thead>
+                      <tr>
+                        <th>O'quvchi</th>
+                        <th>Test</th>
+                        <th>Vaqt</th>
+                        <th>Natija</th>
+                        <th>Ball</th>
+                        <th>Harakat</th>
+                      </tr>
+                    </thead>
+                    <tbody id="overview-recent-subs-body">
+                      <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Yuklanmoqda...</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Real-time Activity Timeline -->
+              <div class="table-card">
+                <div class="table-card-header">
+                  <div class="table-title">
+                    <span>⚡️</span>
+                    <span>Jonli jarayonlar & Xronologiya</span>
+                  </div>
+                  <button class="btn btn-secondary btn-sm" onclick="switchDashboardTab('activity')">
+                    To'liq jurnal →
+                  </button>
+                </div>
+                <div style="padding:16px;max-height:480px;overflow-y:auto;" id="overview-activity-list">
+                  <div style="text-align:center;color:var(--text-muted);padding:20px;">Yuklanmoqda...</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 2: SUBMISSIONS DATABASE -->
+          <section id="view-submissions" class="page-view">
+            <div class="table-card">
+              <div class="table-card-header">
+                <div class="table-title">
+                  <span>🏆</span>
+                  <span>Barcha Test Natijalari va Ishlangan Javoblar Jurnali</span>
+                  <span class="badge badge-info" id="submissions-count-badge">0 ta</span>
+                </div>
+
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <div class="filter-tabs">
+                    <button class="filter-btn active" onclick="setSubmissionsFilter('all', this)">Barchasi</button>
+                    <button class="filter-btn" onclick="setSubmissionsFilter('ontime', this)">✅ O'z vaqtida</button>
+                    <button class="filter-btn" onclick="setSubmissionsFilter('late', this)">⏰ Kechikkanlar</button>
+                  </div>
+
+                  <select id="filter-test-select" class="btn btn-secondary btn-sm" onchange="filterSubmissionsByTest(this.value)">
+                    <option value="">Barcha testlar</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="mac-table" id="table-submissions">
+                  <thead>
+                    <tr>
+                      <th style="width:40px;">#</th>
+                      <th>O'quvchi</th>
+                      <th>Username</th>
+                      <th>Test kodi</th>
+                      <th>Topshirilgan aniq vaqt (soniyasigacha)</th>
+                      <th>To'g'ri javob</th>
+                      <th>To'plangan ball</th>
+                      <th>Daraja</th>
+                      <th>Holat</th>
+                      <th style="text-align:right;">Amal</th>
+                    </tr>
+                  </thead>
+                  <tbody id="submissions-table-body">
+                    <tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">Yuklanmoqda...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 3: USERS DATABASE -->
+          <section id="view-users" class="page-view">
+            <div class="table-card">
+              <div class="table-card-header">
+                <div class="table-title">
+                  <span>👥</span>
+                  <span>Foydalanuvchilar Bazasi</span>
+                  <span class="badge badge-info" id="users-count-badge">0 nafar</span>
+                </div>
+
+                <div class="filter-tabs">
+                  <button class="filter-btn active" onclick="setUsersFilter('all', this)">Barchasi</button>
+                  <button class="filter-btn" onclick="setUsersFilter('approved', this)">✅ Faol</button>
+                  <button class="filter-btn" onclick="setUsersFilter('pending', this)">⏳ Kutilmoqda</button>
+                  <button class="filter-btn" onclick="setUsersFilter('blocked', this)">⛔️ Bloklangan</button>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="mac-table" id="table-users">
+                  <thead>
+                    <tr>
+                      <th>Telegram ID</th>
+                      <th>To'liq Ismi</th>
+                      <th>Username</th>
+                      <th>Telefon</th>
+                      <th>Holati</th>
+                      <th>Qo'shilgan vaqti</th>
+                      <th>Ishlagan testlari</th>
+                      <th>Oxirgi testi</th>
+                      <th style="text-align:right;">Amallar</th>
+                    </tr>
+                  </thead>
+                  <tbody id="users-table-body">
+                    <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">Yuklanmoqda...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 4: TESTS DATABASE -->
+          <section id="view-tests" class="page-view">
+            <div class="table-card">
+              <div class="table-card-header">
+                <div class="table-title">
+                  <span>📝</span>
+                  <span>Mavjud Testlar Ro'yxati</span>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="mac-table" id="table-tests">
+                  <thead>
+                    <tr>
+                      <th>Test Kodi</th>
+                      <th>Test Nomi</th>
+                      <th>Fan</th>
+                      <th>Boshlanish vaqti</th>
+                      <th>Tugash vaqti</th>
+                      <th>Savollar</th>
+                      <th>Topshirganlar</th>
+                      <th>Holat</th>
+                      <th>Natija e'loni</th>
+                      <th style="text-align:right;">Boshqaruv</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tests-table-body">
+                    <tr><td colspan="10" style="text-align:center;padding:32px;color:var(--text-muted);">Yuklanmoqda...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 5: ACTIVITY & AUDIT LOGS -->
+          <section id="view-activity" class="page-view">
+            <div class="table-card">
+              <div class="table-card-header">
+                <div class="table-title">
+                  <span>⚡️</span>
+                  <span>Tizimdagi Barcha Jarayonlar va Audit Jurnali</span>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="mac-table">
+                  <thead>
+                    <tr>
+                      <th>Vaqt (Soniyasigacha)</th>
+                      <th>Jarayon turi</th>
+                      <th>Foydalanuvchi</th>
+                      <th>Tafsilot</th>
+                      <th>Holat ko'rsatkichi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="activity-table-body">
+                    <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--text-muted);">Yuklanmoqda...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <!-- TAB 6: DATABASE & SQL EXPLORER -->
+          <section id="view-database" class="page-view">
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-card-title">Baza Provayderi</div>
+                <div class="stat-card-value" style="font-size:20px;color:var(--primary);" id="db-info-provider">Neon Cloud (AWS)</div>
+                <div class="stat-card-sub">PostgreSQL 16.x Pooling Connection</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card-title">Users Jadvali</div>
+                <div class="stat-card-value" style="font-size:22px;" id="db-tbl-users">102 qator</div>
+                <div class="stat-card-sub">Foydalanuvchilar profillari</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card-title">Submissions Jadvali</div>
+                <div class="stat-card-value" style="font-size:22px;" id="db-tbl-subs">73 qator</div>
+                <div class="stat-card-sub">Barcha test javoblari va ballar</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card-title">Tests Jadvali</div>
+                <div class="stat-card-value" style="font-size:22px;" id="db-tbl-tests">4 qator</div>
+                <div class="stat-card-sub">Yaratilgan testlar</div>
+              </div>
+            </div>
+
+            <!-- SQL Query Console -->
+            <div class="table-card">
+              <div class="table-card-header">
+                <div class="table-title">
+                  <span>💻</span>
+                  <span>Jonli SQL SELECT So'rov Konsoli</span>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="runSqlConsoleQuery()">
+                  ▶️ So'rovni bajarish
+                </button>
+              </div>
+              <div style="padding:16px;">
+                <textarea id="sql-query-input" style="width:100%;height:80px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text-main);font-family:var(--font-mono);font-size:13px;resize:vertical;" placeholder="SELECT * FROM submissions ORDER BY submitted_at DESC LIMIT 10;">SELECT s.id, s.fullname, s.test_code, s.score, s.correct_count, s.submitted_at, s.is_late FROM submissions s ORDER BY s.submitted_at DESC LIMIT 15;</textarea>
+                
+                <div id="sql-result-container" style="margin-top:14px;overflow-x:auto;">
+                  <div style="font-size:12px;color:var(--text-muted);">Natija bu yerda ko'rinadi...</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- MODAL: Detailed Student Submission View -->
+  <div class="modal-overlay" id="submission-modal">
+    <div class="mac-modal" style="max-width:860px;">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:20px;">📄</span>
+          <div>
+            <div style="font-size:16px;font-weight:800;" id="modal-sub-title">O'quvchi Natijasi</div>
+            <div style="font-size:12px;color:var(--text-muted);" id="modal-sub-time">--</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeSubmissionModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Summary Strip -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:var(--bg-card);padding:14px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:16px;" id="modal-sub-summary-strip">
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">To'plangan Ball</span>
+            <span style="font-size:18px;font-weight:900;color:var(--primary);" id="modal-sub-score">--</span>
+          </div>
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">To'g'ri Javoblar</span>
+            <span style="font-size:18px;font-weight:800;" id="modal-sub-correct">--</span>
+          </div>
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">Daraja</span>
+            <span style="font-size:18px;font-weight:800;" id="modal-sub-grade">--</span>
+          </div>
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">Holat</span>
+            <span id="modal-sub-late-badge">--</span>
+          </div>
+        </div>
+
+        <!-- Late Decision Action Box if Late -->
+        <div id="modal-sub-late-box" style="display:none;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);padding:14px;border-radius:10px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:6px;">⚠️ Ushbu test belgilangan vaqtdan kech topshirilgan!</div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-primary btn-sm" onclick="handleModalLateAction('accept')">✅ Testga qabul qilish</button>
+            <button class="btn btn-danger btn-sm" onclick="handleModalLateAction('reject')">❌ Rad etish (Hisobga olmaslik)</button>
+          </div>
+        </div>
+
+        <div style="font-size:13px;font-weight:800;margin-bottom:8px;">Savollar bo'yicha to'liq javoblar varaqasi (1–45b):</div>
+        <div class="answers-grid" id="modal-sub-answers-grid">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeSubmissionModal()">Yopish</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="/dashboard.js?v=20260928_mac1"></script>
+</body>
+</html>

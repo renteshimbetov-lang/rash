@@ -357,6 +357,7 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
     maint_btn_text = f"🛠 Texnik rejim: {maint_status} {maint_icon}"
 
     buttons = [
+        [InlineKeyboardButton(text="💻 MacBook Dashboard (Katta Baza)", url=f"{WEBAPP_URL}/dashboard")],
         [InlineKeyboardButton(text="📢 O'quvchilarga xabar yuborish", callback_data="admin_broadcast_menu")],
         [InlineKeyboardButton(text=maint_btn_text, callback_data="admin_toggle_maint_prompt")],
         [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")],
@@ -1281,6 +1282,8 @@ async def open_app_command(message: Message):
 # ── ADMIN PANEL HANDLERLARI ───────────────────────────
 
 @router.message(F.text == "⚙️ Admin Panel")
+@router.message(Command("admin"))
+@router.message(Command("dashboard"))
 async def admin_panel_handler(message: Message):
     if not test_db.is_admin(message.from_user.id, ADMIN_ID):
         await message.answer("⛔️ Bu bo'lim faqat bot administratori uchun!")
@@ -4990,12 +4993,242 @@ async def handle_app_trigger_solve(request):
         log.error(f"handle_app_trigger_solve xatolik: {e}")
         return web.json_response({"ok": False, "error": str(e)}, status=500)
 
+# ──────────────────────────────────────────────────────────
+# MACBOOK DASHBOARD HANDLERS
+# ──────────────────────────────────────────────────────────
+
+async def handle_dashboard(request):
+    fpath = await find_web_file('dashboard.html')
+    if os.path.exists(fpath) and os.path.isfile(fpath):
+        return set_no_cache_headers(web.FileResponse(fpath))
+    return web.Response(status=404, text="dashboard.html topilmadi")
+
+async def handle_dashboard_overview(request):
+    try:
+        summary = test_db.get_dashboard_summary()
+        recent_subs = test_db.get_all_submissions_for_admin(limit=15)
+        for s in recent_subs:
+            s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
+        logs = test_db.get_activity_logs(limit=25)
+        for l in logs:
+            l['time_fmt'] = format_uzb_time(l.get('time'), fmt="%d.%m.%Y %H:%M:%S")
+            
+        tests = test_db.get_tests_with_stats()
+        return web.json_response({
+            "success": True,
+            "summary": summary,
+            "recent_submissions": recent_subs,
+            "activity_logs": logs,
+            "tests": tests,
+            "server_time": format_uzb_time(fmt="%d.%m.%Y %H:%M:%S")
+        })
+    except Exception as e:
+        log.error(f"Dashboard overview error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_submissions(request):
+    try:
+        limit = int(request.rel_url.query.get('limit', 1000))
+        subs = test_db.get_all_submissions_for_admin(limit=limit)
+        for s in subs:
+            s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
+        return web.json_response({
+            "success": True,
+            "total": len(subs),
+            "submissions": subs
+        })
+    except Exception as e:
+        log.error(f"Dashboard submissions error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_submission_detail(request):
+    try:
+        sub_id = int(request.match_info.get('id', 0))
+        detail = test_db.get_submission_details_for_admin(sub_id)
+        if not detail:
+            return web.json_response({"success": False, "error": "Natija topilmadi"}, status=404)
+        
+        detail['submitted_at_fmt'] = format_uzb_time(detail.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
+        try:
+            if isinstance(detail.get('details_json'), str):
+                detail['details'] = json.loads(detail['details_json'])
+            else:
+                detail['details'] = detail.get('details_json') or {}
+        except Exception:
+            detail['details'] = {}
+            
+        try:
+            if isinstance(detail.get('answers_json'), str):
+                detail['answers'] = json.loads(detail['answers_json'])
+            else:
+                detail['answers'] = detail.get('answers_json') or {}
+        except Exception:
+            detail['answers'] = {}
+
+        return web.json_response({
+            "success": True,
+            "submission": detail
+        })
+    except Exception as e:
+        log.error(f"Dashboard submission detail error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_users(request):
+    try:
+        users = test_db.get_all_users()
+        for u in users:
+            u['registered_at_fmt'] = format_uzb_time(u.get('registered_at'), fmt="%d.%m.%Y %H:%M") if u.get('registered_at') else "—"
+            u['last_test_at_fmt'] = format_uzb_time(u.get('last_test_at'), fmt="%d.%m.%Y %H:%M") if u.get('last_test_at') else "—"
+        counts = test_db.get_users_count()
+        return web.json_response({
+            "success": True,
+            "users": users,
+            "stats": counts
+        })
+    except Exception as e:
+        log.error(f"Dashboard users error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_tests(request):
+    try:
+        tests = test_db.get_tests_with_stats()
+        return web.json_response({
+            "success": True,
+            "tests": tests
+        })
+    except Exception as e:
+        log.error(f"Dashboard tests error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_logs(request):
+    try:
+        limit = int(request.rel_url.query.get('limit', 100))
+        logs = test_db.get_activity_logs(limit=limit)
+        for l in logs:
+            l['time_fmt'] = format_uzb_time(l.get('time'), fmt="%d.%m.%Y %H:%M:%S")
+        return web.json_response({
+            "success": True,
+            "logs": logs
+        })
+    except Exception as e:
+        log.error(f"Dashboard logs error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_user_action(request):
+    try:
+        data = await request.json()
+        target_uid = int(data.get('user_id', 0))
+        action = str(data.get('action', '')).strip().lower()
+        if not target_uid:
+            return web.json_response({"success": False, "error": "Foydalanuvchi ID ko'rsatilmadi"}, status=400)
+            
+        if action == 'approve':
+            test_db.approve_user(target_uid)
+            msg = "Foydalanuvchi faollashtirildi"
+        elif action == 'block':
+            test_db.block_user(target_uid)
+            msg = "Foydalanuvchi bloklandi"
+        elif action == 'pending':
+            test_db.set_user_pending(target_uid)
+            msg = "Foydalanuvchi kutilmoqda holatiga o'tkazildi"
+        elif action == 'delete':
+            test_db.delete_user(target_uid)
+            msg = "Foydalanuvchi bazadan o'chirildi"
+        else:
+            return web.json_response({"success": False, "error": f"Noma'lum amal: {action}"}, status=400)
+            
+        return web.json_response({"success": True, "message": msg})
+    except Exception as e:
+        log.error(f"Dashboard user action error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_late_action(request):
+    try:
+        data = await request.json()
+        sub_id = int(data.get('submission_id', 0))
+        action = str(data.get('action', '')).strip().lower()
+        if not sub_id:
+            return web.json_response({"success": False, "error": "Submission ID ko'rsatilmadi"}, status=400)
+            
+        if action == 'accept':
+            test_db.set_submission_late_status(sub_id, 0)
+            msg = "Kech topshirilgan natija testga qabul qilindi!"
+        elif action == 'reject':
+            test_db.set_submission_late_status(sub_id, 1)
+            msg = "Natija hisobga olinmaydigan (kechikkan) deb belgilandi."
+        else:
+            return web.json_response({"success": False, "error": "Noma'lum amal"}, status=400)
+            
+        return web.json_response({"success": True, "message": msg})
+    except Exception as e:
+        log.error(f"Dashboard late action error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_test_toggle(request):
+    try:
+        data = await request.json()
+        test_id = int(data.get('test_id', 0))
+        new_status = test_db.toggle_test_status(test_id)
+        return web.json_response({
+            "success": True,
+            "is_active": new_status,
+            "message": "Test faollashtirildi" if new_status == 1 else "Test to'xtatildi"
+        })
+    except Exception as e:
+        log.error(f"Dashboard test toggle error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_test_publish(request):
+    try:
+        data = await request.json()
+        test_id = int(data.get('test_id', 0))
+        t = test_db.get_test_by_id(test_id)
+        if not t:
+            return web.json_response({"success": False, "error": "Test topilmadi"}, status=404)
+        cur_pub = t.get('results_published', 0)
+        new_pub = 0 if cur_pub == 1 else 1
+        test_db.set_test_results_published(test_id, new_pub)
+        return web.json_response({
+            "success": True,
+            "results_published": new_pub,
+            "message": "Natijalar e'lon qilindi!" if new_pub == 1 else "Natijalar e'loni yashirildi"
+        })
+    except Exception as e:
+        log.error(f"Dashboard test publish error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+async def handle_dashboard_query(request):
+    try:
+        data = await request.json()
+        query = str(data.get('query', '')).strip()
+        res = test_db.execute_admin_safe_query(query, limit=100)
+        return web.json_response(res)
+    except Exception as e:
+        return web.json_response({"success": False, "error": str(e)}, status=400)
+
+
 async def create_web_app():
     app = web.Application()
     app.router.add_get('/', handle_index)
     app.router.add_get('/index.html', handle_index)
     app.router.add_get('/admin.html', handle_admin)
     app.router.add_get('/app.html', handle_app)
+    
+    # MacBook Desktop Dashboard
+    app.router.add_get('/dashboard', handle_dashboard)
+    app.router.add_get('/dashboard.html', handle_dashboard)
+    app.router.add_get('/api/dashboard/overview', handle_dashboard_overview)
+    app.router.add_get('/api/dashboard/submissions', handle_dashboard_submissions)
+    app.router.add_get('/api/dashboard/submission/{id}', handle_dashboard_submission_detail)
+    app.router.add_get('/api/dashboard/users', handle_dashboard_users)
+    app.router.add_get('/api/dashboard/tests', handle_dashboard_tests)
+    app.router.add_get('/api/dashboard/logs', handle_dashboard_logs)
+    app.router.add_post('/api/dashboard/user-action', handle_dashboard_user_action)
+    app.router.add_post('/api/dashboard/late-action', handle_dashboard_late_action)
+    app.router.add_post('/api/dashboard/test-toggle', handle_dashboard_test_toggle)
+    app.router.add_post('/api/dashboard/test-publish', handle_dashboard_test_publish)
+    app.router.add_post('/api/dashboard/query', handle_dashboard_query)
+
     app.router.add_get('/api/rasch/{test_id}', handle_rasch_evaluate_api)
     app.router.add_post('/api/submit-test', handle_submit_test_api)
     app.router.add_post('/api/create-test', handle_create_test_api)
