@@ -99,7 +99,7 @@ var I18N = {
     admin_panel: 'Admin Panel', admin_panel_sub: 'Foydalanuvchilar va tizim boshqaruvi',
     admin_tab_users: 'Foydalanuvchilar', admin_tab_broadcast: 'Xabar yuborish',
     admin_users_list: "👥 Foydalanuvchilar ro'yxati",
-    admin_search_ph: 'Ism, telefon yoki Telegram ID...',
+    admin_search_ph: "Ism, username (@...), telefon yoki Telegram ID...",
     flt_all: 'Barchasi', flt_approved: '✅ Faol', flt_pending: '⏳ Kutilmoqda', flt_blocked: '⛔️ Bloklangan',
     btn_restrict_all: "🔒 Barcha o'quvchilarni cheklash (qayta so'rov)",
     bcast_title: "O'quvchilarga xabar yuborish",
@@ -274,7 +274,7 @@ var I18N = {
     admin_panel: 'Панель администратора', admin_panel_sub: 'Управление пользователями и системой',
     admin_tab_users: 'Пользователи', admin_tab_broadcast: 'Рассылка',
     admin_users_list: '👥 Список пользователей',
-    admin_search_ph: 'Имя, телефон или Telegram ID...',
+    admin_search_ph: 'Имя, username (@...), телефон или Telegram ID...',
     flt_all: 'Все', flt_approved: '✅ Активные', flt_pending: '⏳ В ожидании', flt_blocked: '⛔️ Заблокированные',
     btn_restrict_all: '🔒 Ограничить всех учеников (повторный запрос)',
     bcast_title: 'Рассылка сообщений ученикам',
@@ -449,7 +449,7 @@ var I18N = {
     admin_panel: 'Admin Panel', admin_panel_sub: 'User and system management',
     admin_tab_users: 'Users', admin_tab_broadcast: 'Broadcast',
     admin_users_list: '👥 Users List',
-    admin_search_ph: 'Name, phone, or Telegram ID...',
+    admin_search_ph: 'Name, username (@...), phone, or Telegram ID...',
     flt_all: 'All', flt_approved: '✅ Active', flt_pending: '⏳ Pending', flt_blocked: '⛔️ Blocked',
     btn_restrict_all: '🔒 Restrict all students (re-approval)',
     bcast_title: 'Broadcast Message to Students',
@@ -2613,10 +2613,13 @@ function renderFilteredAdminUsers() {
 
     // Qidiruv bo'yicha filter
     if (q) {
-      var nameMatch = (u.fullname || '').toLowerCase().indexOf(q) !== -1;
-      var phoneMatch = (u.phone || '').toLowerCase().indexOf(q) !== -1;
-      var idMatch = String(u.tg_id || '').indexOf(q) !== -1;
-      var userMatch = (u.username || '').toLowerCase().indexOf(q) !== -1;
+      var rawQ = q.toLowerCase().trim();
+      var cleanQ = rawQ.replace(/^@+/, '').trim();
+      var uName = (u.username || '').toLowerCase().replace(/^@+/, '').trim();
+      var nameMatch = (u.fullname || '').toLowerCase().indexOf(rawQ) !== -1 || (cleanQ && (u.fullname || '').toLowerCase().indexOf(cleanQ) !== -1);
+      var phoneMatch = cleanQ ? (u.phone || '').toLowerCase().indexOf(cleanQ) !== -1 : false;
+      var idMatch = cleanQ ? String(u.tg_id || '').indexOf(cleanQ) !== -1 : false;
+      var userMatch = Boolean(uName && (uName.indexOf(cleanQ) !== -1 || ('@' + uName).indexOf(rawQ) !== -1 || uName.indexOf(rawQ) !== -1));
       if (!nameMatch && !phoneMatch && !idMatch && !userMatch) return false;
     }
     return true;
@@ -2651,10 +2654,20 @@ function renderFilteredAdminUsers() {
       sb = '<span class="badge" style="padding:3px 8px;font-size:10.5px;display:inline-flex;align-items:center;gap:4px;background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.3);border-radius:12px;">' + st + '</span>';
     }
 
+    var userSub = '';
+    if (u.username) {
+      userSub += '<span style="color:var(--primary,#00A389);font-size:11.5px;font-weight:700;">@' + escHtml(u.username.replace(/^@/, '')) + '</span>';
+    }
+    if (u.phone && u.phone !== '-') {
+      if (userSub) userSub += ' <span style="opacity:0.4;font-size:10px;">•</span> ';
+      userSub += '<span style="color:var(--text-muted,#94a3b8);font-size:11px;">' + escHtml(u.phone) + '</span>';
+    }
+
     return '<div class="user-row clickable" onclick="openAdminUserModal(' + u.tg_id + ')">' +
       '<div class="user-row-avatar">' + letter + '</div>' +
       '<div class="user-row-info">' +
         '<div class="user-row-name" style="font-size:14.5px;font-weight:700;">' + escHtml(u.fullname || t('user_unknown')) + '</div>' +
+        (userSub ? '<div class="user-row-meta" style="margin-top:2px;display:flex;align-items:center;gap:4px;">' + userSub + '</div>' : '') +
       '</div>' +
       sb +
       '<span style="color:var(--text-muted);font-size:16px;margin-left:4px">›</span>' +
