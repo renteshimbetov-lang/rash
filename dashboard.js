@@ -20,9 +20,49 @@ const State = {
 };
 
 // ----------------------------------------------------
+// macOS BOOT ANIMATION
+// ----------------------------------------------------
+function runBootAnimation() {
+  const splash = document.getElementById('mac-boot-splash');
+  const bar = document.getElementById('boot-progress-bar');
+  if (!splash || !bar) return;
+
+  // Progress bar animation: 0% → 100% over ~2.2s
+  let pct = 0;
+  const steps = [
+    { target: 30, delay: 0,    speed: 18 },
+    { target: 65, delay: 300,  speed: 22 },
+    { target: 88, delay: 700,  speed: 35 },
+    { target: 100, delay: 400, speed: 20 }
+  ];
+
+  let stepIdx = 0;
+  function runStep() {
+    if (stepIdx >= steps.length) {
+      // Done — fade out splash
+      setTimeout(() => {
+        splash.classList.add('hidden');
+        setTimeout(() => { splash.remove(); }, 700);
+      }, 180);
+      return;
+    }
+    const s = steps[stepIdx++];
+    setTimeout(() => {
+      const interval = setInterval(() => {
+        if (pct >= s.target) { clearInterval(interval); runStep(); return; }
+        pct = Math.min(pct + 1, s.target);
+        bar.style.width = pct + '%';
+      }, s.speed);
+    }, s.delay);
+  }
+  runStep();
+}
+
+// ----------------------------------------------------
 // INITIALIZATION
 // ----------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+  runBootAnimation();
   initLiveClock();
   setupKeyboardShortcuts();
   fetchDashboardData();

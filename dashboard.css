@@ -63,6 +63,76 @@ body {
   overflow: hidden;
 }
 
+/* ===== macOS BOOT SPLASH ANIMATION ===== */
+#mac-boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  opacity: 1;
+  transition: opacity 0.6s ease;
+}
+#mac-boot-splash.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-logo {
+  font-size: 72px;
+  animation: bootLogoPulse 1.2s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 32px rgba(0, 163, 137, 0.8));
+  margin-bottom: 4px;
+}
+@keyframes bootLogoPulse {
+  from { transform: scale(0.95); filter: drop-shadow(0 0 20px rgba(0,163,137,0.5)); }
+  to   { transform: scale(1.05); filter: drop-shadow(0 0 48px rgba(0,163,137,1.0)); }
+}
+
+.boot-title {
+  font-family: var(--font-sans);
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+.boot-subtitle {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.45);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.boot-progress-wrap {
+  width: 200px;
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.boot-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #00a389, #3b82f6);
+  border-radius: 99px;
+  transition: width 0.15s linear;
+  box-shadow: 0 0 10px rgba(0,163,137,0.6);
+}
+.boot-version {
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+/* ===== END BOOT SPLASH ===== */
+
 /* MacOS Window Shell */
 .mac-window {
   width: 100%;
@@ -93,24 +163,7 @@ body {
   flex-shrink: 0;
 }
 
-.traffic-lights {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 70px;
-}
 
-.t-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: transform 0.15s ease, opacity 0.15s ease;
-}
-.t-dot:hover { transform: scale(1.15); opacity: 0.9; }
-.t-red { background: #ff5f56; border: 1px solid #e0443e; }
-.t-yellow { background: #ffbd2e; border: 1px solid #dea123; }
-.t-green { background: #27c93f; border: 1px solid #1aab29; }
 
 .window-title {
   font-size: 13.5px;
