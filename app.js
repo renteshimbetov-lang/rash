@@ -1389,9 +1389,39 @@ function renderTestDetailCard(test, type) {
     codeDisplay = String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code);
   }
 
-  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (isUpcoming ? t('val_scheduled_soon') : (test.created_at ? formatDateOnly(test.created_at) : t('val_today')));
-  var startStr = test.scheduled_start ? (escHtml(test.scheduled_start) + ' (UZB)') : (isActive ? t('val_started') : '—');
-  var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : (isInactive ? '22:00 (UZB)' : t('val_unlimited'));
+  var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (test.created_at ? formatDateOnly(test.created_at) : (isUpcoming ? t('val_scheduled_soon') : t('val_today')));
+  
+  // Haqiqiy boshlangan vaqt (Har bir testning o'z ma'lumotlari)
+  var startStr = '—';
+  if (test.scheduled_start) {
+    startStr = escHtml(test.scheduled_start) + ' (UZB)';
+  } else if (test.first_submission_at) {
+    startStr = formatTimeOnly(test.first_submission_at) + ' (UZB)';
+  } else if (test.created_at) {
+    startStr = formatTimeOnly(test.created_at) + ' (UZB)';
+  } else if (isActive) {
+    startStr = t('val_started');
+  }
+
+  // Haqiqiy to'xtatilgan / yakunlangan vaqt (22:00 qotirilmagan, haqiqiy to'xtatilgan vaqti)
+  var endStr = '—';
+  if (test.stopped_at) {
+    endStr = formatTimeOnly(test.stopped_at) + ' (UZB)';
+  } else if (test.scheduled_end) {
+    endStr = escHtml(test.scheduled_end) + ' (UZB)';
+  } else if (test.last_submission_at) {
+    endStr = formatTimeOnly(test.last_submission_at) + ' (UZB)';
+  } else if (isInactive) {
+    if (test.created_at && test.time_limit_min) {
+      endStr = formatTimeOnly(test.created_at + test.time_limit_min * 60) + ' (UZB)';
+    } else if (test.created_at) {
+      endStr = formatTimeOnly(test.created_at + 7200) + ' (UZB)';
+    } else {
+      endStr = t('val_ended');
+    }
+  } else {
+    endStr = t('val_unlimited');
+  }
   var totalQuestions = (test.total_questions || 45) + ' ' + t('val_questions_format');
   var timeLimit = test.time_limit_min ? (test.time_limit_min + ' ' + t('val_minutes')) : t('val_infinite');
   var ytUrl = (test.youtube_url || '').trim();
@@ -1438,7 +1468,7 @@ function renderTestDetailCard(test, type) {
     '</div>' +
     userStatusBannerHtml +
 
-    // Qatorma-qator to'liq ma'lumotlar ro'yxati
+    // Qatorma-qator to'liq ma'lumotlar ro'yxati (Boshlangan va To'xtatilgan vaqtlari bilan)
     '<div class="test-rich-info-grid">' +
       '<div class="test-rich-info-row">' +
         '<span class="test-rich-label">' + t('lbl_test_code') + '</span>' +
@@ -1448,14 +1478,12 @@ function renderTestDetailCard(test, type) {
         '<span class="test-rich-label">' + (isInactive ? t('lbl_ended_date') : t('lbl_scheduled_date')) + '</span>' +
         '<span class="test-rich-val">' + dateStr + '</span>' +
       '</div>' +
-      (isInactive ? '' : (
-        '<div class="test-rich-info-row">' +
-          '<span class="test-rich-label">' + t('lbl_start_time') + '</span>' +
-          '<span class="test-rich-val">' + startStr + '</span>' +
-        '</div>'
-      )) +
       '<div class="test-rich-info-row">' +
-        '<span class="test-rich-label">' + (isInactive ? t('lbl_ended_time') : t('lbl_end_time')) + '</span>' +
+        '<span class="test-rich-label">' + (isInactive ? '🟢 ' + t('lbl_start_time') : t('lbl_start_time')) + '</span>' +
+        '<span class="test-rich-val">' + startStr + '</span>' +
+      '</div>' +
+      '<div class="test-rich-info-row">' +
+        '<span class="test-rich-label">' + (isInactive ? '🔴 ' + t('lbl_ended_time') : t('lbl_end_time')) + '</span>' +
         '<span class="test-rich-val">' + endStr + '</span>' +
       '</div>' +
       '<div class="test-rich-info-row">' +
@@ -1561,7 +1589,29 @@ function showPastTestEndedModal(testId) {
   if (!test) return;
 
   var dateStr = test.scheduled_date ? escHtml(test.scheduled_date) : (test.created_at ? formatDateOnly(test.created_at) : t('val_today'));
-  var endStr = test.scheduled_end ? (escHtml(test.scheduled_end) + ' (UZB)') : '22:00 (UZB)';
+  var startStr = '—';
+  if (test.scheduled_start) {
+    startStr = escHtml(test.scheduled_start) + ' (UZB)';
+  } else if (test.first_submission_at) {
+    startStr = formatTimeOnly(test.first_submission_at) + ' (UZB)';
+  } else if (test.created_at) {
+    startStr = formatTimeOnly(test.created_at) + ' (UZB)';
+  }
+
+  var endStr = '—';
+  if (test.stopped_at) {
+    endStr = formatTimeOnly(test.stopped_at) + ' (UZB)';
+  } else if (test.scheduled_end) {
+    endStr = escHtml(test.scheduled_end) + ' (UZB)';
+  } else if (test.last_submission_at) {
+    endStr = formatTimeOnly(test.last_submission_at) + ' (UZB)';
+  } else if (test.created_at && test.time_limit_min) {
+    endStr = formatTimeOnly(test.created_at + test.time_limit_min * 60) + ' (UZB)';
+  } else if (test.created_at) {
+    endStr = formatTimeOnly(test.created_at + 7200) + ' (UZB)';
+  } else {
+    endStr = t('val_ended');
+  }
   var title = test.title || t('default_test_title');
   var code = test.test_code ? (String(test.test_code).startsWith('#') ? test.test_code : ('#' + test.test_code)) : '—';
   var done = Boolean(test.already_submitted);
@@ -1636,12 +1686,20 @@ function showPastTestEndedModal(testId) {
 
     '<div class="past-modal-info-card">' +
       '<div class="past-modal-info-row">' +
-        '<span>' + t('lbl_ended_date') + '</span>' +
+        '<span>📅 ' + t('lbl_ended_date') + '</span>' +
         '<b>' + escHtml(dateStr) + '</b>' +
       '</div>' +
       '<div class="past-modal-info-row">' +
-        '<span>' + t('lbl_ended_time') + '</span>' +
+        '<span>🟢 ' + t('lbl_start_time') + '</span>' +
+        '<b>' + escHtml(startStr) + '</b>' +
+      '</div>' +
+      '<div class="past-modal-info-row">' +
+        '<span>🔴 ' + t('lbl_ended_time') + '</span>' +
         '<b>' + escHtml(endStr) + '</b>' +
+      '</div>' +
+      '<div class="past-modal-info-row">' +
+        '<span>❓ ' + t('lbl_questions_count') + '</span>' +
+        '<b>' + (test.total_questions || 45) + ' ta savol</b>' +
       '</div>' +
       '<div class="past-modal-summary-text">' +
         'ℹ️ ' + summaryNotice +
@@ -3771,6 +3829,14 @@ function formatDateOnly(ts) {
   var locale = lang === 'ru' ? 'ru-RU' : (lang === 'en' ? 'en-US' : 'uz-UZ');
   var d = new Date(ts * 1000);
   return d.toLocaleDateString(locale, { timeZone: 'Asia/Tashkent', day:'2-digit', month:'2-digit', year:'numeric' });
+}
+
+function formatTimeOnly(ts) {
+  if (!ts) return '';
+  var lang = localStorage.getItem(LS_LANG) || 'uz';
+  var locale = lang === 'ru' ? 'ru-RU' : (lang === 'en' ? 'en-US' : 'uz-UZ');
+  var d = new Date(ts * 1000);
+  return d.toLocaleTimeString(locale, { timeZone: 'Asia/Tashkent', hour:'2-digit', minute:'2-digit', hour12: false });
 }
 
 function escHtml(str) {

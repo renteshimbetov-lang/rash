@@ -170,65 +170,64 @@
 
     </div>
 
-    <!-- BOTTOM NAVIGATION — SVG icons, no emojis -->
-    <nav class="bottom-nav">
-      <button class="nav-item active" data-tab="home" id="nav-home" onclick="switchTab('home')">
-        <div class="nav-icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" />
-            <path d="M9 21V12h6v9" />
-          </svg>
-        </div>
-        <span class="nav-label" data-i18n="tab_home">Asosiy</span>
-      </button>
-      <button class="nav-item" data-tab="tests" id="nav-tests" onclick="switchTab('tests')">
-        <div class="nav-icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="5" y="2" width="14" height="20" rx="2" />
-            <line x1="9" y1="7" x2="15" y2="7" />
-            <line x1="9" y1="11" x2="15" y2="11" />
-            <line x1="9" y1="15" x2="12" y2="15" />
-          </svg>
-        </div>
-        <span class="nav-label" data-i18n="tab_tests">Testlar</span>
-      </button>
-      <button class="nav-item" data-tab="profile" id="nav-profile" onclick="switchTab('profile')">
-        <div class="nav-icon-wrap">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-          </svg>
-        </div>
-        <span class="nav-label" data-i18n="tab_profile">Profil</span>
-      </button>
-      <button class="nav-item" data-tab="admin" id="nav-admin" onclick="switchTab('admin')" style="display:none">
-        <div class="nav-icon-wrap" style="position:relative">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14" />
-            <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
-          </svg>
-          <span class="nav-badge" id="admin-badge" style="display:none">0</span>
-        </div>
-        <span class="nav-label" data-i18n="tab_admin">Admin</span>
-      </button>
-      <!-- YAQQOL AJRALIB TURUVCHI VERTICAL DIVIDER -->
-      <div class="nav-search-divider" id="nav-search-divider"></div>
-      <!-- LUPA / QIDIRUV TUGMASI (Alohida ajratilgan suzuvchi doira) -->
-      <button class="nav-search-btn" id="nav-search" onclick="openGlobalSearch()" title="Qidiruv" aria-label="Qidirish">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+    <!-- BOTTOM FLOATING DOCK (AYNAN 4-RASMDAGIDEK: CHAPDA KAPSULA TABLAR, O'NGDA ALOHIDA SUZUVCHI LUPA DOIRASI) -->
+    <div class="bottom-dock-wrapper" id="bottom-dock-wrapper">
+      <nav class="bottom-nav-pill" id="bottom-nav-pill">
+        <button class="nav-item active" data-tab="home" id="nav-home" onclick="switchTab('home')">
+          <div class="nav-icon-wrap">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" />
+              <path d="M9 21V12h6v9" />
+            </svg>
+          </div>
+          <span class="nav-label" data-i18n="tab_home">Asosiy</span>
+        </button>
+        <button class="nav-item" data-tab="tests" id="nav-tests" onclick="switchTab('tests')">
+          <div class="nav-icon-wrap">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" />
+              <line x1="9" y1="7" x2="15" y2="7" />
+              <line x1="9" y1="11" x2="15" y2="11" />
+              <line x1="9" y1="15" x2="12" y2="15" />
+            </svg>
+          </div>
+          <span class="nav-label" data-i18n="tab_tests">Testlar</span>
+        </button>
+        <button class="nav-item" data-tab="profile" id="nav-profile" onclick="switchTab('profile')">
+          <div class="nav-icon-wrap">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+            </svg>
+          </div>
+          <span class="nav-label" data-i18n="tab_profile">Profil</span>
+        </button>
+        <button class="nav-item" data-tab="admin" id="nav-admin" onclick="switchTab('admin')" style="display:none">
+          <div class="nav-icon-wrap" style="position:relative">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14" />
+              <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
+            </svg>
+            <span class="nav-badge" id="admin-badge" style="display:none">0</span>
+          </div>
+          <span class="nav-label" data-i18n="tab_admin">Admin</span>
+        </button>
+      </nav>
+
+      <!-- O'NG TOMONDA ALOHIDA AJRALGAN MUSTAQIL DOIRAVIY LUPA TUGMASI (AYNAN 4-RASMDAGIDEK!) -->
+      <button class="nav-search-floating-circle" id="nav-search" onclick="openGlobalSearch()" title="Qidiruv" aria-label="Qidirish">
+        <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
           stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="10.5" cy="10.5" r="7" />
-          <line x1="15.8" y1="15.8" x2="21" y2="21" />
+          <circle cx="11" cy="11" r="7" />
+          <line x1="16.2" y1="16.2" x2="21.5" y2="21.5" />
         </svg>
       </button>
-    </nav>
-    <!-- iPhone Pastki Chiziqchasi (Home Bar) -->
-    <div class="iphone-home-indicator"></div>
+    </div>
   </div>
 
   <!-- RESULT MODAL -->

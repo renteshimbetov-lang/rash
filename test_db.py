@@ -404,6 +404,7 @@ def init_db():
                 ("created_by_name", "TEXT"),
                 ("auto_notified", "TEXT"),
                 ("youtube_url", "TEXT"),
+                ("stopped_at", "BIGINT"),
             ]:
                 try:
                     cur.execute(f"ALTER TABLE tests ADD COLUMN IF NOT EXISTS {col} {coltype} DEFAULT NULL")
@@ -419,6 +420,7 @@ def init_db():
                 ("created_by_name", "TEXT"),
                 ("auto_notified", "TEXT"),
                 ("youtube_url", "TEXT"),
+                ("stopped_at", "INTEGER"),
             ]:
                 try:
                     cur.execute(f"ALTER TABLE tests ADD COLUMN {col} {coltype} DEFAULT NULL")
@@ -1174,15 +1176,55 @@ def set_test_active_status(test_id: int, status: int) -> bool:
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute(
-            f"UPDATE tests SET is_active = {_ph()} WHERE id = {_ph()}",
-            (1 if status else 0, test_id)
-        )
+        now_ts = int(time.time())
+        if not status:
+            cur.execute(
+                f"UPDATE tests SET is_active = 0, stopped_at = {_ph()} WHERE id = {_ph()}",
+                (now_ts, test_id)
+            )
+        else:
+            cur.execute(
+                f"UPDATE tests SET is_active = 1 WHERE id = {_ph()}",
+                (test_id,)
+            )
         conn.commit()
         return True
     except Exception as e:
         print(f"Error setting test active status: {e}")
         return False
+    finally:
+        _close_conn(conn)
+
+
+def get_test_submission_bounds(test_id: int) -> Dict[str, Any]:
+    """Test uchun birinchi va oxirgi topshirilgan vaqtlarni qaytaradi."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT MIN(submitted_at), MAX(submitted_at), COUNT(*) FROM submissions WHERE test_id = {_ph()}",
+            (test_id,)
+        )
+        row = cur.fetchone()
+        if row:
+            if isinstance(row, dict):
+                return {
+                    "first_submitted_at": row.get("min") or row.get("MIN(submitted_at)"),
+                    "last_submitted_at": row.get("max") or row.get("MAX(submitted_at)"),
+                    "count": row.get("count") or 0
+                }
+            min_ts = row[0]
+            max_ts = row[1]
+            count = row[2]
+            return {
+                "first_submitted_at": min_ts,
+                "last_submitted_at": max_ts,
+                "count": count or 0
+            }
+        return {"first_submitted_at": None, "last_submitted_at": None, "count": 0}
+    except Exception as e:
+        print(f"Error getting submission bounds: {e}")
+        return {"first_submitted_at": None, "last_submitted_at": None, "count": 0}
     finally:
         _close_conn(conn)
 

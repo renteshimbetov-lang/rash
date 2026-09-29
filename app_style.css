@@ -788,65 +788,62 @@ body {
   line-height: 1;
   background: rgba(0, 0, 0, 0.06);
   color: var(--text-muted);
-  transition: all 0.22s ease;
-}
-
-[data-theme="dark"] .home-subtab-badge,
-[data-theme="dark"] .admin-subtab-badge {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.home-subtab.active .home-subtab-badge,
-.admin-subtab.active .admin-subtab-badge {
-  background: rgba(255, 255, 255, 0.25);
-  color: #FFFFFF;
-}
-
-/* ── ULTRA LIQUID GLASS FLOATING BOTTOM DOCK ──────────── */
-.bottom-nav {
-  position: absolute;
-  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-  left: 16px;
-  right: 16px;
-  height: 66px;
+  transition: /* ── ULTRA LIQUID GLASS FLOATING BOTTOM DOCK (AYNAN 4-RASMDAGIDEK) ── */
+.bottom-dock-wrapper {
+  position: fixed;
+  bottom: calc(14px + env(safe-area-inset-bottom, 10px));
+  left: 12px;
+  right: 12px;
   max-width: 440px;
   margin: 0 auto;
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(30px) saturate(210%);
-  -webkit-backdrop-filter: blur(30px) saturate(210%);
-  border: 1.2px solid rgba(255, 255, 255, 0.85);
-  border-radius: 33px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 6px 8px;
-  gap: 6px;
-  z-index: 90;
-  box-shadow: 0 16px 36px -8px rgba(11, 37, 69, 0.16),
-              0 0 0 1px rgba(255, 255, 255, 0.6),
-              inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
-              inset 0 -1px 2px rgba(0, 0, 0, 0.04);
+  justify-content: center;
+  gap: 12px;
+  z-index: 9999;
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+.bottom-dock-wrapper > * {
+  pointer-events: auto;
+}
+
+/* 1. Asosiy Navigatsiya Kapsulasi (Pill) */
+.bottom-nav-pill {
+  flex: 1;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1.2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 36px;
+  box-shadow: 0 12px 32px -6px rgba(15, 23, 42, 0.14),
+              0 0 0 1px rgba(0, 0, 0, 0.04),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.95);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme="dark"] .bottom-nav {
-  background: rgba(15, 23, 42, 0.78);
-  border: 1.2px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 18px 42px -8px rgba(0, 0, 0, 0.55),
-              0 0 0 1px rgba(255, 255, 255, 0.08),
-              inset 0 1.5px 2px rgba(255, 255, 255, 0.22),
-              inset 0 -1px 2px rgba(0, 0, 0, 0.3);
+[data-theme="dark"] .bottom-nav-pill {
+  background: rgba(20, 26, 44, 0.88);
+  border: 1.2px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 38px -6px rgba(0, 0, 0, 0.6),
+              0 0 0 1px rgba(255, 255, 255, 0.06),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.15);
 }
 
-/* 2. Alohida Ajratilgan Shisha Tugmalar */
+/* 2. Kapsula ichidagi tugmalar */
 .nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 2px;
   cursor: pointer;
   color: #64748B;
   font-family: var(--font, 'Plus Jakarta Sans', sans-serif);
@@ -854,13 +851,13 @@ body {
   font-weight: 700;
   letter-spacing: -0.1px;
   flex: 1;
-  height: 100%;
-  border-radius: 22px;
-  padding: 6px 2px;
+  height: 48px;
+  border-radius: 26px;
+  padding: 4px 6px;
   position: relative;
   background: transparent;
-  border: 1px solid transparent;
-  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -868,124 +865,120 @@ body {
 .nav-item svg {
   width: 21px;
   height: 21px;
-  stroke-width: 2.2;
+  stroke-width: 2.1;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.25s ease;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.45);
-  border-color: rgba(255, 255, 255, 0.7);
+  color: #0F172A;
 }
 
 [data-theme="dark"] .nav-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.15);
+  color: #F8FAFC;
 }
 
 .nav-item:active {
   transform: scale(0.92);
 }
 
-/* 2.1. Lupa / Qidiruv Doiraviy Tugmasi va Vertikal Ajratkich */
-.nav-search-divider {
-  width: 1.5px;
-  height: 28px;
-  background: linear-gradient(180deg, rgba(203, 213, 225, 0.1) 0%, rgba(203, 213, 225, 0.8) 50%, rgba(203, 213, 225, 0.1) 100%);
-  border-radius: 2px;
-  margin: 0 4px 0 2px;
-  flex-shrink: 0;
+/* Faol tugma (Aynan 4-rasmdagidek chiroyli yumaloq ichki kapsula) */
+.nav-item.active {
+  color: #0F172A;
+  background: rgba(15, 23, 42, 0.09);
 }
 
-[data-theme="dark"] .nav-search-divider {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.28) 50%, rgba(255, 255, 255, 0.05) 100%);
+[data-theme="dark"] .nav-item.active {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.15);
 }
 
-.nav-search-btn {
+.nav-item.active svg {
+  transform: scale(1.05);
+  stroke: #0F172A;
+}
+
+[data-theme="dark"] .nav-item.active svg {
+  stroke: #FFFFFF;
+}
+
+/* 3. ALOHIDA AJRALGAN MUSTAQIL DOIRAVIY LUPA TUGMASI (AYNAN 4-RASMDAGIDEK!) */
+.nav-search-floating-circle {
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+  max-width: 58px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  max-width: 44px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 249, 255, 0.94) 100%);
-  border: 1.5px solid rgba(46, 196, 182, 0.45);
-  box-shadow: 0 4px 14px rgba(11, 37, 69, 0.1), 0 0 0 2.5px rgba(46, 196, 182, 0.12), inset 0 1px 2px rgba(255, 255, 255, 1);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1.2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 32px -6px rgba(15, 23, 42, 0.14),
+              0 0 0 1px rgba(0, 0, 0, 0.04),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.95);
   color: #0F172A;
   cursor: pointer;
   padding: 0;
-  margin-left: 2px;
   flex-shrink: 0;
-  transition: all 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
 }
 
-[data-theme="dark"] .nav-search-btn {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
-  border-color: rgba(46, 196, 182, 0.45);
-  color: #38BDF8;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), 0 0 0 2.5px rgba(46, 196, 182, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+[data-theme="dark"] .nav-search-floating-circle {
+  background: rgba(20, 26, 44, 0.9);
+  border: 1.2px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 38px -6px rgba(0, 0, 0, 0.6),
+              0 0 0 1px rgba(255, 255, 255, 0.06),
+              inset 0 1.5px 2px rgba(255, 255, 255, 0.15);
+  color: #F8FAFC;
 }
 
-.nav-search-btn:hover {
+.nav-search-floating-circle:hover {
   transform: scale(1.08);
-  border-color: rgba(46, 196, 182, 0.85);
-  color: #2EC4B6;
-  box-shadow: 0 6px 20px rgba(46, 196, 182, 0.35), 0 0 0 3px rgba(46, 196, 182, 0.25);
 }
 
-.nav-search-btn:active {
+.nav-search-floating-circle:active {
   transform: scale(0.92);
 }
 
-.nav-search-btn svg {
+.nav-search-floating-circle svg {
   stroke-width: 2.3;
   transition: transform 0.25s ease;
 }
 
-.nav-search-btn:hover svg {
-  transform: rotate(-10deg) scale(1.1);
+.nav-search-floating-circle:hover svg {
+  transform: scale(1.08);
 }
 
-/* 3. Faol Tugma (Aktiv Ajratilgan Liquid Glass Kapsulasi) */
 .nav-item.active {
-  color: #0B2545;
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.22) 0%, rgba(46, 196, 182, 0.08) 100%);
-  border: 1.2px solid rgba(46, 196, 182, 0.45);
-  box-shadow: 0 4px 16px rgba(46, 196, 182, 0.25),
-              inset 0 1.5px 1.5px rgba(255, 255, 255, 0.9),
-              inset 0 -1px 2px rgba(46, 196, 182, 0.15);
-  transform: translateY(-1.5px);
+  color: #0F172A;
+  background: rgba(15, 23, 42, 0.08);
 }
 
 [data-theme="dark"] .nav-item.active {
-  color: #E2E8F0;
-  background: linear-gradient(135deg, rgba(46, 196, 182, 0.32) 0%, rgba(46, 196, 182, 0.12) 100%);
-  border: 1.2px solid rgba(46, 196, 182, 0.6);
-  box-shadow: 0 4px 18px rgba(46, 196, 182, 0.35),
-              inset 0 1.5px 1.5px rgba(255, 255, 255, 0.35),
-              inset 0 -1px 2px rgba(46, 196, 182, 0.25);
-  transform: translateY(-1.5px);
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .nav-item.active svg {
-  stroke: #2EC4B6;
-  transform: scale(1.12);
-  filter: drop-shadow(0 2px 6px rgba(46, 196, 182, 0.4));
+  transform: scale(1.08);
+  stroke: #0F172A;
 }
 
-.nav-item.active span,
+[data-theme="dark"] .nav-item.active svg {
+  stroke: #FFFFFF;
+}
+
 .nav-item.active .nav-label {
   font-weight: 800;
-  color: #071E36;
+  color: #0F172A;
 }
 
-[data-theme="dark"] .nav-item.active span,
 [data-theme="dark"] .nav-item.active .nav-label {
-  color: #F8FAFC;
+  color: #FFFFFF;
 }
 
 /* 4. iPhone Home Indicator Bar */
@@ -3893,20 +3886,27 @@ body {
   }
 
   /* 8. Bottom Nav Floating Pill on Mobile */
-  .bottom-nav {
-    width: calc(100% - 20px);
-    max-width: 380px;
-    height: 55px;
-    padding: 3px 5px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  .bottom-dock-wrapper {
+    gap: 8px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 8px));
+  }
+  .bottom-nav-pill {
+    height: 54px;
+    padding: 3px 4px;
+  }
+  .nav-search-floating-circle {
+    width: 54px;
+    height: 54px;
+    min-width: 54px;
+    max-width: 54px;
   }
   .nav-icon-wrap {
     width: 30px;
-    height: 30px;
+    height: 28px;
   }
   .nav-icon-wrap svg {
-    width: 17px;
-    height: 17px;
+    width: 19px;
+    height: 19px;
   }
   .nav-label {
     font-size: 10px;
@@ -4181,23 +4181,31 @@ body {
   }
 
   /* 8. Bottom Nav Floating Pill on Mobile */
-  .bottom-nav {
-    width: calc(100% - 20px);
-    max-width: 400px;
-    height: 64px;
-    padding: 4px 6px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  .bottom-dock-wrapper {
+    gap: 10px;
+    max-width: 420px;
+    bottom: calc(14px + env(safe-area-inset-bottom, 8px));
+  }
+  .bottom-nav-pill {
+    height: 56px;
+    padding: 3px 5px;
+  }
+  .nav-search-floating-circle {
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+    max-width: 56px;
   }
   .nav-icon-wrap {
-    width: 44px;
-    height: 32px;
+    width: 36px;
+    height: 30px;
   }
   .nav-icon-wrap svg {
-    width: 22px;
-    height: 22px;
+    width: 21px;
+    height: 21px;
   }
   .nav-label {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
   }
 
@@ -4243,27 +4251,31 @@ body {
     font-size: 12px;
     min-height: 40px;
   }
-  .bottom-nav {
-    height: 60px;
-    width: calc(100% - 14px);
-    padding: 3px 4px;
+  .bottom-dock-wrapper {
+    gap: 7px;
+    max-width: 360px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 6px));
+  }
+  .bottom-nav-pill {
+    height: 52px;
+    padding: 2px 4px;
+  }
+  .nav-search-floating-circle {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    max-width: 52px;
   }
   .nav-icon-wrap {
-    width: 38px;
-    height: 28px;
+    width: 32px;
+    height: 26px;
   }
   .nav-icon-wrap svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
   }
   .nav-label {
-    font-size: 10px;
-  }
-  .nav-search-btn {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    max-width: 44px;
+    font-size: 9.5px;
   }
 }
 
@@ -4801,19 +4813,18 @@ body {
 
 /* ── ADMIN SIMULATION (USER MODE) BANNER VA KARTA ── */
 .admin-simulation-banner {
-  position: sticky;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+  flex-shrink: 0;
+  width: 100%;
+  z-index: 95;
   background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
   color: #FFFFFF;
-  padding: 9px 14px;
+  padding: 6px 14px;
+  min-height: 38px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   animation: slideDownBanner 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -4848,14 +4859,16 @@ body {
   background: rgba(255, 255, 255, 0.2);
   color: #FFFFFF;
   border: 1px solid rgba(255, 255, 255, 0.4);
-  padding: 5px 12px;
-  border-radius: 12px;
-  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.2s ease;
   user-select: none;
   -webkit-tap-highlight-color: transparent;

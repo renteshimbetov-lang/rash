@@ -4576,6 +4576,14 @@ async def handle_app_active_tests(request):
             td['is_planned'] = is_upcoming
             td['is_closed'] = is_closed
 
+            # Haqiqiy topshirilish vaqtlari (har bir testning o'ziga xos vaqt chegaralari)
+            bounds = test_db.get_test_submission_bounds(t['id'])
+            if bounds.get('first_submitted_at'):
+                td['first_submission_at'] = bounds['first_submitted_at']
+            if bounds.get('last_submitted_at'):
+                td['last_submission_at'] = bounds['last_submitted_at']
+            td['submissions_count'] = bounds.get('count', 0)
+
             # Agar test boshlanish vaqti kelmagan bo'lsa (is_upcoming):
             # Test kodini foydalanuvchilarga ko'rsatmaymiz (faqat vaqti kelganda ochiladi)
             if is_upcoming:
