@@ -184,7 +184,18 @@ var I18N = {
     tests_card_btn_analysis: "Tahlil & Kalitlar",
     tests_stat_correct: "ta to'g'ri",
     tests_stat_incorrect: "ta noto'g'ri",
-    tests_stat_efficiency: "samaradorlik"
+    tests_stat_efficiency: "samaradorlik",
+    search_chip_all: "Barchasi",
+    search_chip_tests: "Testlar",
+    search_chip_results: "Natijalarim",
+    search_chip_about: "Bot haqida",
+    search_ph: "Testlar, natijalarim, bot haqida...",
+    search_group_tests: "Testlar",
+    search_group_results: "Mening natijalarim",
+    search_group_about: "Bot haqida va Qo'llanma",
+    search_group_actions: "Tezkor amallar",
+    search_empty_title: "Hech narsa topilmadi",
+    search_empty_desc: "Boshqa so'z bilan qidirib ko'ring yoki yuqoridagi tugmalardan birini tanlang."
   },
   ru: {
     tab_home: 'Главная', tab_tests: 'Тесты', tab_profile: 'Профиль', tab_admin: 'Админ',
@@ -359,7 +370,18 @@ var I18N = {
     tests_card_btn_analysis: 'Анализ и Ключи',
     tests_stat_correct: 'правильно',
     tests_stat_incorrect: 'неверно',
-    tests_stat_efficiency: 'эффективность'
+    tests_stat_efficiency: 'эффективность',
+    search_chip_all: 'Все',
+    search_chip_tests: 'Тесты',
+    search_chip_results: 'Мои результаты',
+    search_chip_about: 'О боте',
+    search_ph: 'Тесты, результаты, о боте...',
+    search_group_tests: 'Тесты',
+    search_group_results: 'Мои результаты',
+    search_group_about: 'О боте и инструкции',
+    search_group_actions: 'Быстрые действия',
+    search_empty_title: 'Ничего не найдено',
+    search_empty_desc: 'Попробуйте другой запрос или выберите один из разделов выше.'
   },
   en: {
     tab_home: 'Home', tab_tests: 'Tests', tab_profile: 'Profile', tab_admin: 'Admin',
@@ -534,7 +556,18 @@ var I18N = {
     tests_card_btn_analysis: 'Analysis & Keys',
     tests_stat_correct: 'correct',
     tests_stat_incorrect: 'incorrect',
-    tests_stat_efficiency: 'efficiency'
+    tests_stat_efficiency: 'efficiency',
+    search_chip_all: 'All',
+    search_chip_tests: 'Tests',
+    search_chip_results: 'My Results',
+    search_chip_about: 'About Bot',
+    search_ph: 'Search tests, results, about bot...',
+    search_group_tests: 'Tests',
+    search_group_results: 'My Results',
+    search_group_about: 'About Bot & Guides',
+    search_group_actions: 'Quick Actions',
+    search_empty_title: 'No results found',
+    search_empty_desc: 'Try a different search term or choose one of the categories above.'
   }
 };
 
@@ -983,6 +1016,8 @@ async function loadUserProfile() {
       checkRegistrationStatus();
       var adminTab = document.getElementById('nav-admin');
       if (adminTab) adminTab.style.display = state.isAdmin ? 'flex' : 'none';
+      var searchNav = document.getElementById('nav-search');
+      if (searchNav) searchNav.style.display = state.isAdmin ? 'none' : 'flex';
       if (state.isAdmin && data.pending_users > 0) {
         var badge = document.getElementById('admin-badge');
         if (badge) { badge.textContent = data.pending_users; badge.style.display = 'block'; }
@@ -993,6 +1028,8 @@ async function loadUserProfile() {
     } else {
       state.userInfo = { status: 'not_registered', is_registered: false };
       checkRegistrationStatus();
+      var searchNav = document.getElementById('nav-search');
+      if (searchNav) searchNav.style.display = 'flex';
     }
   } catch (e) {
     console.warn('loadUserProfile err:', e);
@@ -1000,6 +1037,8 @@ async function loadUserProfile() {
       state.userInfo = { status: 'not_registered', is_registered: false };
     }
     checkRegistrationStatus();
+    var searchNav = document.getElementById('nav-search');
+    if (searchNav) searchNav.style.display = 'flex';
   }
 }
 
@@ -1029,7 +1068,10 @@ async function loadMyResults() {
   try {
     var tgId = (state.tgUser && state.tgUser.id) || 0;
     var data = await apiGet('/api/app/my-results?tg_id=' + tgId);
-    if (data.success) renderTestsTab(data.results);
+    if (data.success) {
+      window.cachedMyResults = data.results || [];
+      renderTestsTab(data.results);
+    }
     else throw new Error('no success');
   } catch (e) {
     tab.innerHTML = '<div class="empty-state"><div class="empty-icon">\u26A0\uFE0F</div><p>' + t('empty_tests') + '</p></div>';
@@ -3771,3 +3813,473 @@ function finishOnboarding() {
   closeOnboardingModal();
   showToast(t('toast_tour_done'));
 }
+
+// ──────────────────────────────────────────────────────────
+// GLOBAL SEARCH & KNOWLEDGE BASE (LUPA TIZIMI)
+// ──────────────────────────────────────────────────────────
+
+var BOT_KNOWLEDGE_BASE = [
+  {
+    id: 'about_bot',
+    title: "Shohruh Matematika (BM Bot) haqida",
+    category: 'about',
+    icon: 'ℹ️',
+    keywords: 'bot haqida nima buxoriylar maktabi shohruh matematika tizim platforma',
+    summary: "Shohruh Matematika o'quv markazining rasmiy test tekshirish va bilimni baholash tizimi.",
+    fullHtml: "<h4>Shohruh Matematika — BM Rasch Test Tizimi</h4>" +
+              "<p>Ushbu tizim o'quvchilarning matematika fanidan bilim darajasini zamonaviy psixometrik standartlar (Rasch modeli) asosida xolis va adolatli baholash uchun ishlab chiqilgan.</p>" +
+              "<ul>" +
+              "<li><b>Rasmiy Telegram Bot:</b> @bm_rashtest_bot</li>" +
+              "<li><b>Rahbar va Bosh Admin:</b> Shohruh Eshimbetov</li>" +
+              "<li><b>Asosiy yo'nalish:</b> Milliy sertifikat, DTM va olimpiada testlari tahlili</li>" +
+              "<li><b>Format:</b> Har bir test bo'yicha batafsil savolma-savol tahlil va Rasmiy PDF reyting jadvali taqdim etiladi.</li>" +
+              "</ul>"
+  },
+  {
+    id: 'rasch_model',
+    title: "Rasch modeli va Ball qanday hisoblanadi?",
+    category: 'about',
+    icon: '📈',
+    keywords: 'rasch model ball hisoblash baholash qiyinlik daraja theta adolatli',
+    summary: "Nega oddiy foiz emas, balki Rasch modeli? Savol qiyinligi va qobiliyat o'lchovi.",
+    fullHtml: "<h4>Rasch Modeli Qanday Ishlaydi?</h4>" +
+              "<p>Rasch modeli — bu Kembrij, SAT va O'zbekiston Milliy sertifikat imtihonlarida qo'llaniladigan xalqaro standartdir.</p>" +
+              "<p><b>Oddiy testlardan farqi:</b></p>" +
+              "<ul>" +
+              "<li>Oddiy testda oson savol ham, eng qiyin savol ham bir xil 1 ball beradi.</li>" +
+              "<li><b>Rasch modelida esa:</b> Har bir savolning o'z qiyinlik darajasi (Item Difficulty, Beta) mavjud. Qiyin savolni to'g'ri topgan o'quvchining qobiliyati (Theta) yuqoriroq baholanadi.</li>" +
+              "<li>Tasodifiy taxmin qilib topish (guessing) ta'siri kamaytiriladi va yakunda 0 dan 100 gacha shkalalangan eng aniq ball chiqariladi.</li>" +
+              "</ul>"
+  },
+  {
+    id: 'national_cert',
+    title: "Milliy Sertifikat darajalari (A+, A, B+, B, C)",
+    category: 'about',
+    icon: '🏆',
+    keywords: 'milliy sertifikat daraja a+ a b+ b c foiz ball talab darajalari',
+    summary: "Sertifikat olish uchun qancha ball to'plash kerak va qaysi darajalar beriladi.",
+    fullHtml: "<h4>Milliy Sertifikat Baholash Mezonlari</h4>" +
+              "<p>Tizimda Rasch modeli bo'yicha to'plangan umumiy ballga ko'ra quyidagi darajalar belgilanadi:</p>" +
+              "<ul>" +
+              "<li>🌟 <b>A+ Daraja:</b> 90% va undan yuqori — Eng a'lo natija, maksimal imtiyoz.</li>" +
+              "<li>🥇 <b>A Daraja:</b> 80% dan 89.9% gacha — Yuqori darajali sertifikat.</li>" +
+              "<li>🥈 <b>B+ Daraja:</b> 70% dan 79.9% gacha — Yaxshi natija.</li>" +
+              "<li>🥉 <b>B Daraja:</b> 60% dan 69.9% gacha — O'rtacha ijobiy daraja.</li>" +
+              "<li>📜 <b>C Daraja:</b> 50% dan 59.9% gacha — Qoniqarli minimal sertifikat darajasi.</li>" +
+              "<li>❌ <b>Qoniqarsiz:</b> 50% dan past — Sertifikat berilmaydi, bilimni oshirish tavsiya etiladi.</li>" +
+              "</ul>"
+  },
+  {
+    id: 'test_rules',
+    title: "Test topshirish qoidalari va Vaqt chegarasi",
+    category: 'about',
+    icon: '⏱️',
+    keywords: 'qoida qoidalar vaqt topshirish tartibi javob format 1a2b3c',
+    summary: "Test kodi, javoblarni yuborish tartibi va vaqt nazorati haqida muhim qoidalar.",
+    fullHtml: "<h4>Test Topshirish Qoidalari</h4>" +
+              "<ul>" +
+              "<li><b>1. Testni boshlash:</b> Botda yoki Mini ilovada faol test kodini (masalan, #49) tanlang.</li>" +
+              "<li><b>2. Vaqt chegarasi:</b> Har bir test uchun aniq vaqt belgilanadi (masalan, 120 daqiqa). Vaqt tugagach test avtomatik yakunlanadi.</li>" +
+              "<li><b>3. Javoblarni yuborish formati:</b> Bot orqali topshirishda javoblarni ketma-ketlikda yuboring (Masalan: <code>1a2b3c4d5e...</code>).</li>" +
+              "<li><b>4. Bir martalik topshirish:</b> Har bir test faqat bir marta topshiriladi. Qayta topshirish taqiqlanadi.</li>" +
+              "</ul>"
+  },
+  {
+    id: 'pin_security',
+    title: "PIN kod va Shaxsiy xavfsizlik",
+    category: 'about',
+    icon: '🔐',
+    keywords: 'pin kod xavfsizlik parol profil himoya ozgartirish',
+    summary: "Natijalaringiz va shaxsiy ma'lumotlaringizni himoyalovchi 4 xonali PIN kod.",
+    fullHtml: "<h4>PIN Kod Tizimi</h4>" +
+              "<p>Natijalaringiz va profilingiz begona shaxslar qo'liga tushmasligi uchun 4 xonali shaxsiy PIN kod o'rnatiladi.</p>" +
+              "<ul>" +
+              "<li>PIN kodni o'zgartirish uchun: <b>Profil</b> bo'limidagi <b>«Profilni tahrirlash»</b> yoki sozlamalardan foydalaning.</li>" +
+              "<li>Agar PIN kodingizni esdan chiqarsangiz, bot ma'muriga (@eshmbetov) murojaat qiling.</li>" +
+              "</ul>"
+  },
+  {
+    id: 'contact_admin',
+    title: "Ma'muriyat bilan bog'lanish va Yordam",
+    category: 'about',
+    icon: '📞',
+    keywords: 'admin murojaat yordam boglanish eshmbetov kontakt aloqa savol muammo',
+    summary: "Savol, taklif va texnik muammolar bo'yicha administrator bilan aloqa.",
+    fullHtml: "<h4>Bog'lanish va Qo'llab-quvvatlash</h4>" +
+              "<p>Har qanday savol, taklif yoki texnik muammolar yuzasidan quyidagi kontaktlarga murojaat qilishingiz mumkin:</p>" +
+              "<ul>" +
+              "<li>👤 <b>Bosh Admin:</b> @eshmbetov</li>" +
+              "<li>🤖 <b>Rasmiy Bot:</b> @bm_rashtest_bot</li>" +
+              "<li>📢 <b>Rasmiy Kanal:</b> Shohruh Matematika o'quv kanali</li>" +
+              "</ul>" +
+              "<div style='margin-top:14px;'><a href='https://t.me/eshmbetov' target='_blank' style='display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;background:linear-gradient(135deg,#3B82F6,#6366F1);color:white;text-decoration:none;font-weight:700;'>Adminga yozish (@eshmbetov) ➔</a></div>"
+  }
+];
+
+var QUICK_ACTIONS = [
+  {
+    id: 'act_tests',
+    title: "Testlar bo'limiga o'tish",
+    sub: "Barcha faol va rejalashtirilgan testlarni ko'rish",
+    icon: '📝',
+    keywords: 'test testlar kutilayotgan faol topshirish',
+    action: function() { closeGlobalSearch(); switchTab('home'); }
+  },
+  {
+    id: 'act_results',
+    title: "Mening natijalarim",
+    sub: "Topshirilgan testlar, ballar va sertifikat darajasi",
+    icon: '📊',
+    keywords: 'natija natijalarim ball sertifikat reyting tarix',
+    action: function() { closeGlobalSearch(); switchTab('tests'); }
+  },
+  {
+    id: 'act_profile',
+    title: "Profilim va Shaxsiy ma'lumotlar",
+    sub: "Ism, telefon raqami va statusni ko'rish",
+    icon: '👤',
+    keywords: 'profil ism telefon hisob status shaxsiy',
+    action: function() { closeGlobalSearch(); switchTab('profile'); }
+  },
+  {
+    id: 'act_edit_profile',
+    title: "Profilni tahrirlash",
+    sub: "Ism va telefon raqamini o'zgartirish",
+    icon: '✏️',
+    keywords: 'profil tahrirlash ism telefon yangilash',
+    action: function() { closeGlobalSearch(); switchTab('profile'); openEditProfileModal(); }
+  },
+  {
+    id: 'act_theme',
+    title: "Mavzuni almashtirish (Dark / Light)",
+    sub: "Tungi yoki kunduzgi ko'rinish rejimiga o'tish",
+    icon: '🌓',
+    keywords: 'tema mavzu qorongu oq dark light tun',
+    action: function() { toggleTheme(); renderSearchResults(); }
+  },
+  {
+    id: 'act_lang',
+    title: "Tilni o'zgartirish (Language)",
+    sub: "O'zbekcha / Русский / English",
+    icon: '🌐',
+    keywords: 'til tilni almashtirish uz ru en language',
+    action: function() { cycleLang(); renderSearchResults(); }
+  }
+];
+
+async function openGlobalSearch() {
+  var modal = document.getElementById('global-search-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  var inp = document.getElementById('global-search-input');
+  if (inp) {
+    inp.value = '';
+    setTimeout(function() { inp.focus(); }, 150);
+  }
+  var clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  state.searchFilter = 'all';
+  state.searchQuery = '';
+  updateSearchChipUI('all');
+
+  // Active tests va past results ni fonda yuklab turish (agar hali yuklanmagan bo'lsa)
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  if (!window.availableActiveTests || window.availableActiveTests.length === 0) {
+    apiGet('/api/app/active-tests?tg_id=' + tgId).then(function(d) {
+      if (d && d.success) {
+        window.availableActiveTests = d.tests || [];
+        renderSearchResults();
+      }
+    }).catch(function() {});
+  }
+  if (!window.cachedMyResults) {
+    apiGet('/api/app/my-results?tg_id=' + tgId).then(function(d) {
+      if (d && d.success) {
+        window.cachedMyResults = d.results || [];
+        renderSearchResults();
+      }
+    }).catch(function() {});
+  }
+
+  renderSearchResults();
+}
+
+function closeGlobalSearch(e) {
+  if (e && e.target && e.target.id !== 'global-search-modal' && !e.target.classList.contains('search-close-btn')) return;
+  var modal = document.getElementById('global-search-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function clearGlobalSearch() {
+  var inp = document.getElementById('global-search-input');
+  if (inp) {
+    inp.value = '';
+    inp.focus();
+  }
+  handleGlobalSearch('');
+}
+
+function selectSearchFilter(filterType) {
+  state.searchFilter = filterType;
+  updateSearchChipUI(filterType);
+  renderSearchResults();
+}
+
+function updateSearchChipUI(activeFilter) {
+  var chips = document.querySelectorAll('.search-chip');
+  chips.forEach(function(btn) {
+    btn.classList.remove('active');
+  });
+  var activeBtn = document.getElementById('chip-' + activeFilter);
+  if (activeBtn) activeBtn.classList.add('active');
+}
+
+function handleGlobalSearch(query) {
+  state.searchQuery = (query || '').trim();
+  var clearBtn = document.getElementById('search-clear-btn');
+  if (clearBtn) {
+    clearBtn.style.display = state.searchQuery ? 'flex' : 'none';
+  }
+  renderSearchResults();
+}
+
+function renderSearchResults() {
+  var container = document.getElementById('global-search-results');
+  if (!container) return;
+
+  var q = (state.searchQuery || '').toLowerCase().trim();
+  var filter = state.searchFilter || 'all';
+
+  var activeTests = window.availableActiveTests || [];
+  var myResults = window.cachedMyResults || [];
+  var knowledgeBase = BOT_KNOWLEDGE_BASE || [];
+  var quickActions = QUICK_ACTIONS || [];
+
+  // Filter Active Tests
+  var matchedTests = [];
+  if (filter === 'all' || filter === 'tests') {
+    matchedTests = activeTests.filter(function(t) {
+      if (!q) return true;
+      var title = (t.title || '').toLowerCase();
+      var code = (t.test_code || '').toLowerCase();
+      var subj = (t.subject || '').toLowerCase();
+      return title.indexOf(q) !== -1 || code.indexOf(q) !== -1 || subj.indexOf(q) !== -1;
+    });
+  }
+
+  // Filter My Results
+  var matchedResults = [];
+  if (filter === 'all' || filter === 'results') {
+    matchedResults = myResults.filter(function(r) {
+      if (!q) return true;
+      var title = (r.test_title || r.title || '').toLowerCase();
+      var code = (r.test_code || '').toLowerCase();
+      var grade = (r.grade || '').toLowerCase();
+      var score = String(r.score || '');
+      return title.indexOf(q) !== -1 || code.indexOf(q) !== -1 || grade.indexOf(q) !== -1 || score.indexOf(q) !== -1;
+    });
+  }
+
+  // Filter Bot Knowledge Base
+  var matchedKnowledge = [];
+  if (filter === 'all' || filter === 'about') {
+    matchedKnowledge = knowledgeBase.filter(function(k) {
+      if (!q) return true;
+      var title = (k.title || '').toLowerCase();
+      var kw = (k.keywords || '').toLowerCase();
+      var sum = (k.summary || '').toLowerCase();
+      return title.indexOf(q) !== -1 || kw.indexOf(q) !== -1 || sum.indexOf(q) !== -1;
+    });
+  }
+
+  // Filter Quick Actions
+  var matchedActions = [];
+  if (filter === 'all') {
+    matchedActions = quickActions.filter(function(a) {
+      if (!q) return true;
+      var title = (a.title || '').toLowerCase();
+      var sub = (a.sub || '').toLowerCase();
+      var kw = (a.keywords || '').toLowerCase();
+      return title.indexOf(q) !== -1 || sub.indexOf(q) !== -1 || kw.indexOf(q) !== -1;
+    });
+  }
+
+  var totalFound = matchedTests.length + matchedResults.length + matchedKnowledge.length + matchedActions.length;
+
+  if (totalFound === 0) {
+    container.innerHTML =
+      '<div class="search-empty-state">' +
+        '<div class="search-empty-icon">🔍</div>' +
+        '<div class="search-empty-title">' + t('search_empty_title') + '</div>' +
+        '<div class="search-empty-desc">' + t('search_empty_desc') + '</div>' +
+      '</div>';
+    return;
+  }
+
+  var html = '';
+
+  // 1. TESTS GROUP
+  if (matchedTests.length > 0) {
+    html += '<div class="search-group-container">' +
+      '<div class="search-group-header">' +
+        '<div class="search-group-title"><span>📝</span> ' + t('search_group_tests') + '</div>' +
+        '<span class="search-group-badge">' + matchedTests.length + ' ta</span>' +
+      '</div>' +
+      '<div class="search-card-list">';
+    matchedTests.forEach(function(test) {
+      var isDone = test.is_participated || (test.user_status && test.user_status.has_submitted);
+      var statusPill = isDone
+        ? '<span class="search-card-pill pill-green">✅ Topshirilgan</span>'
+        : (test.is_active ? '<span class="search-card-pill pill-blue">🟢 Faol</span>' : '<span class="search-card-pill">Yakunlangan</span>');
+      var codeStr = test.test_code ? ('Kod: #' + test.test_code) : '';
+      var qCount = test.total_questions ? (test.total_questions + ' ta savol') : '45 ta savol';
+
+      html += '<div class="search-card-item" onclick="handleSearchSelectTest(' + test.id + ', \'' + (test.test_code || '') + '\', ' + (isDone ? 'true' : 'false') + ')">' +
+        '<div class="search-card-icon icon-blue">📝</div>' +
+        '<div class="search-card-info">' +
+          '<div class="search-card-title">' + escHtml(test.title || 'Matematika Testi') + '</div>' +
+          '<div class="search-card-sub">' +
+            statusPill +
+            (codeStr ? '<span>' + escHtml(codeStr) + '</span>' : '') +
+            '<span>' + qCount + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<span class="search-card-arrow">➔</span>' +
+      '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // 2. RESULTS GROUP
+  if (matchedResults.length > 0) {
+    html += '<div class="search-group-container">' +
+      '<div class="search-group-header">' +
+        '<div class="search-group-title"><span>📊</span> ' + t('search_group_results') + '</div>' +
+        '<span class="search-group-badge">' + matchedResults.length + ' ta</span>' +
+      '</div>' +
+      '<div class="search-card-list">';
+    matchedResults.forEach(function(res, idx) {
+      var scoreVal = (res.score != null) ? res.score : 0;
+      var gradeVal = res.grade || getGradeFromScore(scoreVal, res.max_score || 100);
+      var dateStr = formatDateOnly(res.submitted_at);
+
+      html += '<div class="search-card-item" onclick="handleSearchSelectResult(' + idx + ')">' +
+        '<div class="search-card-icon icon-green">🏆</div>' +
+        '<div class="search-card-info">' +
+          '<div class="search-card-title">' + escHtml(res.test_title || res.title || 'Test Natijasi') + '</div>' +
+          '<div class="search-card-sub">' +
+            '<span class="search-card-pill pill-green">' + scoreVal + ' ball (' + gradeVal + ')</span>' +
+            '<span>📅 ' + dateStr + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<span class="search-card-arrow">➔</span>' +
+      '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // 3. BOT HAQIDA (KNOWLEDGE BASE)
+  if (matchedKnowledge.length > 0) {
+    html += '<div class="search-group-container">' +
+      '<div class="search-group-header">' +
+        '<div class="search-group-title"><span>ℹ️</span> ' + t('search_group_about') + '</div>' +
+        '<span class="search-group-badge">' + matchedKnowledge.length + ' ta</span>' +
+      '</div>' +
+      '<div class="search-card-list">';
+    matchedKnowledge.forEach(function(item) {
+      html += '<div class="search-card-item" onclick="showAboutInfoModal(\'' + item.id + '\')">' +
+        '<div class="search-card-icon icon-purple">' + item.icon + '</div>' +
+        '<div class="search-card-info">' +
+          '<div class="search-card-title">' + escHtml(item.title) + '</div>' +
+          '<div class="search-card-sub">' + escHtml(item.summary) + '</div>' +
+        '</div>' +
+        '<span class="search-card-arrow">›</span>' +
+      '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  // 4. QUICK ACTIONS
+  if (matchedActions.length > 0 && filter === 'all') {
+    html += '<div class="search-group-container">' +
+      '<div class="search-group-header">' +
+        '<div class="search-group-title"><span>⚡️</span> ' + t('search_group_actions') + '</div>' +
+      '</div>' +
+      '<div class="search-card-list">';
+    matchedActions.forEach(function(act, idx) {
+      html += '<div class="search-card-item" onclick="handleSearchAction(' + idx + ')">' +
+        '<div class="search-card-icon icon-amber">' + act.icon + '</div>' +
+        '<div class="search-card-info">' +
+          '<div class="search-card-title">' + escHtml(act.title) + '</div>' +
+          '<div class="search-card-sub">' + escHtml(act.sub) + '</div>' +
+        '</div>' +
+        '<span class="search-card-arrow">›</span>' +
+      '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function handleSearchSelectTest(testId, testCode, isDone) {
+  closeGlobalSearch();
+  if (isDone) {
+    openPastTestResult(testId);
+  } else {
+    switchTab('home');
+    setTimeout(function() {
+      var el = document.getElementById('test-card-' + testId);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+  }
+}
+
+function handleSearchSelectResult(resIndex) {
+  closeGlobalSearch();
+  var myResults = window.cachedMyResults || [];
+  if (myResults[resIndex]) {
+    showResultModal(myResults[resIndex]);
+  } else {
+    switchTab('tests');
+  }
+}
+
+function handleSearchAction(actIndex) {
+  if (QUICK_ACTIONS[actIndex] && typeof QUICK_ACTIONS[actIndex].action === 'function') {
+    QUICK_ACTIONS[actIndex].action();
+  }
+}
+
+function showAboutInfoModal(infoId) {
+  var item = BOT_KNOWLEDGE_BASE.find(function(k) { return k.id === infoId; });
+  if (!item) return;
+
+  var modal = document.getElementById('about-info-modal');
+  var title = document.getElementById('about-info-title');
+  var body = document.getElementById('about-info-body');
+  if (!modal || !title || !body) return;
+
+  title.innerHTML = '<span style="margin-right:6px;">' + item.icon + '</span> ' + escHtml(item.title);
+  body.innerHTML = item.fullHtml;
+  modal.style.display = 'flex';
+}
+
+function closeAboutInfoModal(e) {
+  if (e && e.target && e.target.id !== 'about-info-modal' && !e.target.classList.contains('modal-close')) return;
+  var modal = document.getElementById('about-info-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// ESC tugmasi bosilganda qidiruv modalini yopish
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var sm = document.getElementById('global-search-modal');
+    if (sm && sm.style.display !== 'none') closeGlobalSearch();
+    var am = document.getElementById('about-info-modal');
+    if (am && am.style.display !== 'none') closeAboutInfoModal();
+  }
+});
+
