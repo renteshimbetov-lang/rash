@@ -609,17 +609,25 @@ function initApp() {
       try { tg.ready(); tg.expand(); } catch (e) {}
     }
     var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    var isTelegramWebApp = !!(tg && (tg.initData || tgU));
+
     if (isPreview) {
       state.tgUser = { id: 7080517395, first_name: "O'quvchi", last_name: '', username: 'demo_user' };
       state.userInfo = { tg_id: 7080517395, fullname: "O'quvchi (Namuna)", phone: '+998901234567', status: 'approved', is_registered: true };
       state.isAdmin = false;
-      window._unregBypassed = true;
     } else if (tgU && tgU.id) {
       state.tgUser = tgU;
-    } else if (queryTgId && parseInt(queryTgId) > 0) {
+    } else if (queryTgId && parseInt(queryTgId) > 0 && isTelegramWebApp) {
       state.tgUser = { id: parseInt(queryTgId), first_name: 'Foydalanuvchi', last_name: '', username: '' };
     } else {
-      state.tgUser = { id: 0, first_name: 'Mehmon', last_name: '', username: '' };
+      // ⚠️ WEB ORQALI KIRISHNI CHEKLASH: Oddiy veb brauzerda to'liq to'xtatish!
+      var webBlock = document.getElementById('web-block-screen');
+      if (webBlock) webBlock.style.display = 'flex';
+      var splashScreen = document.getElementById('splashScreen');
+      if (splashScreen) splashScreen.style.display = 'none';
+      var appEl = document.getElementById('app');
+      if (appEl) appEl.style.display = 'none';
+      return;
     }
     try {
       var saved = localStorage.getItem(LS_USER);
@@ -1035,13 +1043,22 @@ async function loadUserProfile() {
     if (data.success) {
       if (data.bot_username) window.BOT_USERNAME = data.bot_username;
       state.userInfo = data.user;
-      state.isAdmin = data.is_admin;
+      if (data.is_admin) {
+        state.isActualAdmin = true;
+      }
+      if (state.isSimulatedUser) {
+        state.isAdmin = false;
+      } else {
+        state.isAdmin = Boolean(data.is_admin);
+      }
       localStorage.setItem(LS_USER, JSON.stringify(data.user));
       if (urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user') {
         state.isAdmin = false;
       }
       var adminTab = document.getElementById('nav-admin');
       if (adminTab) adminTab.style.display = state.isAdmin ? 'flex' : 'none';
+      var banner = document.getElementById('admin-simulation-banner');
+      if (banner) banner.style.display = state.isSimulatedUser ? 'flex' : 'none';
       var searchNav = document.getElementById('nav-search');
       if (searchNav) searchNav.style.display = 'flex';
       if (state.isAdmin && data.pending_users > 0) {
@@ -2035,6 +2052,37 @@ function renderProfileTab() {
   var curTheme = document.documentElement.getAttribute('data-theme') || 'light';
   var themeLabel = curTheme === 'dark' ? t('theme_dark_lbl') : t('theme_light_lbl');
 
+  var isActualAdmin = Boolean(state.isActualAdmin || state.isAdmin || state.isSimulatedUser);
+  var simSwitchHtml = '';
+  if (isActualAdmin) {
+    if (!state.isSimulatedUser) {
+      simSwitchHtml =
+        '<div class="admin-simulation-switch-card animate-in">' +
+          '<div class="sim-switch-body">' +
+            '<div class="sim-switch-badge">🛡 ADMIN BOSHQARUVI</div>' +
+            '<div class="sim-switch-title">O\'quvchi sifatida kirish (User Mode)</div>' +
+            '<div class="sim-switch-desc">Mini ilova oddiy o\'quvchida qanday ko\'rinishi va ishlashini o\'z ko\'zingiz bilan ko\'rib sinash uchun o\'quvchi rejimiga o\'ting.</div>' +
+          '</div>' +
+          '<button type="button" class="btn-switch-to-user" onclick="toggleUserSimulationMode(true)">' +
+            '<span>👁 User sifatida kirish</span>' +
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>' +
+          '</button>' +
+        '</div>';
+    } else {
+      simSwitchHtml =
+        '<div class="admin-simulation-switch-card simulated animate-in">' +
+          '<div class="sim-switch-body">' +
+            '<div class="sim-switch-badge simulated">👁 O\'QUVCHI REJIMI FAOL</div>' +
+            '<div class="sim-switch-title">Siz hozir o\'quvchi rejimidasiz</div>' +
+            '<div class="sim-switch-desc">Barcha ekranlar, qidiruv va testlar oddiy o\'quvchi sifatida ishlamoqda. Admin boshqaruviga qaytish uchun tugmani bosing.</div>' +
+          '</div>' +
+          '<button type="button" class="btn-switch-to-admin" onclick="toggleUserSimulationMode(false)">' +
+            '<span>🛡 Admin boshqaruviga qaytish</span>' +
+          '</button>' +
+        '</div>';
+    }
+  }
+
   tab.innerHTML =
     // ── 1. HERO PROFILE CARD (Ixcham, toza va to'g'ri o'lchamdagi ism) ──
     '<div class="profile-hero-card animate-in">' +
@@ -2054,6 +2102,9 @@ function renderProfileTab() {
         '</button>' +
       '</div>' +
     '</div>' +
+
+    // ── 1.5. ADMIN USER SIMULATION SWITCH (Agar Admin bo'lsa) ──
+    simSwitchHtml +
 
     // ── 2. METRIKALAR PANELCHASI (3 ta ustunli qulay va ixcham lenta) ──
     '<div class="profile-stats-ribbon animate-in">' +
@@ -3114,36 +3165,70 @@ function runCornerThemeWave(x, y, maxRadius, nextTheme, callback) {
 }
 
 function closeUnregisteredModal() {
-  window._unregBypassed = true;
-  var modal = document.getElementById('unregistered-modal');
-  if (modal) modal.style.display = 'none';
-  if (!state.userInfo || state.userInfo.status === 'not_registered') {
-    state.userInfo = {
-      tg_id: 7080517395,
-      fullname: "O'quvchi (Demo)",
-      phone: "+998901234567",
-      status: "approved",
-      is_registered: true
-    };
-    refreshActiveTab();
-  }
+  // Ro'yxatdan o'tish qat'iy majburiy - oynani yopish cheklangan
 }
 
 function checkRegistrationStatus() {
-  var urlParams = new URLSearchParams(window.location.search);
-  var isPreview = window._unregBypassed || urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user' || urlParams.get('demo') === '1';
   var modal = document.getElementById('unregistered-modal');
-  if (isPreview) {
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  var isTelegramWebApp = !!(tg && (tg.initData || tgU));
+  var tgId = (state.tgUser && state.tgUser.id) || (tgU && tgU.id) || 0;
+
+  // 1. Agar web orqali (Telegramsiz) kirilgan bo'lsa -> To'liq bloklash
+  if (!isTelegramWebApp && (!tgId || tgId === 0)) {
+    var webBlock = document.getElementById('web-block-screen');
+    if (webBlock) webBlock.style.display = 'flex';
+    var appEl = document.getElementById('app');
+    if (appEl) appEl.style.display = 'none';
+    return true;
+  }
+
+  // 2. Agar admin simulyatsiya rejimida bo'lsa (User mode), modal chiqmaydi
+  if (state.isSimulatedUser) {
     if (modal) modal.style.display = 'none';
     return false;
   }
+
+  // 3. Botda ro'yxatdan o'tganligini tekshirish
   var u = state.userInfo;
-  var tgId = (state.tgUser && state.tgUser.id) || 0;
-  var isUnreg = (!tgId || tgId === 0 || (u && (u.status === 'not_registered' || u.is_registered === false)));
+  var isUnreg = (!tgId || tgId === 0 || !u || u.status === 'not_registered' || u.is_registered === false);
   if (modal) {
     modal.style.display = isUnreg ? 'flex' : 'none';
   }
   return !!isUnreg;
+}
+
+function toggleUserSimulationMode(enable) {
+  if (enable) {
+    state.isActualAdmin = true;
+    state.isSimulatedUser = true;
+    state.isAdmin = false;
+    showToast("👁 O'quvchi rejimiga o'tildi. O'zgarishlarni bemalol tekshirishingiz mumkin!");
+  } else {
+    state.isSimulatedUser = false;
+    state.isAdmin = true;
+    showToast("🛡 Admin rejimiga qaytildi.");
+  }
+
+  // Yuqori floating banner
+  var banner = document.getElementById('admin-simulation-banner');
+  if (banner) {
+    banner.style.display = state.isSimulatedUser ? 'flex' : 'none';
+  }
+
+  // Pastki navigatsiyadagi Admin tugmasi
+  var navAdmin = document.getElementById('nav-admin');
+  if (navAdmin) {
+    navAdmin.style.display = state.isAdmin ? 'flex' : 'none';
+  }
+
+  // Agar admin tabida turgan bo'lsa va user rejimiga o'tsa -> Asosiy tabga o'tkazish
+  if (state.isSimulatedUser && state.activeTab === 'admin') {
+    switchTab('home');
+  } else {
+    refreshActiveTab();
+  }
 }
 
 function goToBotRegister() {

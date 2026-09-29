@@ -886,7 +886,20 @@ body {
   transform: scale(0.92);
 }
 
-/* 2.1. Lupa / Qidiruv Doiraviy Tugmasi (Aynan rasmdagidek) */
+/* 2.1. Lupa / Qidiruv Doiraviy Tugmasi va Vertikal Ajratkich */
+.nav-search-divider {
+  width: 1.5px;
+  height: 28px;
+  background: linear-gradient(180deg, rgba(203, 213, 225, 0.1) 0%, rgba(203, 213, 225, 0.8) 50%, rgba(203, 213, 225, 0.1) 100%);
+  border-radius: 2px;
+  margin: 0 4px 0 2px;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .nav-search-divider {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.28) 50%, rgba(255, 255, 255, 0.05) 100%);
+}
+
 .nav-search-btn {
   display: flex;
   align-items: center;
@@ -896,9 +909,9 @@ body {
   min-width: 44px;
   max-width: 44px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1.5px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 4px 14px rgba(11, 37, 69, 0.08), inset 0 1px 2px rgba(255, 255, 255, 1);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(240, 249, 255, 0.94) 100%);
+  border: 1.5px solid rgba(46, 196, 182, 0.45);
+  box-shadow: 0 4px 14px rgba(11, 37, 69, 0.1), 0 0 0 2.5px rgba(46, 196, 182, 0.12), inset 0 1px 2px rgba(255, 255, 255, 1);
   color: #0F172A;
   cursor: pointer;
   padding: 0;
@@ -907,24 +920,25 @@ body {
   transition: all 0.26s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 
 [data-theme="dark"] .nav-search-btn {
-  background: rgba(30, 41, 59, 0.9);
-  border-color: rgba(255, 255, 255, 0.16);
-  color: #F8FAFC;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: rgba(46, 196, 182, 0.45);
+  color: #38BDF8;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), 0 0 0 2.5px rgba(46, 196, 182, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.12);
 }
 
 .nav-search-btn:hover {
   transform: scale(1.08);
-  border-color: rgba(46, 196, 182, 0.55);
+  border-color: rgba(46, 196, 182, 0.85);
   color: #2EC4B6;
-  box-shadow: 0 6px 18px rgba(46, 196, 182, 0.25);
+  box-shadow: 0 6px 20px rgba(46, 196, 182, 0.35), 0 0 0 3px rgba(46, 196, 182, 0.25);
 }
 
 .nav-search-btn:active {
-  transform: scale(0.9);
+  transform: scale(0.92);
 }
 
 .nav-search-btn svg {
@@ -4688,4 +4702,263 @@ body {
   margin-bottom: 6px;
   color: var(--text);
 }
+
+/* ── WEB ORQALI KIRISHNI CHEKLASH EKRANI ── */
+.web-block-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.web-block-card {
+  width: 100%;
+  max-width: 380px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid rgba(255, 255, 255, 0.8);
+  border-radius: 28px;
+  padding: 32px 24px 28px;
+  text-align: center;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.4), inset 0 1px 2px #FFFFFF;
+  animation: webBlockPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] .web-block-card,
+.dark-mode .web-block-card {
+  background: rgba(30, 41, 59, 0.96);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #F8FAFC;
+}
+
+@keyframes webBlockPop {
+  0% { transform: scale(0.9) translateY(10px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.web-block-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 24px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #EF4444;
+  font-size: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 18px;
+  border: 1.5px solid rgba(239, 68, 68, 0.25);
+}
+
+.web-block-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: #0F172A;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+[data-theme="dark"] .web-block-title,
+.dark-mode .web-block-title {
+  color: #FFFFFF;
+}
+
+.web-block-desc {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+[data-theme="dark"] .web-block-desc,
+.dark-mode .web-block-desc {
+  color: #94A3B8;
+}
+
+.web-block-warning {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #DC2626;
+  line-height: 1.45;
+}
+
+[data-theme="dark"] .web-block-warning,
+.dark-mode .web-block-warning {
+  color: #F87171;
+}
+
+/* ── ADMIN SIMULATION (USER MODE) BANNER VA KARTA ── */
+.admin-simulation-banner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+  color: #FFFFFF;
+  padding: 9px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.35);
+  font-size: 12.5px;
+  font-weight: 600;
+  animation: slideDownBanner 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDownBanner {
+  0% { transform: translateY(-100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.simulation-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.simulation-pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #38BDF8;
+  box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7);
+  animation: simPulse 1.6s infinite cubic-bezier(0.66, 0, 0, 1);
+}
+
+@keyframes simPulse {
+  0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.8); }
+  70% { box-shadow: 0 0 0 8px rgba(56, 189, 248, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+.btn-return-admin-banner {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 5px 12px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-return-admin-banner:hover {
+  background: #FFFFFF;
+  color: #0369A1;
+}
+
+.admin-simulation-switch-card {
+  background: var(--bg-card, #FFFFFF);
+  border: 1.5px solid rgba(59, 130, 246, 0.25);
+  border-radius: 20px;
+  padding: 16px 18px;
+  margin-top: 12px;
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.08);
+}
+
+.admin-simulation-switch-card.simulated {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.1);
+}
+
+.sim-switch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563EB;
+  margin-bottom: 6px;
+}
+
+.sim-switch-badge.simulated {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.sim-switch-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text, #0F172A);
+  margin-bottom: 4px;
+}
+
+.sim-switch-desc {
+  font-size: 12.5px;
+  color: var(--text-muted, #64748B);
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.btn-switch-to-user {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  color: #FFFFFF;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+  transition: all 0.22s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-switch-to-user:active {
+  transform: scale(0.98);
+}
+
+.btn-switch-to-admin {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  color: #FFFFFF;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+  transition: all 0.22s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-switch-to-admin:active {
+  transform: scale(0.98);
+}
+
 
