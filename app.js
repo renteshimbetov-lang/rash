@@ -603,12 +603,18 @@ function initApp() {
   try {
     var urlParams = new URLSearchParams(window.location.search);
     var queryTgId = urlParams.get('tg_id');
+    var isPreview = urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user' || urlParams.get('demo') === '1';
     var tg = window.Telegram && window.Telegram.WebApp;
     if (tg) {
       try { tg.ready(); tg.expand(); } catch (e) {}
     }
     var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-    if (tgU && tgU.id) {
+    if (isPreview) {
+      state.tgUser = { id: 7080517395, first_name: "O'quvchi", last_name: '', username: 'demo_user' };
+      state.userInfo = { tg_id: 7080517395, fullname: "O'quvchi (Namuna)", phone: '+998901234567', status: 'approved', is_registered: true };
+      state.isAdmin = false;
+      window._unregBypassed = true;
+    } else if (tgU && tgU.id) {
       state.tgUser = tgU;
     } else if (queryTgId && parseInt(queryTgId) > 0) {
       state.tgUser = { id: parseInt(queryTgId), first_name: 'Foydalanuvchi', last_name: '', username: '' };
@@ -617,7 +623,7 @@ function initApp() {
     }
     try {
       var saved = localStorage.getItem(LS_USER);
-      if (saved) state.userInfo = JSON.parse(saved);
+      if (saved && !isPreview) state.userInfo = JSON.parse(saved);
     } catch (e) {}
   } catch (err) {
     console.error('initApp error:', err);
@@ -1001,6 +1007,24 @@ async function loadUserProfile() {
       tgId = tg.initDataUnsafe.user.id;
       state.tgUser = tg.initDataUnsafe.user;
     }
+  }
+  var isPreview = urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user' || urlParams.get('demo') === '1';
+  if (isPreview) {
+    state.userInfo = {
+      tg_id: 7080517395,
+      fullname: "O'quvchi (Namuna)",
+      phone: "+998901234567",
+      status: "approved",
+      is_registered: true
+    };
+    state.isAdmin = false;
+    window._unregBypassed = true;
+    var adminTab = document.getElementById('nav-admin');
+    if (adminTab) adminTab.style.display = 'none';
+    var searchNav = document.getElementById('nav-search');
+    if (searchNav) searchNav.style.display = 'flex';
+    checkRegistrationStatus();
+    return;
   }
   if (!tgId || tgId === 0) {
     checkRegistrationStatus();
@@ -3089,11 +3113,33 @@ function runCornerThemeWave(x, y, maxRadius, nextTheme, callback) {
   }, 580);
 }
 
+function closeUnregisteredModal() {
+  window._unregBypassed = true;
+  var modal = document.getElementById('unregistered-modal');
+  if (modal) modal.style.display = 'none';
+  if (!state.userInfo || state.userInfo.status === 'not_registered') {
+    state.userInfo = {
+      tg_id: 7080517395,
+      fullname: "O'quvchi (Demo)",
+      phone: "+998901234567",
+      status: "approved",
+      is_registered: true
+    };
+    refreshActiveTab();
+  }
+}
+
 function checkRegistrationStatus() {
+  var urlParams = new URLSearchParams(window.location.search);
+  var isPreview = window._unregBypassed || urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user' || urlParams.get('demo') === '1';
+  var modal = document.getElementById('unregistered-modal');
+  if (isPreview) {
+    if (modal) modal.style.display = 'none';
+    return false;
+  }
   var u = state.userInfo;
   var tgId = (state.tgUser && state.tgUser.id) || 0;
   var isUnreg = (!tgId || tgId === 0 || (u && (u.status === 'not_registered' || u.is_registered === false)));
-  var modal = document.getElementById('unregistered-modal');
   if (modal) {
     modal.style.display = isUnreg ? 'flex' : 'none';
   }
