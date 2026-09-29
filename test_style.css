@@ -1045,6 +1045,34 @@ body.dark-mode .btn-kb-icon {
   background: #0062cc;
 }
 
+/* Compact Admin Submit Dock (Kam joy egallaydi, telefon ekraniga to'liq mos) */
+.bottom-submit-dock.admin-compact-dock {
+  padding: 8px 16px calc(env(safe-area-inset-bottom, 8px) + 6px) 16px;
+  background: var(--liquid-glass-bg);
+  backdrop-filter: var(--liquid-glass-blur);
+  -webkit-backdrop-filter: var(--liquid-glass-blur);
+  border-top: var(--liquid-glass-border);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12), var(--liquid-glass-specular);
+}
+
+.submit-dock-inner.admin-compact-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.btn-submit-compact {
+  width: auto;
+  min-width: 140px;
+  padding: 10px 18px;
+  font-size: 13.5px;
+  font-weight: 800;
+  border-radius: 12px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+}
+
 /* =========================================
    4. MATEMATIK KLAVIATURA
    ========================================= */

@@ -563,7 +563,7 @@ async def start_handler(message: Message, state: FSMContext):
             reply_markup=main_menu_kb(user_tg_id)
         )
 
-# Ro'yxatdan o'tish: Ism kiritildi
+# Ro'yxatdan o'tish: Ism kiritildi (Telefon so'ralmaydi, darhol ro'yxatdan o'tadi)
 @router.message(RegistrationState.fullname)
 async def reg_fullname(message: Message, state: FSMContext):
     fullname = (message.text or "").strip()
@@ -571,31 +571,9 @@ async def reg_fullname(message: Message, state: FSMContext):
         await message.answer("⚠️ Iltimos, to'liq ism va familiyangizni kiriting:")
         return
 
-    await state.update_data(fullname=fullname)
-    await state.set_state(RegistrationState.phone)
-    await message.answer(
-        "📱 <b>Endi telefon raqamingizni yuboring:</b>\n\n"
-        "Quyidagi <b>«📱 Telefon raqamni yuborish»</b> tugmasini bosing yoki raqamingizni yozing (+998901234567):",
-        reply_markup=contact_share_kb()
-    )
-
-# Ro'yxatdan o'tish: Kontakt yoki Raqam yuborildi
-@router.message(RegistrationState.phone)
-async def reg_phone(message: Message, state: FSMContext):
-    phone = ""
-    if message.contact:
-        phone = message.contact.phone_number
-    elif message.text:
-        phone = message.text.strip()
-
-    if not phone or len(phone) < 7:
-        await message.answer("⚠️ Iltimos, to'g'ri telefon raqam kiriting:")
-        return
-
-    data = await state.get_data()
-    fullname = data.get("fullname", "Foydalanuvchi")
     user_tg_id = message.from_user.id
     username = message.from_user.username
+    phone = ""
 
     # 1. Yangi foydalanuvchi to'g'ridan-to'g'ri faol (approved) bo'ladi
     status = "approved"
@@ -614,7 +592,6 @@ async def reg_phone(message: Message, state: FSMContext):
     admin_notify_text = (
         f"👤 <b>Yangi foydalanuvchi ro'yxatdan o'tdi:</b>\n\n"
         f"👤 <b>Ism-familiya:</b> {fullname}\n"
-        f"📱 <b>Telefon:</b> <code>{phone}</code>\n"
         f"🆔 <b>Telegram ID:</b> <code>{user_tg_id}</code>\n"
         f"🔗 <b>Username:</b> {username_str}\n"
         f"🕒 <b>Vaqt:</b> {format_uzb_time()}"
@@ -628,6 +605,30 @@ async def reg_phone(message: Message, state: FSMContext):
             )
         except Exception as ex:
             log.warning(f"Adminga ({adm_id}) yangi a'zo xabarini yuborishda xatolik: {ex}")
+
+# Ixtiyoriy: Telefon yuborilgan holat uchun zaxira handler
+@router.message(RegistrationState.phone)
+async def reg_phone(message: Message, state: FSMContext):
+    phone = ""
+    if message.contact:
+        phone = message.contact.phone_number
+    elif message.text:
+        phone = message.text.strip()
+
+    data = await state.get_data()
+    fullname = data.get("fullname", "Foydalanuvchi")
+    user_tg_id = message.from_user.id
+    username = message.from_user.username
+
+    status = "approved"
+    test_db.add_or_update_user(user_tg_id, fullname, phone, username, status=status)
+    await state.clear()
+
+    await message.answer(
+        f"🎉 <b>Tabriklaymiz, {fullname}! Siz muvaffaqiyatli ro'yxatdan o'tdingiz!</b>\n\n"
+        f"Kerakli bo'limni tanlang yoki to'g'ridan-to'g'ri test kodini yuboring 👇",
+        reply_markup=main_menu_kb(user_tg_id)
+    )
 
 # 1. 🔢 Test kodini kiritish (Prompt)
 @router.message(F.text == "🔢 Test kodini kiritish")
