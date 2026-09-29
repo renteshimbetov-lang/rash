@@ -1013,11 +1013,13 @@ async function loadUserProfile() {
       state.userInfo = data.user;
       state.isAdmin = data.is_admin;
       localStorage.setItem(LS_USER, JSON.stringify(data.user));
-      checkRegistrationStatus();
+      if (urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user') {
+        state.isAdmin = false;
+      }
       var adminTab = document.getElementById('nav-admin');
       if (adminTab) adminTab.style.display = state.isAdmin ? 'flex' : 'none';
       var searchNav = document.getElementById('nav-search');
-      if (searchNav) searchNav.style.display = state.isAdmin ? 'none' : 'flex';
+      if (searchNav) searchNav.style.display = 'flex';
       if (state.isAdmin && data.pending_users > 0) {
         var badge = document.getElementById('admin-badge');
         if (badge) { badge.textContent = data.pending_users; badge.style.display = 'block'; }
