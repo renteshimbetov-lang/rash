@@ -1936,7 +1936,14 @@ def build_user_contact_card(user: Dict[str, Any]) -> Tuple[str, InlineKeyboardMa
 
     buttons = []
     if username:
-        buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatiga o'tish (Telegram)", url=f"https://t.me/{username}")])
+        buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{username}")])
+    else:
+        # Username yo'q foydalanuvchilar uchun bevosita shaxsiy chat/profilini ochuvchi Telegram havolasi
+        buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"tg://user?id={tg_id}")])
+
+    clean_phone = re.sub(r"[^\d+]", "", str(phone or ""))
+    if clean_phone and clean_phone not in ["—", "-", ""]:
+        buttons.append([InlineKeyboardButton(text="📇 Telegram kontakt kartasini olish", callback_data=f"adm_send_contact_{tg_id}")])
 
     buttons.append([InlineKeyboardButton(text="✉️ Bot orqali xabar yozish", callback_data=f"adm_msg_user_{tg_id}")])
     buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
@@ -2159,7 +2166,10 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
         uname = (user_info.get("username") or "").strip().lstrip("@") if user_info else ""
         buttons = []
         if uname:
-            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatiga o'tish (Telegram)", url=f"https://t.me/{uname}")])
+            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{uname}")])
+        else:
+            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"tg://user?id={target_tg_id}")])
+
         buttons.append([InlineKeyboardButton(text="✉️ Yana xabar yozish", callback_data=f"adm_msg_user_{target_tg_id}")])
         buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
         buttons.append([InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")])
@@ -2173,14 +2183,21 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
     except Exception as e:
         err_msg = str(e)
         log.warning(f"Error sending message to user {target_tg_id}: {err_msg}")
-        buttons = [
-            [InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")],
-            [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
-        ]
+        user_info = test_db.find_user(target_tg_id)
+        uname = (user_info.get("username") or "").strip().lstrip("@") if user_info else ""
+        buttons = []
+        if uname:
+            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{uname}")])
+        else:
+            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"tg://user?id={target_tg_id}")])
+        buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
+        buttons.append([InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")])
+
         if "forbidden" in err_msg.lower() or "blocked" in err_msg.lower():
             await message.answer(
                 f"❌ <b>Xabar yetkazilmadi!</b>\n\n"
-                f"Foydalanuvchi (<b>{target_fullname}</b>, ID: <code>{target_tg_id}</code>) botni bloklagan yoki to'xtatgan.",
+                f"Foydalanuvchi (<b>{target_fullname}</b>, ID: <code>{target_tg_id}</code>) botni bloklagan yoki to'xtatgan.\n\n"
+                f"Siz yuqoridagi tugma orqali uning shaxsiy Telegram profiliga o'tib yozishingiz mumkin.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
             )
         else:
@@ -2188,6 +2205,51 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
                 f"❌ <b>Xatolik yuz berdi:</b> {html.escape(err_msg)}",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
             )
+
+
+@router.callback_query(F.data.startswith("adm_send_contact_"))
+async def adm_send_contact_cb(call: CallbackQuery):
+    """Admin uchun foydalanuvchining Telegram kontakt kartasini chatga yuborish."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        await call.answer("⛔️ Ruxsat yo'q!", show_alert=True)
+        return
+    parts = call.data.split("_")
+    try:
+        target_tg_id = int(parts[3])
+    except Exception:
+        await call.answer("Xatolik: ID topilmadi", show_alert=True)
+        return
+    user = test_db.find_user(target_tg_id)
+    if not user:
+        await call.answer("Foydalanuvchi topilmadi!", show_alert=True)
+        return
+    phone = user.get("phone", "")
+    fullname = user.get("fullname", "Foydalanuvchi")
+    clean_phone = re.sub(r"[^\d+]", "", str(phone or ""))
+    if not clean_phone or clean_phone in ["—", "-", ""]:
+        await call.answer("Foydalanuvchining telefon raqami mavjud emas!", show_alert=True)
+        return
+
+    await call.answer("Kontakt kartasi yuborilmoqda...")
+    try:
+        parts_name = fullname.split(maxsplit=1)
+        first_name = parts_name[0]
+        last_name = parts_name[1] if len(parts_name) > 1 else ""
+
+        contact_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💬 Profil chatini ochish ↗️", url=f"tg://user?id={target_tg_id}")],
+            [InlineKeyboardButton(text="🔙 Foydalanuvchi ma'lumotlariga qaytish", callback_data=f"adm_view_user_{target_tg_id}")]
+        ])
+
+        await call.message.answer_contact(
+            phone_number=clean_phone,
+            first_name=first_name,
+            last_name=last_name,
+            reply_markup=contact_kb
+        )
+    except Exception as e:
+        log.error(f"Kontakt kartasini yuborishda xatolik: {e}")
+        await call.message.answer(f"⚠️ Kontaktni yuborishda xatolik: {e}")
 
 
 # 1. Yangi test yaratish (Faqat Admin Mini App orqali)
