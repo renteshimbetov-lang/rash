@@ -10,14 +10,130 @@ const State = {
   users: [],
   tests: [],
   logs: [],
+  overviewLogs: [],
   submissionsFilter: 'all',
   submissionsTestFilter: '',
   usersFilter: 'all',
   globalSearch: '',
   autoRefresh: true,
   refreshTimer: null,
-  currentModalSubmission: null
+  currentModalSubmission: null,
+  currentModalTest: null,
+  activityDayFilter: 'all'
 };
+
+// ----------------------------------------------------
+// SMART UZBEK DATE & DAY HELPERS
+// ----------------------------------------------------
+const UZB_DAYS = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
+const UZB_DAYS_SHORT = ['Yak', 'Dush', 'Sesh', 'Chor', 'Pay', 'Jum', 'Shan'];
+const UZB_MONTHS = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+
+function parseToDateObj(timestampOrStr) {
+  if (!timestampOrStr) return null;
+  if (typeof timestampOrStr === 'number') {
+    return new Date(timestampOrStr * 1000);
+  }
+  if (/^\d+$/.test(String(timestampOrStr).trim())) {
+    return new Date(parseInt(timestampOrStr, 10) * 1000);
+  }
+  if (typeof timestampOrStr === 'string' && timestampOrStr.includes('.')) {
+    const parts = timestampOrStr.trim().split(' ');
+    const dParts = parts[0].split('.');
+    const tParts = (parts[1] || '00:00:00').split(':');
+    return new Date(
+      parseInt(dParts[2], 10),
+      parseInt(dParts[1], 10) - 1,
+      parseInt(dParts[0], 10),
+      parseInt(tParts[0], 10),
+      parseInt(tParts[1], 10),
+      parseInt(tParts[2] || 0, 10)
+    );
+  }
+  const d = new Date(timestampOrStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function formatUzbSmartDateTime(timestampOrStr) {
+  const dateObj = parseToDateObj(timestampOrStr);
+  if (!dateObj) {
+    return {
+      dayBadgeText: '—',
+      dayBadgeClass: 'day-chip-past',
+      groupKey: 'earlier',
+      groupTitle: 'Avvalgi kunlar',
+      timeStr: '—',
+      fullDate: '—',
+      dateOnly: '—'
+    };
+  }
+
+  // Now in Tashkent time (UTC+5)
+  const now = new Date();
+  const utcNow = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const nowUzb = new Date(utcNow + (3600000 * 5));
+
+  const eventYear = dateObj.getFullYear();
+  const eventMonth = dateObj.getMonth();
+  const eventDate = dateObj.getDate();
+  const eventDay = dateObj.getDay();
+
+  const nowYear = nowUzb.getFullYear();
+  const nowMonth = nowUzb.getMonth();
+  const nowDate = nowUzb.getDate();
+
+  const todayMidnight = new Date(nowYear, nowMonth, nowDate).getTime();
+  const eventMidnight = new Date(eventYear, eventMonth, eventDate).getTime();
+  const diffDays = Math.round((todayMidnight - eventMidnight) / (86400 * 1000));
+
+  const dayNameFull = UZB_DAYS[eventDay];
+  const dayNameShort = UZB_DAYS_SHORT[eventDay];
+
+  const h = String(dateObj.getHours()).padStart(2, '0');
+  const m = String(dateObj.getMinutes()).padStart(2, '0');
+  const s = String(dateObj.getSeconds()).padStart(2, '0');
+  const timeStr = `${h}:${m}:${s}`;
+  const dStr = `${String(eventDate).padStart(2, '0')}.${String(eventMonth + 1).padStart(2, '0')}.${eventYear}`;
+
+  let dayBadgeText = '';
+  let dayBadgeClass = '';
+  let groupKey = 'earlier';
+  let groupTitle = `${dayNameFull}, ${eventDate}-${UZB_MONTHS[eventMonth]}`;
+
+  if (diffDays === 0) {
+    dayBadgeText = `Bugun (${dayNameShort})`;
+    dayBadgeClass = 'day-chip-today';
+    groupKey = 'today';
+    groupTitle = `Bugun (${dayNameFull}, ${eventDate}-${UZB_MONTHS[eventMonth]})`;
+  } else if (diffDays === 1) {
+    dayBadgeText = `Kecha (${dayNameShort})`;
+    dayBadgeClass = 'day-chip-yesterday';
+    groupKey = 'yesterday';
+    groupTitle = `Kecha (${dayNameFull}, ${eventDate}-${UZB_MONTHS[eventMonth]})`;
+  } else if (diffDays === 2) {
+    dayBadgeText = `Avvalgi kun (${dayNameShort})`;
+    dayBadgeClass = 'day-chip-earlier';
+    groupKey = 'earlier';
+    groupTitle = `Avvalgi kun (${dayNameFull}, ${eventDate}-${UZB_MONTHS[eventMonth]})`;
+  } else {
+    dayBadgeText = `${dayNameShort}, ${eventDate}-${UZB_MONTHS[eventMonth].slice(0, 3)}`;
+    dayBadgeClass = 'day-chip-past';
+    groupKey = 'past';
+    groupTitle = `${dayNameFull}, ${eventDate}-${UZB_MONTHS[eventMonth]} ${eventYear}`;
+  }
+
+  return {
+    diffDays,
+    dayBadgeText,
+    dayBadgeClass,
+    groupKey,
+    groupTitle,
+    timeStr,
+    fullDate: `${dStr} ${timeStr}`,
+    dateOnly: dStr,
+    dayName: dayNameFull
+  };
+}
 
 // ----------------------------------------------------
 // macOS BOOT ANIMATION — MAIN APP STYLE
@@ -341,30 +457,36 @@ function renderOverview() {
 }
 
 function renderOverviewData(data) {
-  // Recent Submissions
+  // 1. Recent Submissions
   const subsBody = document.getElementById('overview-recent-subs-body');
   if (subsBody) {
     const list = data.recent_submissions || [];
     if (list.length === 0) {
       subsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">Natijalar mavjud emas</td></tr>';
     } else {
-      subsBody.innerHTML = list.slice(0, 7).map(s => {
+      subsBody.innerHTML = list.slice(0, 8).map(s => {
         const usernameTag = s.username ? `<span style="color:var(--primary);font-size:11px;font-weight:700;">@${esc(s.username.replace(/^@/, ''))}</span>` : '';
         const lateBadge = s.is_late == 1 ? '<span class="badge badge-warning" style="margin-left:4px;">⏰ Kech</span>' : '';
+        const dt = formatUzbSmartDateTime(s.submitted_at || s.submitted_at_fmt);
         return `
-          <tr>
+          <tr class="clickable-row" onclick="openSubmissionModal(${s.id})">
             <td>
-              <div style="font-weight:700;font-size:13.5px;">${esc(s.fullname || 'Foydalanuvchi')}</div>
+              <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">${esc(s.fullname || 'Foydalanuvchi')}</div>
               ${usernameTag}
             </td>
-            <td><b style="color:var(--text-main);">#${esc(s.test_code || '')}</b></td>
-            <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted);">${esc(s.submitted_at_fmt || '')}</td>
+            <td><b style="color:var(--text-main);font-family:var(--font-mono);">#${esc(s.test_code || '')}</b></td>
+            <td>
+              <div class="time-cell-wrap">
+                <span class="day-chip ${dt.dayBadgeClass}">${dt.dayBadgeText}</span>
+                <span class="time-str-mono" style="font-size:11px;">${dt.timeStr}</span>
+              </div>
+            </td>
             <td>
               <span style="font-weight:800;color:var(--success);">${s.correct_count || 0} / ${s.total_count || 55}</span>
               ${lateBadge}
             </td>
             <td><b style="color:var(--primary);font-size:14px;">${s.score || 0} ball</b></td>
-            <td>
+            <td onclick="event.stopPropagation();">
               <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">Ko'rish 👁</button>
             </td>
           </tr>
@@ -373,35 +495,125 @@ function renderOverviewData(data) {
     }
   }
 
-  // Activity Logs List
-  const logsContainer = document.getElementById('overview-activity-list');
-  if (logsContainer) {
-    const logs = data.activity_logs || [];
-    if (logs.length === 0) {
-      logsContainer.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Faolliklar yo\'q</div>';
+  // 2. Activity Timeline with Day Groups & Priority
+  State.overviewLogs = data.activity_logs || [];
+  renderOverviewActivities(State.overviewLogs);
+}
+
+function setActivityDayFilter(filter, btn) {
+  State.activityDayFilter = filter;
+  if (btn && btn.parentElement) {
+    btn.parentElement.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  renderOverviewActivities(State.overviewLogs);
+}
+window.setActivityDayFilter = setActivityDayFilter;
+
+function renderOverviewActivities(logs) {
+  const container = document.getElementById('overview-activity-list');
+  if (!container) return;
+
+  if (!logs || logs.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:24px;">Faolliklar mavjud emas</div>';
+    return;
+  }
+
+  const groups = {
+    today: { title: 'Bugun', items: [] },
+    yesterday: { title: 'Kecha', items: [] },
+    earlier: { title: 'Undan oldingi kunlar', items: [] }
+  };
+
+  logs.forEach(l => {
+    const dt = formatUzbSmartDateTime(l.time || l.time_fmt);
+    l._dt = dt;
+    if (dt.groupKey === 'today') {
+      groups.today.items.push(l);
+      groups.today.title = dt.groupTitle;
+    } else if (dt.groupKey === 'yesterday') {
+      groups.yesterday.items.push(l);
+      groups.yesterday.title = dt.groupTitle;
     } else {
-      logsContainer.innerHTML = logs.slice(0, 10).map(l => {
-        const usernameTag = l.username ? ` (@${esc(l.username.replace(/^@/, ''))})` : '';
+      groups.earlier.items.push(l);
+    }
+  });
+
+  const filter = State.activityDayFilter || 'all';
+
+  const renderGroup = (key, grp, headerClass) => {
+    if (grp.items.length === 0) {
+      if (filter === key) {
         return `
-          <div style="display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);">
-            <div style="width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;">
-              ${l.type === 'submission' ? '🏆' : (l.type === 'late_submission' ? '⏰' : '👤')}
+          <div class="activity-day-group">
+            <div class="activity-day-header ${headerClass}">
+              <span>📅 ${esc(grp.title)}</span>
+              <span class="badge" style="font-size:10px;">0 ta amal</span>
             </div>
-            <div style="flex:1;">
-              <div style="font-size:12.5px;font-weight:700;color:var(--text-main);">${esc(l.title)}</div>
-              <div style="font-size:11.5px;color:var(--text-muted);margin-top:1px;">
-                ${esc(l.user_name || '')}${usernameTag}
-              </div>
-              <div style="font-size:10.5px;font-family:var(--font-mono);color:var(--text-dim);margin-top:2px;">
-                ${esc(l.time_fmt || '')}
-              </div>
-            </div>
-            <span class="badge badge-${l.badge_color || 'info'}" style="font-size:10px;">${esc(l.badge || '')}</span>
+            <div style="font-size:12px;color:var(--text-muted);padding:10px 4px;">Ushbu kunda yangi amallar qayd etilmagan</div>
           </div>
         `;
-      }).join('');
+      }
+      return '';
     }
+
+    const itemsHtml = grp.items.map(l => {
+      const un = l.username ? ` (@${esc(l.username.replace(/^@/, ''))})` : '';
+      return `
+        <div class="activity-item">
+          <div class="activity-icon-box">
+            ${l.type === 'submission' ? '🏆' : (l.type === 'late_submission' ? '⏰' : '👤')}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(l.title)}</div>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:1px;font-weight:500;">
+              ${esc(l.user_name || '')}${un}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+              <span class="day-chip ${l._dt.dayBadgeClass}">${l._dt.dayBadgeText}</span>
+              <span style="font-size:11px;font-family:var(--font-mono);color:var(--text-dim);font-weight:700;">${l._dt.timeStr}</span>
+            </div>
+          </div>
+          <span class="badge badge-${l.badge_color || 'info'}" style="font-size:10px;flex-shrink:0;">${esc(l.badge || '')}</span>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="activity-day-group">
+        <div class="activity-day-header ${headerClass}">
+          <span>📅 ${esc(grp.title)}</span>
+          <span class="badge" style="font-size:10px;font-weight:800;">${grp.items.length} ta amal</span>
+        </div>
+        <div>${itemsHtml}</div>
+      </div>
+    `;
+  };
+
+  let renderedHtml = '';
+  if (filter === 'today') {
+    renderedHtml = renderGroup('today', groups.today, 'today');
+  } else if (filter === 'yesterday') {
+    renderedHtml = renderGroup('yesterday', groups.yesterday, 'yesterday');
+  } else {
+    // ALL: Prioritize Today's actions at top!
+    if (groups.today.items.length === 0) {
+      renderedHtml += `
+        <div class="activity-day-group">
+          <div class="activity-day-header today">
+            <span>📅 Bugungi amallar</span>
+            <span class="badge badge-warning" style="font-size:10px;">Bugun hozircha yangi amal yo'q</span>
+          </div>
+        </div>
+      `;
+    } else {
+      renderedHtml += renderGroup('today', groups.today, 'today');
+    }
+    renderedHtml += renderGroup('yesterday', groups.yesterday, 'yesterday');
+    renderedHtml += renderGroup('earlier', groups.earlier, 'earlier');
   }
+
+  container.innerHTML = renderedHtml;
 }
 
 // ----------------------------------------------------
@@ -483,17 +695,23 @@ function renderSubmissions() {
     else if (gr === 'B+' || gr === 'B') grColor = 'info';
     else if (gr === 'C+' || gr === 'C') grColor = 'warning';
 
+    // Smart Date & Day Badge
+    const dt = formatUzbSmartDateTime(s.submitted_at || s.submitted_at_fmt);
+
     return `
-      <tr>
-        <td style="color:var(--text-dim);font-family:var(--font-mono);">${idx + 1}</td>
+      <tr class="clickable-row" onclick="openSubmissionModal(${s.id})">
+        <td style="color:var(--text-dim);font-weight:700;font-family:var(--font-mono);">${idx + 1}</td>
         <td>
-          <div style="font-weight:700;font-size:13.5px;">${esc(s.fullname || 'Foydalanuvchi')}</div>
-          <div style="font-size:11px;color:var(--text-dim);font-family:var(--font-mono);">ID: ${s.user_tg_id}</div>
+          <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">${esc(s.fullname || 'Foydalanuvchi')}</div>
+          <div style="font-size:11px;color:var(--text-dim);font-family:var(--font-mono);font-weight:700;">ID: ${s.user_tg_id}</div>
         </td>
         <td>${usernameTag}</td>
         <td><span class="badge badge-info" style="font-family:var(--font-mono);font-size:11.5px;">#${esc(s.test_code || '')}</span></td>
-        <td style="font-family:var(--font-mono);font-size:12.5px;color:var(--text-main);font-weight:600;">
-          ${esc(s.submitted_at_fmt || '—')}
+        <td>
+          <div class="time-cell-wrap">
+            <span class="day-chip ${dt.dayBadgeClass}">${dt.dayBadgeText}</span>
+            <span class="time-str-mono">${dt.fullDate}</span>
+          </div>
         </td>
         <td>
           <b style="color:var(--success);font-size:13px;">${s.correct_count || 0}</b>
@@ -502,7 +720,7 @@ function renderSubmissions() {
         <td><b style="color:var(--primary);font-size:14.5px;">${s.score || 0} ball</b></td>
         <td><span class="badge badge-${grColor}">${esc(gr)}</span></td>
         <td>${stBadge}</td>
-        <td style="text-align:right;">
+        <td style="text-align:right;" onclick="event.stopPropagation();">
           <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">
             Ko'rish 👁
           </button>
@@ -568,16 +786,31 @@ function renderUsers() {
     else if (st === 'pending') stBadge = '<span class="badge badge-warning">⏳ Kutilmoqda</span>';
     else if (st === 'blocked') stBadge = '<span class="badge badge-danger">⛔️ Bloklangan</span>';
 
+    const regDt = formatUzbSmartDateTime(u.registered_at || u.registered_at_fmt);
+    const lastDt = u.last_test_at ? formatUzbSmartDateTime(u.last_test_at || u.last_test_at_fmt) : null;
+
     return `
       <tr>
-        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);">${u.tg_id}</td>
-        <td><div style="font-weight:700;font-size:14px;">${esc(u.fullname || 'Foydalanuvchi')}</div></td>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);font-weight:700;">${u.tg_id}</td>
+        <td><div style="font-weight:700;font-size:14px;color:var(--text-main);">${esc(u.fullname || 'Foydalanuvchi')}</div></td>
         <td>${usernameTag}</td>
-        <td style="font-size:12.5px;color:var(--text-muted);">${esc(u.phone || '—')}</td>
+        <td style="font-size:12.5px;color:var(--text-muted);font-weight:600;">${esc(u.phone || '—')}</td>
         <td>${stBadge}</td>
-        <td style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);">${esc(u.registered_at_fmt || '—')}</td>
-        <td><b style="color:var(--primary);font-size:13px;">${u.tests_count || 0} ta</b></td>
-        <td style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);">${esc(u.last_test_at_fmt || '—')}</td>
+        <td>
+          <div class="time-cell-wrap">
+            <span class="day-chip ${regDt.dayBadgeClass}">${regDt.dayBadgeText}</span>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);font-weight:600;">${regDt.fullDate}</span>
+          </div>
+        </td>
+        <td><b style="color:var(--primary);font-size:13.5px;">${u.tests_count || 0} ta</b></td>
+        <td>
+          ${lastDt ? `
+            <div class="time-cell-wrap">
+              <span class="day-chip ${lastDt.dayBadgeClass}">${lastDt.dayBadgeText}</span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);font-weight:600;">${lastDt.fullDate}</span>
+            </div>
+          ` : '<span style="color:var(--text-dim);">—</span>'}
+        </td>
         <td style="text-align:right;">
           <div style="display:inline-flex;gap:6px;">
             ${st !== 'approved' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'approve')">✅ Faol</button>` : ''}
@@ -608,17 +841,20 @@ function renderTests() {
     const isPub = t.results_published == 1;
 
     return `
-      <tr>
+      <tr class="clickable-row" onclick="openTestModal(${t.id})">
         <td><b style="color:var(--primary);font-size:14px;font-family:var(--font-mono);">#${esc(t.test_code || '')}</b></td>
-        <td><div style="font-weight:700;font-size:14px;">${esc(t.title || 'Test')}</div></td>
-        <td>${esc(t.subject || 'Matematika')}</td>
-        <td style="font-family:var(--font-mono);font-size:12px;">${esc(t.scheduled_date || '')} ${esc(t.scheduled_start || '')}</td>
-        <td style="font-family:var(--font-mono);font-size:12px;">${esc(t.scheduled_end || '')}</td>
+        <td>
+          <div style="font-weight:700;font-size:14px;color:var(--text-main);">${esc(t.title || 'Test')}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Batafsil ma'lumot va kalitlar uchun bosing 👆</div>
+        </td>
+        <td><span class="badge badge-purple">${esc(t.subject || 'Matematika')}</span></td>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);font-weight:600;">${esc(t.scheduled_date || '—')} ${esc(t.scheduled_start || '')}</td>
+        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);font-weight:600;">${esc(t.scheduled_end || '—')}</td>
         <td><b>${t.total_questions || 55} ta</b></td>
         <td><b style="color:var(--success);font-size:13.5px;">${t.submissions_count || 0} kishi</b></td>
         <td>
           <span class="badge badge-${isAct ? 'success' : 'danger'}">
-            ${isAct ? '🟢 Faol (Ochiq)' : '🔴 To\'xtatilgan'}
+            ${isAct ? '🟢 Faol' : '🔴 To\'xtatilgan'}
           </span>
         </td>
         <td>
@@ -626,13 +862,16 @@ function renderTests() {
             ${isPub ? '📢 E\'lon qilingan' : '🔒 Yashirin'}
           </span>
         </td>
-        <td style="text-align:right;">
+        <td style="text-align:right;" onclick="event.stopPropagation();">
           <div style="display:inline-flex;gap:6px;">
-            <button class="btn btn-secondary btn-sm" onclick="toggleTestStatus(${t.id})">
-              ${isAct ? '⏸ To\'xtatish' : '▶️ Yoqish'}
+            <button class="btn btn-secondary btn-sm" onclick="openTestModal(${t.id})" title="Barcha kalitlar va statistikani ko'rish">
+              Tafsilot 👁
             </button>
-            <button class="btn btn-secondary btn-sm" onclick="toggleTestPublish(${t.id})">
-              ${isPub ? 'Yashirish' : 'E\'lon qilish'}
+            <button class="btn btn-secondary btn-sm" onclick="toggleTestStatus(${t.id})" title="Testni to'xtatish / yoqish">
+              ${isAct ? '⏸' : '▶️'}
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleTestPublish(${t.id})" title="Natijalarni e'lon qilish / yashirish">
+              ${isPub ? '🔒' : '📢'}
             </button>
           </div>
         </td>
@@ -640,6 +879,148 @@ function renderTests() {
     `;
   }).join('');
 }
+
+// ----------------------------------------------------
+// TEST DETAILS MODAL (Ustiga bosganda ma'lumot berish)
+// ----------------------------------------------------
+function openTestModal(testId) {
+  const modal = document.getElementById('test-detail-modal');
+  if (!modal) return;
+
+  const t = (State.tests || []).find(item => item.id == testId);
+  if (!t) {
+    showToast('Test ma\'lumotlari topilmadi', 'warning');
+    return;
+  }
+  State.currentModalTest = t;
+  modal.classList.add('open');
+
+  document.getElementById('modal-test-title').textContent = `#${t.test_code} — ${t.title || 'Test'}`;
+  document.getElementById('modal-test-sub').textContent = `Fan: ${t.subject || 'Matematika'} • Yaratilgan: ${t.created_at_fmt || t.created_date || '—'}`;
+
+  document.getElementById('modal-test-subs-count').textContent = `${t.submissions_count || 0} kishi`;
+  document.getElementById('modal-test-avg-score').textContent = `${Number(t.avg_score || 0).toFixed(1)} ball`;
+  document.getElementById('modal-test-max-score').textContent = `${Number(t.max_score_achieved || 0).toFixed(1)} ball`;
+  document.getElementById('modal-test-time-limit').textContent = `${t.total_questions || 55} ta / ${t.time_limit_min || 180} min`;
+
+  const isAct = t.is_active == 1;
+  const isPub = t.results_published == 1;
+
+  document.getElementById('modal-test-status-badge').innerHTML = `
+    <span class="badge badge-${isAct ? 'success' : 'danger'}" style="font-size:12px;">
+      ${isAct ? '🟢 Test Faol (Qabul ochiq)' : '🔴 Test To\'xtatilgan'}
+    </span>
+  `;
+  document.getElementById('modal-test-pub-badge').innerHTML = `
+    <span class="badge badge-${isPub ? 'success' : 'warning'}" style="font-size:12px;">
+      ${isPub ? '📢 Natijalar e\'lon qilingan' : '🔒 Natijalar yashirin'}
+    </span>
+  `;
+
+  // Action buttons inside modal
+  const actContainer = document.getElementById('modal-test-actions');
+  if (actContainer) {
+    actContainer.innerHTML = `
+      <button class="btn btn-secondary btn-sm" onclick="toggleTestStatusFromModal(${t.id})">
+        ${isAct ? '⏸ Testni to\'xtatish' : '▶️ Testni yoqish'}
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="toggleTestPublishFromModal(${t.id})">
+        ${isPub ? '🔒 Natijalarni yashirish' : '📢 Natijalarni e\'lon qilish'}
+      </button>
+    `;
+  }
+
+  // Parse and render test keys
+  renderTestKeysGrid(t);
+}
+
+function renderTestKeysGrid(t) {
+  const grid = document.getElementById('modal-test-keys-grid');
+  if (!grid) return;
+
+  let keysObj = {};
+  try {
+    if (typeof t.answers_json === 'string') {
+      keysObj = JSON.parse(t.answers_json || '{}');
+    } else if (typeof t.answers_json === 'object') {
+      keysObj = t.answers_json || {};
+    }
+  } catch (e) {
+    keysObj = {};
+  }
+
+  const keysList = [];
+  const totalQ = t.total_questions || 55;
+  if (totalQ === 55 || totalQ >= 45) {
+    for (let i = 1; i <= 35; i++) keysList.push(String(i));
+    for (let i = 36; i <= 45; i++) {
+      keysList.push(`${i}a`);
+      keysList.push(`${i}b`);
+    }
+  } else {
+    for (let i = 1; i <= totalQ; i++) keysList.push(String(i));
+  }
+
+  if (Object.keys(keysObj).length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">Ushbu test uchun to\'g\'ri kalitlar kiritilmagan.</div>';
+    return;
+  }
+
+  let html = '';
+  keysList.forEach(k => {
+    const val = keysObj[k] || keysObj[k.toUpperCase()] || '—';
+    const isSpecial = k.includes('a') || k.includes('b');
+    html += `
+      <div class="answer-card" style="border-left: 3px solid var(--primary);">
+        <div style="display:flex;justify-content:space-between;font-weight:700;">
+          <span>${k}-savol</span>
+          <span style="font-size:10px;color:var(--text-muted);">${isSpecial ? 'Yozma' : 'Variant'}</span>
+        </div>
+        <div style="font-size:13px;color:var(--primary);font-weight:800;font-family:var(--font-mono);margin-top:2px;">
+          ${esc(val)}
+        </div>
+      </div>
+    `;
+  });
+
+  grid.innerHTML = html;
+}
+
+function closeTestModal() {
+  const modal = document.getElementById('test-detail-modal');
+  if (modal) modal.classList.remove('open');
+  State.currentModalTest = null;
+}
+
+function viewTestSubmissionsFromModal() {
+  if (!State.currentModalTest) return;
+  const code = State.currentModalTest.test_code;
+  closeTestModal();
+  switchDashboardTab('submissions');
+  setTimeout(() => {
+    filterSubmissionsByTest(code);
+    const sel = document.getElementById('filter-test-select');
+    if (sel) sel.value = String(code);
+  }, 100);
+}
+
+async function toggleTestStatusFromModal(testId) {
+  await toggleTestStatus(testId);
+  const t = (State.tests || []).find(item => item.id == testId);
+  if (t) openTestModal(testId);
+}
+
+async function toggleTestPublishFromModal(testId) {
+  await toggleTestPublish(testId);
+  const t = (State.tests || []).find(item => item.id == testId);
+  if (t) openTestModal(testId);
+}
+
+window.openTestModal = openTestModal;
+window.closeTestModal = closeTestModal;
+window.viewTestSubmissionsFromModal = viewTestSubmissionsFromModal;
+window.toggleTestStatusFromModal = toggleTestStatusFromModal;
+window.toggleTestPublishFromModal = toggleTestPublishFromModal;
 
 // ----------------------------------------------------
 // ACTIVITY LOGS RENDERING
@@ -656,17 +1037,23 @@ function renderLogs() {
 
   body.innerHTML = list.map(l => {
     const un = l.username ? ` (@${esc(l.username.replace(/^@/, ''))})` : '';
+    const dt = formatUzbSmartDateTime(l.time || l.time_fmt);
     return `
       <tr>
-        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);font-weight:600;">${esc(l.time_fmt || '—')}</td>
+        <td>
+          <div class="time-cell-wrap">
+            <span class="day-chip ${dt.dayBadgeClass}">${dt.dayBadgeText}</span>
+            <span class="time-str-mono">${dt.fullDate}</span>
+          </div>
+        </td>
         <td>
           <span class="badge badge-${l.badge_color || 'info'}">${esc(l.type || 'hodisa')}</span>
         </td>
         <td>
-          <div style="font-weight:700;">${esc(l.user_name || 'Foydalanuvchi')}</div>
-          <div style="font-size:11px;color:var(--text-dim);">${un} (ID: ${l.user_id})</div>
+          <div style="font-weight:700;color:var(--text-main);">${esc(l.user_name || 'Foydalanuvchi')}</div>
+          <div style="font-size:11px;color:var(--text-dim);font-weight:700;">${un} (ID: ${l.user_id})</div>
         </td>
-        <td><div style="font-size:13px;color:var(--text-main);">${esc(l.title || '')}</div></td>
+        <td><div style="font-size:13px;color:var(--text-main);font-weight:600;">${esc(l.title || '')}</div></td>
         <td><b style="color:var(--primary);font-size:12px;">${esc(l.badge || '')}</b></td>
       </tr>
     `;
@@ -747,8 +1134,8 @@ async function openSubmissionModal(subId) {
     State.currentModalSubmission = s;
 
     const un = s.username ? ` (@${esc(s.username.replace(/^@/, ''))})` : '';
-    document.getElementById('modal-sub-title').textContent = `${s.fullname || 'O\'quvchi'}${un} — #${s.test_code} Natijasi`;
-    document.getElementById('modal-sub-time').textContent = `Topshirilgan vaqt: ${s.submitted_at_fmt || '—'}`;
+    const dt = formatUzbSmartDateTime(s.submitted_at || s.submitted_at_fmt);
+    document.getElementById('modal-sub-time').innerHTML = `Topshirilgan vaqt: <b style="color:var(--text-main);">${dt.fullDate}</b> <span class="day-chip ${dt.dayBadgeClass}" style="margin-left:6px;">${dt.dayBadgeText}</span>`;
     document.getElementById('modal-sub-score').textContent = `${s.score || 0} ball`;
     document.getElementById('modal-sub-correct').textContent = `${s.correct_count || 0} / ${s.total_count || 55}`;
     document.getElementById('modal-sub-grade').textContent = s.grade || '—';

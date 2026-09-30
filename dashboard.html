@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/dashboard.css?v=20260928_mac1">
+  <link rel="stylesheet" href="/dashboard.css?v=20260930_v2">
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -278,14 +278,21 @@
 
               <!-- Real-time Activity Timeline -->
               <div class="table-card">
-                <div class="table-card-header">
+                <div class="table-card-header" style="flex-wrap:wrap;gap:8px;">
                   <div class="table-title">
                     <span>⚡️</span>
                     <span>Jonli jarayonlar & Xronologiya</span>
                   </div>
-                  <button class="btn btn-secondary btn-sm" onclick="switchDashboardTab('activity')">
-                    To'liq jurnal →
-                  </button>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <div class="activity-filter-group">
+                      <button class="filter-pill active" id="pill-act-all" onclick="setActivityDayFilter('all', this)">Barchasi</button>
+                      <button class="filter-pill" id="pill-act-today" onclick="setActivityDayFilter('today', this)">Bugun</button>
+                      <button class="filter-pill" id="pill-act-yesterday" onclick="setActivityDayFilter('yesterday', this)">Kecha</button>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="switchDashboardTab('activity')" title="To'liq audit jurnali">
+                      Jurnal →
+                    </button>
+                  </div>
                 </div>
                 <div style="padding:16px;max-height:480px;overflow-y:auto;" id="overview-activity-list">
                   <div style="text-align:center;color:var(--text-muted);padding:20px;">Yuklanmoqda...</div>
@@ -552,9 +559,72 @@
     </div>
   </div>
 
+  <!-- MODAL: Detailed Test View & Keys Sheet -->
+  <div class="modal-overlay" id="test-detail-modal">
+    <div class="mac-modal" style="max-width:840px;">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:22px;">📝</span>
+          <div>
+            <div style="font-size:16px;font-weight:800;" id="modal-test-title">Test Tafsilotlari</div>
+            <div style="font-size:12px;color:var(--text-muted);" id="modal-test-sub">--</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeTestModal()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Test Metric Cards -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;background:var(--bg-card);padding:14px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:16px;">
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">Topshirganlar</span>
+            <span style="font-size:18px;font-weight:900;color:var(--primary);" id="modal-test-subs-count">0 kishi</span>
+          </div>
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">O'rtacha Ball</span>
+            <span style="font-size:18px;font-weight:800;color:var(--text-main);" id="modal-test-avg-score">0.0 ball</span>
+          </div>
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">Top Natija</span>
+            <span style="font-size:18px;font-weight:800;color:var(--success);" id="modal-test-max-score">0.0 ball</span>
+          </div>
+          <div>
+            <span style="font-size:11px;color:var(--text-muted);display:block;">Savollar / Vaqt</span>
+            <span style="font-size:16px;font-weight:700;" id="modal-test-time-limit">55 ta / 180 min</span>
+          </div>
+        </div>
+
+        <!-- Action & Status Bar -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;background:var(--bg-card);border:1px solid var(--border);padding:12px 16px;border-radius:var(--radius-sm);margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span id="modal-test-status-badge">--</span>
+            <span id="modal-test-pub-badge">--</span>
+          </div>
+          <div style="display:flex;gap:8px;" id="modal-test-actions">
+            <!-- Buttons dynamically populated -->
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:13px;font-weight:800;">Testning To'g'ri Kalitlari (Kalitlar varaqasi):</div>
+          <button class="btn btn-primary btn-sm" id="btn-modal-test-view-subs" onclick="viewTestSubmissionsFromModal()">
+            🏆 Shu test natijalarini ko'rish →
+          </button>
+        </div>
+        <div class="answers-grid" id="modal-test-keys-grid">
+          <!-- Filled by JS -->
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeTestModal()">Yopish</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/dashboard.js?v=20260928_mac1"></script>
+  <script src="/dashboard.js?v=20260930_v2"></script>
 </body>
 </html>

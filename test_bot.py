@@ -5026,11 +5026,14 @@ async def handle_dashboard_overview(request):
         recent_subs = test_db.get_all_submissions_for_admin(limit=15)
         for s in recent_subs:
             s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
-        logs = test_db.get_activity_logs(limit=25)
+        logs = test_db.get_activity_logs(limit=80)
         for l in logs:
             l['time_fmt'] = format_uzb_time(l.get('time'), fmt="%d.%m.%Y %H:%M:%S")
             
         tests = test_db.get_tests_with_stats()
+        for t in tests:
+            if t.get('created_at'):
+                t['created_at_fmt'] = format_uzb_time(t.get('created_at'), fmt="%d.%m.%Y %H:%M")
         return web.json_response({
             "success": True,
             "summary": summary,
@@ -5109,6 +5112,9 @@ async def handle_dashboard_users(request):
 async def handle_dashboard_tests(request):
     try:
         tests = test_db.get_tests_with_stats()
+        for t in tests:
+            if t.get('created_at'):
+                t['created_at_fmt'] = format_uzb_time(t.get('created_at'), fmt="%d.%m.%Y %H:%M")
         return web.json_response({
             "success": True,
             "tests": tests
