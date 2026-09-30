@@ -845,6 +845,115 @@ def get_user(tg_id: int) -> Optional[Dict[str, Any]]:
         _close_conn(conn)
 
 
+def find_user(query: Any) -> Optional[Dict[str, Any]]:
+    """
+    Foydalanuvchini turli parametrlar bo'yicha qidiradi:
+    - tg_id (masalan: 8039427064)
+    - username (masalan: @username yoki username yoki https://t.me/username)
+    - telefon raqami (masalan: +998901234567 yoki 998901234567)
+    - id (baza ichki id si)
+    - fullname (ism-familiya bo'yicha)
+    Natija sifatida foydalanuvchi ma'lumotlari, testlar soni va oxirgi topshirgan vaqti qaytariladi.
+    """
+    if not query:
+        return None
+    raw_q = str(query).strip()
+    if not raw_q:
+        return None
+
+    clean_q = raw_q
+    for prefix in ["https://t.me/", "http://t.me/", "t.me/"]:
+        if clean_q.lower().startswith(prefix):
+            clean_q = clean_q[len(prefix):].split("/")[0].split("?")[0]
+            break
+
+    clean_uname = clean_q.lstrip("@").strip()
+    digits_only = re.sub(r"\D", "", raw_q)
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        ph = _ph()
+
+        # 1. Telegram ID (aniq moslik)
+        if digits_only and len(digits_only) >= 5:
+            num_val = int(digits_only)
+            cur.execute(f"""
+                SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
+                FROM users u
+                LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
+                WHERE u.tg_id = {ph}
+                GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
+            """, (num_val,))
+            row = cur.fetchone()
+            if row:
+                return _row_to_dict(row)
+
+        # 2. Username bo'yicha
+        if clean_uname:
+            cur.execute(f"""
+                SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
+                FROM users u
+                LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
+                WHERE LOWER(u.username) = LOWER({ph})
+                GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
+            """, (clean_uname,))
+            row = cur.fetchone()
+            if row:
+                return _row_to_dict(row)
+
+        # 3. Telefon raqami bo'yicha
+        if digits_only and len(digits_only) >= 7:
+            cur.execute(f"""
+                SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
+                FROM users u
+                LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
+                WHERE u.phone LIKE {ph}
+                GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
+            """, (f"%{digits_only[-9:]}%",))
+            row = cur.fetchone()
+            if row:
+                return _row_to_dict(row)
+
+        # 4. Ichki baza ID raqami bo'yicha (users.id)
+        if digits_only:
+            try:
+                db_id = int(digits_only)
+                cur.execute(f"""
+                    SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
+                    FROM users u
+                    LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
+                    WHERE u.id = {ph}
+                    GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
+                """, (db_id,))
+                row = cur.fetchone()
+                if row:
+                    return _row_to_dict(row)
+            except Exception:
+                pass
+
+        # 5. Ism bo'yicha (LOWER LIKE)
+        if len(raw_q) >= 3:
+            cur.execute(f"""
+                SELECT u.*, COUNT(s.id) as tests_count, MAX(s.submitted_at) as last_test_at
+                FROM users u
+                LEFT JOIN submissions s ON u.tg_id = s.user_tg_id
+                WHERE LOWER(u.fullname) LIKE LOWER({ph})
+                GROUP BY u.id, u.tg_id, u.fullname, u.phone, u.username, u.status, u.pin_code, u.registered_at
+                LIMIT 1
+            """, (f"%{raw_q}%",))
+            row = cur.fetchone()
+            if row:
+                return _row_to_dict(row)
+
+        return None
+    except Exception as e:
+        print(f"Error in find_user: {e}")
+        return None
+    finally:
+        _close_conn(conn)
+
+
 def is_user_approved(tg_id: int, admin_id: int = 8039427064) -> bool:
     user = get_user(tg_id)
     if not user:

@@ -14,7 +14,8 @@ import sys
 import time
 import re
 import urllib.parse
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, List
+import html
 
 from aiogram import Bot, Dispatcher, F, Router, BaseMiddleware
 from aiogram.client.default import DefaultBotProperties
@@ -284,6 +285,10 @@ class EditProfileState(StatesGroup):
     waiting_new_name = State()
     waiting_new_phone = State()
 
+class ContactUserState(StatesGroup):
+    waiting_for_user_id = State()
+    waiting_for_message = State()
+
 # ── KEYBOARDS (TUGMALAR) ──────────────────────────────
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
     is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
@@ -358,6 +363,7 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
 
     buttons = [
         [InlineKeyboardButton(text="💻 MacBook Dashboard (Katta Baza)", url=f"{WEBAPP_URL}/dashboard")],
+        [InlineKeyboardButton(text="💬 Foydalanuvchiga yozish / Chat", callback_data="admin_contact_user_prompt")],
         [InlineKeyboardButton(text="📢 O'quvchilarga xabar yuborish", callback_data="admin_broadcast_menu")],
         [InlineKeyboardButton(text="⚠️ Faoliyatsizlarga ogohlantirish", callback_data="admin_warn_inactive_menu")],
         [InlineKeyboardButton(text="🧹 Botni bloklaganlarni tozalash", callback_data="admin_clean_blocked_prompt")],
@@ -1818,6 +1824,309 @@ async def admin_panel_handler(message: Message):
         "Quyidagi bo'limlardan birini tanlang 👇",
         reply_markup=admin_menu_kb()
     )
+
+
+# ── FOYDALANUVCHIGA YOZISH VA PROFIL CHATIGA O'TISH ──
+
+def build_user_contact_card(user: Dict[str, Any]) -> Tuple[str, InlineKeyboardMarkup]:
+    """Foydalanuvchi kartasi va profil chatiga olib o'tuvchi tugmalarni shakllantiradi."""
+    tg_id = user.get("tg_id")
+    fullname = user.get("fullname", "Noma'lum")
+    raw_uname = (user.get("username") or "").strip()
+    username = raw_uname.lstrip("@").strip()
+    phone = user.get("phone", "—")
+    status = user.get("status", "approved")
+    tests_count = user.get("tests_count", 0)
+    reg_ts = user.get("registered_at")
+    reg_fmt = format_uzb_time(reg_ts, "%d.%m.%Y %H:%M") if reg_ts else "Noma'lum"
+
+    last_test_ts = user.get("last_test_at")
+    last_test_fmt = format_uzb_time(last_test_ts, "%d.%m.%Y %H:%M") if last_test_ts else "Topshirmagan"
+
+    status_icon = "🟢 Faol" if status == "approved" else "🔴 Bloklangan"
+
+    if username:
+        uname_text = f"@{username}"
+        profile_mention = (
+            f"👉 <b>Telegram chat:</b> <a href=\"https://t.me/{username}\">@{username} shaxsiy chatini ochish</a>"
+        )
+    else:
+        uname_text = "<i>Mavjud emas</i>"
+        profile_mention = (
+            f"👉 <b>Telegram chat:</b> <a href=\"tg://user?id={tg_id}\"><b>{fullname} profil chatini ochish</b></a>\n"
+            f"<i>(Telegram ilovasida shaxsiy chatni ochish uchun yuqoridagi havola ustiga bosing)</i>"
+        )
+
+    card_text = (
+        f"👤 <b>FOYDALANUVCHI MA'LUMOTLARI VA PROFIL CHATI</b>\n\n"
+        f"🆔 <b>Telegram ID:</b> <code>{tg_id}</code>\n"
+        f"👤 <b>F.I.SH:</b> <b>{fullname}</b>\n"
+        f"🔗 <b>Username:</b> {uname_text}\n"
+        f"📞 <b>Telefon:</b> <code>{phone}</code>\n"
+        f"📊 <b>Topshirgan testlari:</b> <b>{tests_count} ta</b>\n"
+        f"🕒 <b>Oxirgi faolligi:</b> {last_test_fmt}\n"
+        f"📅 <b>Ro'yxatdan o'tgan:</b> {reg_fmt}\n"
+        f"🔘 <b>Holati:</b> {status_icon}\n\n"
+        f"💬 <b>Shaxsiy chatga o'tish:</b>\n"
+        f"{profile_mention}\n\n"
+        f"<i>Quyidagi tugmalar orqali profilni ochishingiz yoki bot orqali xabar yuborishingiz mumkin 👇</i>"
+    )
+
+    buttons = []
+    if username:
+        buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatiga o'tish (Telegram)", url=f"https://t.me/{username}")])
+
+    buttons.append([InlineKeyboardButton(text="✉️ Bot orqali xabar yozish", callback_data=f"adm_msg_user_{tg_id}")])
+    buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
+    buttons.append([InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")])
+
+    return card_text, InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+@router.message(Command("user"))
+@router.message(Command("write_user"))
+@router.message(Command("contact"))
+@router.message(Command("msg"))
+async def admin_contact_user_command(message: Message, state: FSMContext):
+    """Admin uchun /user <id> yoki /user buyrug'i."""
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        await message.answer("⛔️ Bu buyruq faqat bot administratori uchun!")
+        return
+
+    parts = message.text.strip().split(maxsplit=1)
+    if len(parts) > 1:
+        query = parts[1].strip()
+        user = test_db.find_user(query)
+        if user:
+            await state.clear()
+            card_text, card_kb = build_user_contact_card(user)
+            await message.answer(card_text, reply_markup=card_kb)
+            return
+        else:
+            await message.answer(
+                f"❌ <b>Foydalanuvchi topilmadi!</b>\n\n"
+                f"Kiritilgan ma'lumot (<code>{html.escape(query)}</code>) bo'yicha foydalanuvchi bazadan topilmadi.\n\n"
+                f"Iltimos, ID raqamini tekshirib qaytadan kiriting:",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_back_to_menu")]
+                ])
+            )
+            await state.set_state(ContactUserState.waiting_for_user_id)
+            return
+
+    await state.set_state(ContactUserState.waiting_for_user_id)
+    text = (
+        "💬 <b>FOYDALANUVCHIGA YOZISH / PROFIL CHATIGA O'TISH</b>\n\n"
+        "Foydalanuvchining <b>Telegram ID</b> raqamini kiriting:\n"
+        "<i>(Shuningdek @username yoki telefon raqami orqali ham qidirishingiz mumkin)</i>\n\n"
+        "Masalan: <code>8039427064</code> yoki <code>@foydalanuvchi</code>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_back_to_menu")]
+    ])
+    await message.answer(text, reply_markup=kb)
+
+
+@router.callback_query(F.data == "admin_contact_user_prompt")
+async def admin_contact_user_prompt_cb(call: CallbackQuery, state: FSMContext):
+    """Admin panel orqali ID so'rash oynasi."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        await call.answer("Ruxsat yo'q!", show_alert=True)
+        return
+
+    await state.set_state(ContactUserState.waiting_for_user_id)
+    text = (
+        "💬 <b>FOYDALANUVCHIGA YOZISH / PROFIL CHATIGA O'TISH</b>\n\n"
+        "Foydalanuvchining <b>Telegram ID</b> raqamini kiriting:\n"
+        "<i>(Shuningdek @username yoki telefon raqami orqali ham qidirishingiz mumkin)</i>\n\n"
+        "Masalan: <code>8039427064</code> yoki <code>@foydalanuvchi</code>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_back_to_menu")]
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+
+@router.message(ContactUserState.waiting_for_user_id)
+async def admin_process_contact_user_id(message: Message, state: FSMContext):
+    """Admin ID yoki Username kiritganda qidirib profil va chat havolalarini ko'rsatish."""
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        await state.clear()
+        return
+
+    query = message.text.strip() if message.text else ""
+    if query in ["/admin", "/cancel", "/start"]:
+        await state.clear()
+        if query == "/admin":
+            await admin_panel_handler(message)
+        elif query == "/start":
+            await start_handler(message, state)
+        else:
+            await message.answer("Bekor qilindi.", reply_markup=admin_menu_kb())
+        return
+
+    if not query:
+        await message.answer("⚠️ Iltimos, Telegram ID yoki username matnini kiriting:")
+        return
+
+    user = test_db.find_user(query)
+    if not user:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_back_to_menu")]
+        ])
+        await message.answer(
+            f"❌ <b>Foydalanuvchi topilmadi!</b>\n\n"
+            f"Kiritilgan ma'lumot (<code>{html.escape(query)}</code>) bo'yicha foydalanuvchi bazadan topilmadi.\n\n"
+            f"Iltimos, Telegram ID yoki usernameni to'g'ri tekshirib qaytadan kiriting:",
+            reply_markup=kb
+        )
+        return
+
+    await state.clear()
+    card_text, card_kb = build_user_contact_card(user)
+    await message.answer(card_text, reply_markup=card_kb)
+
+
+@router.callback_query(F.data.startswith("adm_view_user_"))
+async def adm_view_user_cb(call: CallbackQuery, state: FSMContext):
+    """Foydalanuvchi kartasini qayta ko'rsatish."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    await state.clear()
+    target_tg_id = int(call.data.replace("adm_view_user_", ""))
+    user = test_db.find_user(target_tg_id)
+    if not user:
+        await call.answer("Foydalanuvchi topilmadi!", show_alert=True)
+        return
+    card_text, card_kb = build_user_contact_card(user)
+    try:
+        await call.message.edit_text(card_text, reply_markup=card_kb)
+    except Exception:
+        await call.message.answer(card_text, reply_markup=card_kb)
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("adm_msg_user_"))
+async def adm_msg_user_cb(call: CallbackQuery, state: FSMContext):
+    """Foydalanuvchiga bot nomidan xabar yozish holatiga o'tish."""
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        await call.answer("Ruxsat yo'q!", show_alert=True)
+        return
+
+    target_tg_id = int(call.data.replace("adm_msg_user_", ""))
+    user = test_db.find_user(target_tg_id)
+    fullname = user.get("fullname", f"ID: {target_tg_id}") if user else f"ID: {target_tg_id}"
+
+    await state.set_state(ContactUserState.waiting_for_message)
+    await state.update_data(target_tg_id=target_tg_id, target_fullname=fullname)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data=f"adm_view_user_{target_tg_id}")]
+    ])
+    text = (
+        f"✉️ <b>FOYDALANUVCHIGA XABAR YOZISH</b>\n\n"
+        f"Kimga: <b>{fullname}</b> (ID: <code>{target_tg_id}</code>)\n\n"
+        f"Foydalanuvchiga yubormoqchi bo'lgan xabaringizni yozing (matn, rasm yoki hujjat):\n"
+        f"<i>Xabar foydalanuvchiga bot nomidan yetkaziladi.</i>"
+    )
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+
+@router.message(ContactUserState.waiting_for_message)
+async def adm_send_user_message_handler(message: Message, state: FSMContext):
+    """Admin yozgan xabarni foydalanuvchiga yetkazish."""
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        await state.clear()
+        return
+
+    text_val = message.text or message.caption or ""
+    if text_val in ["/admin", "/cancel"]:
+        await state.clear()
+        await message.answer("Bekor qilindi.", reply_markup=admin_menu_kb())
+        return
+
+    data = await state.get_data()
+    target_tg_id = data.get("target_tg_id")
+    target_fullname = data.get("target_fullname", "Foydalanuvchi")
+    await state.clear()
+
+    if not target_tg_id:
+        await message.answer("⚠️ Ma'lumot topilmadi, iltimos qaytadan urinib ko'ring.", reply_markup=admin_menu_kb())
+        return
+
+    user_reply_kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✍️ Adminga javob yozish (@eshmbetov)", url="https://t.me/eshmbetov")]
+    ])
+
+    try:
+        if message.text:
+            out_text = (
+                f"📩 <b>ADMINISTRATSIYADAN XABAR:</b>\n\n"
+                f"{message.text}\n\n"
+                f"<i>Hurmat bilan, RASH TEST administratsiyasi</i>"
+            )
+            await bot.send_message(chat_id=target_tg_id, text=out_text, reply_markup=user_reply_kb)
+        elif message.photo:
+            caption = message.caption or ""
+            out_caption = (
+                f"📩 <b>ADMINISTRATSIYADAN XABAR:</b>\n\n"
+                f"{caption}\n\n"
+                f"<i>Hurmat bilan, RASH TEST administratsiyasi</i>"
+            ) if caption else "📩 <b>ADMINISTRATSIYADAN XABAR:</b>\n\n<i>Hurmat bilan, RASH TEST administratsiyasi</i>"
+            await bot.send_photo(chat_id=target_tg_id, photo=message.photo[-1].file_id, caption=out_caption, reply_markup=user_reply_kb)
+        elif message.document:
+            caption = message.caption or ""
+            out_caption = (
+                f"📩 <b>ADMINISTRATSIYADAN HUJJAT:</b>\n\n"
+                f"{caption}\n\n"
+                f"<i>Hurmat bilan, RASH TEST administratsiyasi</i>"
+            ) if caption else "📩 <b>ADMINISTRATSIYADAN HUJJAT:</b>\n\n<i>Hurmat bilan, RASH TEST administratsiyasi</i>"
+            await bot.send_document(chat_id=target_tg_id, document=message.document.file_id, caption=out_caption, reply_markup=user_reply_kb)
+        else:
+            await message.send_copy(chat_id=target_tg_id, reply_markup=user_reply_kb)
+
+        user_info = test_db.find_user(target_tg_id)
+        uname = (user_info.get("username") or "").strip().lstrip("@") if user_info else ""
+        buttons = []
+        if uname:
+            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatiga o'tish (Telegram)", url=f"https://t.me/{uname}")])
+        buttons.append([InlineKeyboardButton(text="✉️ Yana xabar yozish", callback_data=f"adm_msg_user_{target_tg_id}")])
+        buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
+        buttons.append([InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")])
+
+        await message.answer(
+            f"✅ <b>Xabar muvaffaqiyatli yetkazildi!</b>\n\n"
+            f"👤 Kimga: <b>{target_fullname}</b>\n"
+            f"🆔 Telegram ID: <code>{target_tg_id}</code>",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+        )
+    except Exception as e:
+        err_msg = str(e)
+        log.warning(f"Error sending message to user {target_tg_id}: {err_msg}")
+        buttons = [
+            [InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")],
+            [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+        ]
+        if "forbidden" in err_msg.lower() or "blocked" in err_msg.lower():
+            await message.answer(
+                f"❌ <b>Xabar yetkazilmadi!</b>\n\n"
+                f"Foydalanuvchi (<b>{target_fullname}</b>, ID: <code>{target_tg_id}</code>) botni bloklagan yoki to'xtatgan.",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+            )
+        else:
+            await message.answer(
+                f"❌ <b>Xatolik yuz berdi:</b> {html.escape(err_msg)}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
+            )
+
 
 # 1. Yangi test yaratish (Faqat Admin Mini App orqali)
 @router.callback_query(F.data == "admin_add_test")
