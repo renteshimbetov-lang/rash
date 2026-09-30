@@ -1907,16 +1907,18 @@ def build_user_contact_card(user: Dict[str, Any]) -> Tuple[str, InlineKeyboardMa
 
     status_icon = "🟢 Faol" if status == "approved" else "🔴 Bloklangan"
 
+    clean_phone = re.sub(r"[^\d+]", "", str(phone or ""))
+
     if username:
         uname_text = f"@{username}"
         profile_mention = (
-            f"👉 <b>Telegram chat:</b> <a href=\"https://t.me/{username}\">@{username} shaxsiy chatini ochish</a>"
+            f"👉 <b>Telegram chat:</b> <a href=\"https://t.me/{username}\">@{username} shaxsiy chatini ochish ↗️</a>"
         )
     else:
         uname_text = "<i>Mavjud emas</i>"
         profile_mention = (
-            f"👉 <b>Telegram chat:</b> <a href=\"tg://user?id={tg_id}\"><b>{fullname} profil chatini ochish</b></a>\n"
-            f"<i>(Telegram ilovasida shaxsiy chatni ochish uchun yuqoridagi havola ustiga bosing)</i>"
+            f"👉 <b>Telegram chat (Telegramning o'zida ochish):</b>\n"
+            f"👉 <a href=\"tg://user?id={tg_id}\"><b>{fullname} profil chatini ochish (ustiga bosing) 💬</b></a>"
         )
 
     card_text = (
@@ -1931,20 +1933,16 @@ def build_user_contact_card(user: Dict[str, Any]) -> Tuple[str, InlineKeyboardMa
         f"🔘 <b>Holati:</b> {status_icon}\n\n"
         f"💬 <b>Shaxsiy chatga o'tish:</b>\n"
         f"{profile_mention}\n\n"
-        f"<i>Quyidagi tugmalar orqali profilni ochishingiz yoki bot orqali xabar yuborishingiz mumkin 👇</i>"
+        f"<i>Quyidagi tugmalar orqali Telegramning o'zida kontaktni ochishingiz yoki bot orqali xabar yuborishingiz mumkin 👇</i>"
     )
 
     buttons = []
     if username:
         buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{username}")])
     else:
-        # Username yo'q foydalanuvchilar uchun HTTPS redirect URL (BUTTON_URL_INVALID xatosini oldini olish uchun)
-        redirect_url = f"{WEBAPP_URL}/user-chat/{tg_id}"
-        buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=redirect_url)])
-
-    clean_phone = re.sub(r"[^\d+]", "", str(phone or ""))
-    if clean_phone and clean_phone not in ["—", "-", ""]:
-        buttons.append([InlineKeyboardButton(text="📇 Telegram kontakt kartasini olish", callback_data=f"adm_send_contact_{tg_id}")])
+        # Username yo'q foydalanuvchilar uchun web ochmasdan, Telegram ilovasining o'zida kontakt orqali chat ochish tugmasi
+        if clean_phone and clean_phone not in ["—", "-", ""]:
+            buttons.append([InlineKeyboardButton(text="📇 Telegram kontakt kartasini ko'rish (Chat) ↗️", callback_data=f"adm_send_contact_{tg_id}")])
 
     buttons.append([InlineKeyboardButton(text="✉️ Bot orqali xabar yozish", callback_data=f"adm_msg_user_{tg_id}")])
     buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
@@ -1970,6 +1968,20 @@ async def admin_contact_user_command(message: Message, state: FSMContext):
         if user:
             await state.clear()
             try:
+                clean_phone = re.sub(r"[^\d+]", "", str(user.get("phone") or ""))
+                if not user.get("username") and clean_phone and clean_phone not in ["—", "-", ""]:
+                    parts_name = (user.get("fullname") or "Foydalanuvchi").split(maxsplit=1)
+                    fn = parts_name[0]
+                    ln = parts_name[1] if len(parts_name) > 1 else ""
+                    try:
+                        await message.answer_contact(
+                            phone_number=clean_phone,
+                            first_name=fn,
+                            last_name=ln
+                        )
+                    except Exception:
+                        pass
+
                 card_text, card_kb = build_user_contact_card(user)
                 await message.answer(card_text, reply_markup=card_kb)
             except Exception as e:
@@ -1981,7 +1993,7 @@ async def admin_contact_user_command(message: Message, state: FSMContext):
                 ])
                 await message.answer(
                     f"👤 <b>{html.escape(user.get('fullname', 'Foydalanuvchi'))}</b> (ID: <code>{uid}</code>)\n\n"
-                    f"👉 <a href=\"tg://user?id={uid}\"><b>Telegram chatini ochish</b></a>",
+                    f"👉 <a href=\"tg://user?id={uid}\"><b>Telegram chatini ochish (ustiga bosing)</b></a>",
                     reply_markup=fallback_kb
                 )
             return
@@ -2071,6 +2083,20 @@ async def admin_process_contact_user_id(message: Message, state: FSMContext):
 
     await state.clear()
     try:
+        clean_phone = re.sub(r"[^\d+]", "", str(user.get("phone") or ""))
+        if not user.get("username") and clean_phone and clean_phone not in ["—", "-", ""]:
+            parts_name = (user.get("fullname") or "Foydalanuvchi").split(maxsplit=1)
+            fn = parts_name[0]
+            ln = parts_name[1] if len(parts_name) > 1 else ""
+            try:
+                await message.answer_contact(
+                    phone_number=clean_phone,
+                    first_name=fn,
+                    last_name=ln
+                )
+            except Exception:
+                pass
+
         card_text, card_kb = build_user_contact_card(user)
         await message.answer(card_text, reply_markup=card_kb)
     except Exception as e:
@@ -2083,7 +2109,7 @@ async def admin_process_contact_user_id(message: Message, state: FSMContext):
         ])
         await message.answer(
             f"👤 <b>{html.escape(user.get('fullname', 'Foydalanuvchi'))}</b> (ID: <code>{uid}</code>)\n\n"
-            f"👉 <a href=\"tg://user?id={uid}\"><b>Telegram chatini ochish</b></a>",
+            f"👉 <a href=\"tg://user?id={uid}\"><b>Telegram chatini ochish (ustiga bosing)</b></a>",
             reply_markup=fallback_kb
         )
 
@@ -2196,7 +2222,9 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
         if uname:
             buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{uname}")])
         else:
-            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"{WEBAPP_URL}/user-chat/{target_tg_id}")])
+            phone_val = re.sub(r"[^\d+]", "", str(user_info.get("phone") if user_info else "" or ""))
+            if phone_val and phone_val not in ["—", "-", ""]:
+                buttons.append([InlineKeyboardButton(text="📇 Telegram kontakt kartasini ko'rish (Chat) ↗️", callback_data=f"adm_send_contact_{target_tg_id}")])
 
         buttons.append([InlineKeyboardButton(text="✉️ Yana xabar yozish", callback_data=f"adm_msg_user_{target_tg_id}")])
         buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
@@ -2217,7 +2245,9 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
         if uname:
             buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{uname}")])
         else:
-            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"{WEBAPP_URL}/user-chat/{target_tg_id}")])
+            phone_val = re.sub(r"[^\d+]", "", str(user_info.get("phone") if user_info else "" or ""))
+            if phone_val and phone_val not in ["—", "-", ""]:
+                buttons.append([InlineKeyboardButton(text="📇 Telegram kontakt kartasini ko'rish (Chat) ↗️", callback_data=f"adm_send_contact_{target_tg_id}")])
         buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
         buttons.append([InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")])
 
@@ -2225,7 +2255,7 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
             await message.answer(
                 f"❌ <b>Xabar yetkazilmadi!</b>\n\n"
                 f"Foydalanuvchi (<b>{target_fullname}</b>, ID: <code>{target_tg_id}</code>) botni bloklagan yoki to'xtatgan.\n\n"
-                f"Siz yuqoridagi tugma orqali uning shaxsiy Telegram profiliga o'tib yozishingiz mumkin.",
+                f"Siz Telegram ilovasining o'zida profiliga o'tishingiz mumkin.",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)
             )
         else:
@@ -2265,7 +2295,7 @@ async def adm_send_contact_cb(call: CallbackQuery):
         last_name = parts_name[1] if len(parts_name) > 1 else ""
 
         contact_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💬 Profil chatini ochish ↗️", url=f"{WEBAPP_URL}/user-chat/{target_tg_id}")],
+            [InlineKeyboardButton(text="✉️ Bot orqali xabar yozish", callback_data=f"adm_msg_user_{target_tg_id}")],
             [InlineKeyboardButton(text="🔙 Foydalanuvchi ma'lumotlariga qaytish", callback_data=f"adm_view_user_{target_tg_id}")]
         ])
 
