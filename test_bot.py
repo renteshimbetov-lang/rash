@@ -1938,8 +1938,9 @@ def build_user_contact_card(user: Dict[str, Any]) -> Tuple[str, InlineKeyboardMa
     if username:
         buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{username}")])
     else:
-        # Username yo'q foydalanuvchilar uchun bevosita shaxsiy chat/profilini ochuvchi Telegram havolasi
-        buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"tg://user?id={tg_id}")])
+        # Username yo'q foydalanuvchilar uchun HTTPS redirect URL (BUTTON_URL_INVALID xatosini oldini olish uchun)
+        redirect_url = f"{WEBAPP_URL}/user-chat/{tg_id}"
+        buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=redirect_url)])
 
     clean_phone = re.sub(r"[^\d+]", "", str(phone or ""))
     if clean_phone and clean_phone not in ["—", "-", ""]:
@@ -1968,8 +1969,21 @@ async def admin_contact_user_command(message: Message, state: FSMContext):
         user = test_db.find_user(query)
         if user:
             await state.clear()
-            card_text, card_kb = build_user_contact_card(user)
-            await message.answer(card_text, reply_markup=card_kb)
+            try:
+                card_text, card_kb = build_user_contact_card(user)
+                await message.answer(card_text, reply_markup=card_kb)
+            except Exception as e:
+                log.error(f"Xatolik foydalanuvchi kartasini chiqarishda: {e}", exc_info=True)
+                uid = user.get('tg_id')
+                fallback_kb = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✉️ Bot orqali xabar yozish", callback_data=f"adm_msg_user_{uid}")],
+                    [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+                ])
+                await message.answer(
+                    f"👤 <b>{html.escape(user.get('fullname', 'Foydalanuvchi'))}</b> (ID: <code>{uid}</code>)\n\n"
+                    f"👉 <a href=\"tg://user?id={uid}\"><b>Telegram chatini ochish</b></a>",
+                    reply_markup=fallback_kb
+                )
             return
         else:
             await message.answer(
@@ -2056,8 +2070,22 @@ async def admin_process_contact_user_id(message: Message, state: FSMContext):
         return
 
     await state.clear()
-    card_text, card_kb = build_user_contact_card(user)
-    await message.answer(card_text, reply_markup=card_kb)
+    try:
+        card_text, card_kb = build_user_contact_card(user)
+        await message.answer(card_text, reply_markup=card_kb)
+    except Exception as e:
+        log.error(f"Foydalanuvchi kartasini yuborishda xatolik: {e}", exc_info=True)
+        uid = user.get('tg_id')
+        fallback_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✉️ Bot orqali xabar yozish", callback_data=f"adm_msg_user_{uid}")],
+            [InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")],
+            [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+        ])
+        await message.answer(
+            f"👤 <b>{html.escape(user.get('fullname', 'Foydalanuvchi'))}</b> (ID: <code>{uid}</code>)\n\n"
+            f"👉 <a href=\"tg://user?id={uid}\"><b>Telegram chatini ochish</b></a>",
+            reply_markup=fallback_kb
+        )
 
 
 @router.callback_query(F.data.startswith("adm_view_user_"))
@@ -2168,7 +2196,7 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
         if uname:
             buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{uname}")])
         else:
-            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"tg://user?id={target_tg_id}")])
+            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"{WEBAPP_URL}/user-chat/{target_tg_id}")])
 
         buttons.append([InlineKeyboardButton(text="✉️ Yana xabar yozish", callback_data=f"adm_msg_user_{target_tg_id}")])
         buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
@@ -2189,7 +2217,7 @@ async def adm_send_user_message_handler(message: Message, state: FSMContext):
         if uname:
             buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"https://t.me/{uname}")])
         else:
-            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"tg://user?id={target_tg_id}")])
+            buttons.append([InlineKeyboardButton(text="💬 Shaxsiy profil chatini ochish ↗️", url=f"{WEBAPP_URL}/user-chat/{target_tg_id}")])
         buttons.append([InlineKeyboardButton(text="🔍 Boshqa foydalanuvchi qidirish", callback_data="admin_contact_user_prompt")])
         buttons.append([InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")])
 
@@ -2237,7 +2265,7 @@ async def adm_send_contact_cb(call: CallbackQuery):
         last_name = parts_name[1] if len(parts_name) > 1 else ""
 
         contact_kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💬 Profil chatini ochish ↗️", url=f"tg://user?id={target_tg_id}")],
+            [InlineKeyboardButton(text="💬 Profil chatini ochish ↗️", url=f"{WEBAPP_URL}/user-chat/{target_tg_id}")],
             [InlineKeyboardButton(text="🔙 Foydalanuvchi ma'lumotlariga qaytish", callback_data=f"adm_view_user_{target_tg_id}")]
         ])
 
@@ -5212,6 +5240,76 @@ async def handle_set_gemini_key_api(request):
         return web.json_response({"success": False, "message": str(e)}, status=500)
 
 
+async def handle_user_chat_redirect(request):
+    """
+    Foydalanuvchi ID si bo'yicha Telegram chatiga xavfsiz yo'naltiruvchi sahifa.
+    Telegram Bot API dagi BUTTON_URL_INVALID cheklovini to'liq aylanib o'tadi va
+    foydalanuvchining shaxsiy Telegram ilovasida to'g'ridan-to'g'ri profil/chatni ochadi.
+    """
+    tg_id = request.match_info.get('id', '')
+    html_page = f"""<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <title>Telegram Chatni Ochish</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 16px;
+      box-sizing: border-box;
+    }}
+    .box {{
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 28px 24px;
+      border-radius: 18px;
+      text-align: center;
+      max-width: 360px;
+      width: 100%;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }}
+    .icon {{ font-size: 48px; margin-bottom: 12px; }}
+    h2 {{ margin: 0 0 8px 0; font-size: 19px; font-weight: 800; }}
+    p {{ font-size: 13px; color: #94a3b8; margin: 0 0 20px 0; line-height: 1.5; }}
+    .btn {{
+      display: block;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #ffffff;
+      text-decoration: none;
+      padding: 13px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+    }}
+  </style>
+  <script>
+    window.location.href = "tg://user?id={tg_id}";
+    setTimeout(function() {{
+      window.location.href = "tg://openmessage?user_id={tg_id}";
+    }}, 400);
+  </script>
+</head>
+<body>
+  <div class="box">
+    <div class="icon">💬</div>
+    <h2>Telegram Chat Ochilmoqda</h2>
+    <p>Agar Telegram ilovasi avtomatik ochilmasa, pastdagi tugmani bosing:</p>
+    <a href="tg://user?id={tg_id}" class="btn">Telegramda Chatni Ochish ↗️</a>
+  </div>
+</body>
+</html>"""
+    return web.Response(text=html_page, content_type='text/html', charset='utf-8')
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(BASE_DIR, 'test_webapp')
 
@@ -6366,6 +6464,7 @@ async def create_web_app():
     app.router.add_get('/index.html', handle_index)
     app.router.add_get('/admin.html', handle_admin)
     app.router.add_get('/app.html', handle_app)
+    app.router.add_get('/user-chat/{id}', handle_user_chat_redirect)
     
     # MacBook Desktop Dashboard
     app.router.add_get('/dashboard', handle_dashboard)
