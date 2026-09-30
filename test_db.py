@@ -989,6 +989,10 @@ def delete_user(tg_id: int) -> Optional[Dict[str, Any]]:
         cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()}", (tg_id,))
         user_row = _row_to_dict(cur.fetchone())
 
+        try:
+            cur.execute(f"DELETE FROM broadcast_messages WHERE user_tg_id = {_ph()}", (tg_id,))
+        except Exception:
+            pass
         cur.execute(f"DELETE FROM submissions WHERE user_tg_id = {_ph()}", (tg_id,))
         cur.execute(f"DELETE FROM users WHERE tg_id = {_ph()}", (tg_id,))
         conn.commit()

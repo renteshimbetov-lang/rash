@@ -1135,8 +1135,8 @@ async def user_blocked_bot_handler(event: ChatMemberUpdated):
         user_id = event.from_user.id
         u = test_db.get_user(user_id)
         
-        # Bazadagi holatini 'blocked' qilib yangilaymiz
-        test_db.block_user(user_id)
+        # Botni bloklagan foydalanuvchini bazadan to'liq o'chiramiz
+        test_db.delete_user(user_id)
         
         fn = (u and u.get("fullname")) or event.from_user.full_name or "Noma'lum"
         un = f"@{u.get('username')}" if (u and u.get('username')) else (f"@{event.from_user.username}" if event.from_user.username else "Mavjud emas")
@@ -1144,14 +1144,13 @@ async def user_blocked_bot_handler(event: ChatMemberUpdated):
         now_str = format_uzb_time(fmt="%d.%m.%Y %H:%M:%S")
         
         alert_text = (
-            f"🚫 <b>OGOHLANTIRISH: Foydalanuvchi botni blokladi/o'chirdi!</b>\n\n"
+            f"🚫 <b>OGOHLANTIRISH: Foydalanuvchi botni blokladi va bazadan o'chirildi!</b>\n\n"
             f"👤 <b>Foydalanuvchi:</b> {fn}\n"
             f"🔗 <b>Username:</b> {un}\n"
             f"📞 <b>Telefon:</b> <code>{ph}</code>\n"
             f"🆔 <b>Telegram ID:</b> <code>{user_id}</code>\n"
             f"🕒 <b>Vaqt:</b> <b>{now_str}</b>\n\n"
-            f"ℹ️ <i>Telegram serveri orqali real-vaqt rejimida aniqlandi (foydalanuvchiga xabar bormadi). "
-            f"Bazada uning holati «Bloklangan» qilib belgilandi.</i>"
+            f"🗑 <i>Foydalanuvchi botni to'xtatgani/bloklagani sababli uning barcha ma'lumotlari bazadan to'liq o'chirildi.</i>"
         )
         
         for adm_id in get_all_admin_ids():
@@ -1203,63 +1202,121 @@ async def user_unblocked_bot_handler(event: ChatMemberUpdated):
         log.error(f"user_unblocked_bot_handler error: {e}", exc_info=True)
 
 
+async def clean_blocked_users_from_db(initiator_id: int = ADMIN_ID) -> dict:
+    """
+    Bazada mavjud barcha foydalanuvchilarni tekshirib, botni bloklaganlarni bazadan to'liq o'chirib tashlash.
+    """
+    users = test_db.get_all_users()
+    admin_ids = set(get_all_admin_ids())
+
+    active_users = []
+    deleted_users = []
+
+    for u in users:
+        uid = u.get("tg_id")
+        if not uid or uid <= 0 or uid in admin_ids:
+            continue
+        try:
+            # Ko'rinmas ping: yozmoqda effekti (agar bloklagan bo'lsa darhol exception qaytadi)
+            await bot.send_chat_action(chat_id=uid, action="typing")
+            active_users.append(u)
+        except (TelegramForbiddenError, TelegramBadRequest) as ex:
+            err_text = str(ex).lower()
+            if "blocked" in err_text or "deactivated" in err_text or "chat not found" in err_text:
+                test_db.delete_user(uid)
+                deleted_users.append({
+                    "id": u.get("id"),
+                    "tg_id": uid,
+                    "fullname": u.get("fullname") or "Noma'lum",
+                    "username": f"@{u.get('username')}" if u.get("username") else "—",
+                    "tests_count": u.get("tests_count", 0),
+                    "reason": err_text[:60]
+                })
+                log.info(f"🗑 Bloklagan foydalanuvchi {uid} ({u.get('fullname')}) bazadan o'chirildi")
+            else:
+                active_users.append(u)
+        except Exception as e:
+            err_text = str(e).lower()
+            if "blocked" in err_text or "forbidden" in err_text or "deactivated" in err_text:
+                test_db.delete_user(uid)
+                deleted_users.append({
+                    "id": u.get("id"),
+                    "tg_id": uid,
+                    "fullname": u.get("fullname") or "Noma'lum",
+                    "username": f"@{u.get('username')}" if u.get("username") else "—",
+                    "tests_count": u.get("tests_count", 0),
+                    "reason": err_text[:60]
+                })
+                log.info(f"🗑 Bloklagan foydalanuvchi {uid} bazadan o'chirildi: {err_text}")
+            else:
+                active_users.append(u)
+
+        await asyncio.sleep(0.04)
+
+    # Admin ga hisobot xabarini yuborish
+    try:
+        report_text = (
+            f"🧹 <b>BOTNI BLOKLAGANLARNI TOZALASH YAKUNLANDI:</b>\n\n"
+            f"👥 <b>Tekshirildi:</b> {len(users)} nafar\n"
+            f"✅ <b>Faol qolganlar:</b> {len(active_users)} nafar\n"
+            f"🗑 <b>Bazadan o'chirilgan bloklaganlar:</b> {len(deleted_users)} nafar"
+        )
+        if deleted_users:
+            report_text += "\n\n<b>O'chirilgan foydalanuvchilar:</b>\n"
+            for du in deleted_users[:25]:
+                report_text += f"• {du['fullname']} ({du['username']}, ID: <code>{du['tg_id']}</code>)\n"
+            if len(deleted_users) > 25:
+                report_text += f"\n<i>...va yana {len(deleted_users) - 25} ta foydalanuvchi.</i>"
+        await bot.send_message(chat_id=ADMIN_ID, text=report_text)
+    except Exception as e:
+        log.error(f"Admin tozalash hisoboti yuborishda xato: {e}")
+
+    return {
+        "success": True,
+        "total_checked": len(users),
+        "active_count": len(active_users),
+        "deleted_count": len(deleted_users),
+        "deleted_users": deleted_users
+    }
+
 @router.message(Command("check_blocks"))
+@router.message(Command("clean_blocked"))
 async def admin_check_blocks_handler(message: Message):
     """
-    Admin uchun: Bazadagi barcha foydalanuvchilarni xabar yubormasdan
-    ko'rinmas usulda (send_chat_action) tekshirib chiqish.
+    Admin uchun: Bazadagi barcha foydalanuvchilarni tekshirib, botni bloklaganlarni bazadan to'liq o'chirish.
     """
     if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        await message.answer("⛔️ Bu buyruq faqat bot administratori uchun!")
         return
-    
+
     users = test_db.get_all_users()
     total = len(users)
     status_msg = await message.answer(
         f"🔍 <b>Bazadagi {total} ta foydalanuvchi tekshirilmoqda...</b>\n\n"
-        f"<i>(Ko'rinmas usul: foydalanuvchilarga xabar yoki bildirishnoma bormaydi)</i>"
+        f"<i>(Botni bloklagan yoki o'chirgan foydalanuvchilar aniqlansa, darhol bazadan o'chiriladi)</i>"
     )
-    
-    blocked_list = []
-    active_count = 0
-    
-    for u in users:
-        uid = u.get("tg_id")
-        if not uid or uid <= 0:
-            continue
-        try:
-            # Ko'rinmas ping: yozmoqda effekti so'rovi (agar bloklagan bo'lsa xato qaytadi)
-            await bot.send_chat_action(chat_id=uid, action="typing")
-            active_count += 1
-        except (TelegramForbiddenError, TelegramBadRequest) as ex:
-            err_text = str(ex).lower()
-            if "blocked" in err_text or "deactivated" in err_text or "chat not found" in err_text:
-                test_db.block_user(uid)
-                blocked_list.append(u)
-            else:
-                active_count += 1
-        except Exception:
-            active_count += 1
-        
-        await asyncio.sleep(0.04) # Telegram rate-limit
-    
+
+    result = await clean_blocked_users_from_db(initiator_id=message.from_user.id)
+    deleted_list = result["deleted_users"]
+    active_count = result["active_count"]
+
     res_text = (
         f"📊 <b>Foydalanuvchilar holati tekshiruvi yakunlandi:</b>\n\n"
-        f"👥 <b>Jami foydalanuvchilar:</b> {total} ta\n"
-        f"✅ <b>Faol (bot ochiq):</b> {active_count} ta\n"
-        f"🚫 <b>Botni bloklaganlar:</b> {len(blocked_list)} ta\n\n"
+        f"👥 <b>Jami tekshirildi:</b> {total} ta\n"
+        f"✅ <b>Faol foydalanuvchilar:</b> {active_count} ta\n"
+        f"🗑 <b>Botni bloklagani uchun bazadan o'chirildi:</b> {len(deleted_list)} ta\n\n"
     )
-    
-    if blocked_list:
-        res_text += "<b>Bloklagan foydalanuvchilar ro'yxati:</b>\n"
-        for i, bu in enumerate(blocked_list[:30], 1):
-            bun = f" (@{bu.get('username')})" if bu.get('username') else ""
-            nomalum = bu.get('fullname') or 'Noma\'lum'
-            res_text += f"{i}. <b>{nomalum}</b>{bun} — <code>{bu.get('tg_id')}</code>\n"
-        if len(blocked_list) > 30:
-            res_text += f"\n<i>...va yana {len(blocked_list) - 30} ta foydalanuvchi.</i>"
+
+    if deleted_list:
+        res_text += "<b>Bazadan o'chirilgan foydalanuvchilar:</b>\n"
+        for i, bu in enumerate(deleted_list[:30], 1):
+            bun = f" ({bu['username']})" if bu.get('username') and bu['username'] != '—' else ""
+            res_text += f"{i}. <b>{bu['fullname']}</b>{bun} — <code>{bu['tg_id']}</code>\n"
+        if len(deleted_list) > 30:
+            res_text += f"\n<i>...va yana {len(deleted_list) - 30} ta foydalanuvchi.</i>"
     else:
-        res_text += "🎉 <i>Hozirda botni bloklagan foydalanuvchilar aniqlanmadi!</i>"
-    
+        res_text += "🎉 <i>Hozirda botni bloklagan foydalanuvchilar aniqlanmadi (baza toza)!</i>"
+
     try:
         await status_msg.edit_text(res_text)
     except Exception:
@@ -1325,6 +1382,9 @@ async def send_inactive_warning_messages(initiator_id: int = ADMIN_ID) -> dict:
             })
             await asyncio.sleep(0.04)
         except Exception as e:
+            err_text = str(e).lower()
+            if "blocked" in err_text or "forbidden" in err_text or "deactivated" in err_text:
+                test_db.delete_user(uid)
             failed_users.append({
                 "id": u.get("id"),
                 "tg_id": uid,
@@ -2025,6 +2085,7 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
             fail_count += 1
             err_str = str(e).lower()
             if "blocked" in err_str or "forbidden" in err_str or "deactivated" in err_str:
+                test_db.delete_user(uid)
                 blocked_users.append(u)
             log.warning(f"Broadcast xatosi user {uid}: {e}")
 
@@ -2032,12 +2093,12 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
 
     # Admin ga bloklagan userlar haqida xabar
     if blocked_users:
-        blocked_text = "🚫 <b>Botni bloklagan foydalanuvchilar:</b>\n\n"
+        blocked_text = "🚫 <b>Botni bloklagani uchun bazadan o'chirilgan foydalanuvchilar:</b>\n\n"
         for bu in blocked_users:
             bname = bu.get('fullname', 'Noma\'lum')
             btid = bu.get('tg_id', '-')
             blocked_text += f"• <b>{bname}</b> (ID: <code>{btid}</code>)\n"
-        blocked_text += "\n<i>Ular broadcast xabarini olmadi.</i>"
+        blocked_text += "\n<i>Ular botni to'xtatgani/bloklagani sababli bazadan to'liq o'chirildi.</i>"
         try:
             await bot.send_message(chat_id=ADMIN_ID, text=blocked_text)
         except Exception:
@@ -5475,8 +5536,31 @@ async def handle_notify_inactive_users(request):
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
+async def handle_clean_blocked_users(request):
+    try:
+        data = {}
+        try:
+            data = await request.json()
+        except Exception:
+            pass
+        admin_id = int(data.get('admin_id', 0) or request.rel_url.query.get('admin_id', 0))
+        secret_key = str(data.get('secret_key', '') or request.rel_url.query.get('secret_key', '')).strip()
+
+        is_auth = (admin_id and test_db.is_admin(admin_id, ADMIN_ID)) or (secret_key == "rash_admin_secret_2026") or (admin_id == ADMIN_ID)
+        if not is_auth:
+            return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
+
+        result = await clean_blocked_users_from_db(initiator_id=admin_id or ADMIN_ID)
+        return web.json_response(result)
+    except Exception as e:
+        log.error(f"Clean blocked users error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
 async def create_web_app():
     app = web.Application()
+    app.router.add_post('/api/admin/clean-blocked-users', handle_clean_blocked_users)
+    app.router.add_get('/api/admin/clean-blocked-users', handle_clean_blocked_users)
     app.router.add_post('/api/admin/notify-inactive-users', handle_notify_inactive_users)
     app.router.add_get('/api/admin/notify-inactive-users', handle_notify_inactive_users)
     app.router.add_get('/', handle_index)
