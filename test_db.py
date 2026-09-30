@@ -428,19 +428,29 @@ def init_db():
                 except Exception:
                     pass
 
-        # submissions jadvaliga is_late ustunini qo'shish
+        # submissions jadvaliga is_late, status va reject_reason ustunlarini qo'shish
         if USE_POSTGRES:
             try:
                 cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS is_late INTEGER DEFAULT 0")
+                cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'accepted'")
+                cur.execute("ALTER TABLE submissions ADD COLUMN IF NOT EXISTS reject_reason TEXT DEFAULT ''")
                 conn.commit()
             except Exception:
                 conn.rollback()
         else:
             try:
                 cur.execute("ALTER TABLE submissions ADD COLUMN is_late INTEGER DEFAULT 0")
-                conn.commit()
             except Exception:
                 pass
+            try:
+                cur.execute("ALTER TABLE submissions ADD COLUMN status TEXT DEFAULT 'accepted'")
+            except Exception:
+                pass
+            try:
+                cur.execute("ALTER TABLE submissions ADD COLUMN reject_reason TEXT DEFAULT ''")
+            except Exception:
+                pass
+            conn.commit()
 
         # Kutilmoqda (pending) bo'lgan mavjud barcha foydalanuvchilarni to'g'ridan-to'g'ri faol (approved) holatiga o'tkazish
         try:
@@ -1826,6 +1836,39 @@ def set_submission_late_status(submission_id: int, is_late: int) -> bool:
         _close_conn(conn)
 
 
+def reject_submission(submission_id: int, reason: str = "") -> bool:
+    """O'quvchining topshirgan javoblarini rad etadi / bekor qiladi (qabul qilmaydi)."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"UPDATE submissions SET status = 'rejected', reject_reason = {_ph()} WHERE id = {_ph()}",
+            (reason, submission_id)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error rejecting submission: {e}")
+        return False
+    finally:
+        _close_conn(conn)
+
+
+def delete_submission(submission_id: int) -> bool:
+    """O'quvchining topshirgan javoblarini o'chiradi (testni qayta topshirish imkonini beradi)."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"DELETE FROM submissions WHERE id = {_ph()}", (submission_id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error deleting submission: {e}")
+        return False
+    finally:
+        _close_conn(conn)
+
+
 def get_key_and_score(q_data: Any, default_score: float) -> tuple:
     if isinstance(q_data, dict):
         ans = str(q_data.get("ans", q_data.get("answer", "")))
@@ -2662,7 +2705,7 @@ def get_all_submissions_for_admin(limit: int = 1000) -> List[Dict[str, Any]]:
         cur.execute(f"""
         SELECT s.id, s.test_id, s.test_code, s.user_tg_id, s.fullname, s.phone,
                s.score, s.max_score, s.correct_count, s.total_count,
-               s.submitted_at, s.is_late,
+               s.submitted_at, s.is_late, s.status, s.reject_reason,
                u.username, u.status as user_status,
                t.title as test_title, t.subject as test_subject,
                t.results_published, t.is_active as test_is_active

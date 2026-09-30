@@ -487,7 +487,10 @@ function renderOverviewData(data) {
             </td>
             <td><b style="color:var(--primary);font-size:14px;">${s.score || 0} ball</b></td>
             <td onclick="event.stopPropagation();">
-              <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">Ko'rish 👁</button>
+              <div style="display:inline-flex;gap:6px;align-items:center;">
+                <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">Ko'rish 👁</button>
+                <button class="btn btn-danger btn-sm" onclick="openCancelSubModalById(${s.id})" title="Javobni bekor qilish">Bekor qilish 🚫</button>
+              </div>
             </td>
           </tr>
         `;
@@ -682,7 +685,9 @@ function renderSubmissions() {
     
     // Status Badge
     let stBadge = '';
-    if (s.is_late == 1) {
+    if (s.status === 'rejected') {
+      stBadge = '<span class="badge badge-danger" style="background:#EF4444;color:#fff;">⛔️ Bekor qilingan</span>';
+    } else if (s.is_late == 1) {
       stBadge = '<span class="badge badge-warning">⏰ Kechikkan</span>';
     } else {
       stBadge = '<span class="badge badge-success">✅ O\'z vaqtida</span>';
@@ -721,9 +726,14 @@ function renderSubmissions() {
         <td><span class="badge badge-${grColor}">${esc(gr)}</span></td>
         <td>${stBadge}</td>
         <td style="text-align:right;" onclick="event.stopPropagation();">
-          <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">
-            Ko'rish 👁
-          </button>
+          <div style="display:inline-flex;gap:6px;align-items:center;">
+            <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">
+              Ko'rish 👁
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="openCancelSubModalById(${s.id})" title="Javobni bekor qilish">
+              Bekor qilish 🚫
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -1547,3 +1557,168 @@ function esc(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// ====================================================
+// SUBMISSION CANCELLATION (JAVOBNI BEKOR QILISH)
+// 1. Javobni qabul qilmaslik (reject)
+// 2. Qayta topshirish (allow_retake)
+// ====================================================
+let cancelModalSub = null;
+let selectedCancelActionType = null;
+
+function openCancelSubModalById(subId) {
+  const s = (State.submissions || []).find(x => Number(x.id) === Number(subId)) ||
+            (State.overviewSubmissions || []).find(x => Number(x.id) === Number(subId)) ||
+            (State.currentModalSubmission && Number(State.currentModalSubmission.id) === Number(subId) ? State.currentModalSubmission : null);
+
+  if (!s) {
+    fetch(`/api/dashboard/submission/${subId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.submission) {
+          openCancelSubModalWithData(d.submission);
+        } else {
+          showToast('Natija topilmadi', 'danger');
+        }
+      })
+      .catch(e => showToast('Xatolik: ' + e, 'danger'));
+    return;
+  }
+  openCancelSubModalWithData(s);
+}
+window.openCancelSubModalById = openCancelSubModalById;
+
+function promptCancelCurrentModalSubmission() {
+  if (State.currentModalSubmission) {
+    openCancelSubModalWithData(State.currentModalSubmission);
+  } else {
+    showToast('Natija ma\'lumotlari yuklanmagan', 'warning');
+  }
+}
+window.promptCancelCurrentModalSubmission = promptCancelCurrentModalSubmission;
+
+function openCancelSubModalWithData(sub) {
+  cancelModalSub = sub;
+  selectedCancelActionType = null;
+
+  const infoEl = document.getElementById('cancel-sub-user-info');
+  if (infoEl) {
+    const un = sub.username ? ` (@${sub.username.replace(/^@/, '')})` : '';
+    infoEl.innerHTML = `<b style="color:var(--text-main);">${esc(sub.fullname || 'Foydalanuvchi')}</b> (ID: ${sub.user_tg_id})${un} • Test #${esc(sub.test_code || '')}`;
+  }
+
+  // Show Step 1, hide Step 2
+  backToCancelStep1();
+
+  const modal = document.getElementById('cancel-sub-modal');
+  if (modal) modal.classList.add('open');
+}
+
+function closeCancelSubModal() {
+  const modal = document.getElementById('cancel-sub-modal');
+  if (modal) modal.classList.remove('open');
+  cancelModalSub = null;
+  selectedCancelActionType = null;
+}
+window.closeCancelSubModal = closeCancelSubModal;
+
+function selectCancelAction(actionType) {
+  if (!cancelModalSub) return;
+  selectedCancelActionType = actionType;
+
+  const step1 = document.getElementById('cancel-sub-step-1');
+  const step2 = document.getElementById('cancel-sub-step-2');
+  const confirmActions = document.getElementById('cancel-sub-confirm-actions');
+  const titleEl = document.getElementById('cancel-sub-confirm-title');
+  const descEl = document.getElementById('cancel-sub-confirm-desc');
+  const btnExec = document.getElementById('btn-confirm-cancel-exec');
+
+  if (step1) step1.style.display = 'none';
+  if (step2) step2.style.display = 'block';
+  if (confirmActions) confirmActions.style.display = 'flex';
+
+  const fn = esc(cancelModalSub.fullname || 'Foydalanuvchi');
+  const tc = esc(cancelModalSub.test_code || '');
+
+  if (actionType === 'reject') {
+    if (titleEl) {
+      titleEl.innerHTML = '⚠️ Javobni qabul qilmaslikni tasdiqlaysizmi?';
+      titleEl.style.color = '#EF4444';
+    }
+    if (descEl) {
+      descEl.innerHTML = `Haqiqatan ham <b>${fn}</b> ning #${tc} test bo'yicha topshirgan javoblarini <b>qabul qilmaslikni (rad etishni)</b> tasdiqlaysizmi?<br><br>• Natija bekor qilinadi va hisobga olinmaydi.<br>• O'quvchi testni qayta topshira olmaydi.<br>• O'quvchining shaxsiy Telegramiga xabar yuboriladi.`;
+    }
+    if (btnExec) {
+      btnExec.textContent = 'Ha, qabul qilinmasin (Rad etish)';
+      btnExec.className = 'btn btn-danger';
+    }
+  } else if (actionType === 'allow_retake') {
+    if (titleEl) {
+      titleEl.innerHTML = '🔄 Qayta topshirishga ruxsat berishni tasdiqlaysizmi?';
+      titleEl.style.color = '#2563EB';
+    }
+    if (descEl) {
+      descEl.innerHTML = `Haqiqatan ham <b>${fn}</b> ga #${tc} testni <b>qaytadan topshirishga</b> ruxsat berishni tasdiqlaysizmi?<br><br>• Avvalgi topshirgan natijasi bazadan butunlay o'chiriladi.<br>• O'quvchi bot orqali testni qaytadan boshidan ishlashi mumkin bo'ladi.<br>• O'quvchining shaxsiy Telegramiga testni qayta topshirishi mumkinligi haqida xabar boradi.`;
+    }
+    if (btnExec) {
+      btnExec.textContent = 'Ha, qayta topshirishga ruxsat';
+      btnExec.className = 'btn btn-primary';
+    }
+  }
+}
+window.selectCancelAction = selectCancelAction;
+
+function backToCancelStep1() {
+  selectedCancelActionType = null;
+  const step1 = document.getElementById('cancel-sub-step-1');
+  const step2 = document.getElementById('cancel-sub-step-2');
+  const confirmActions = document.getElementById('cancel-sub-confirm-actions');
+
+  if (step1) step1.style.display = 'block';
+  if (step2) step2.style.display = 'none';
+  if (confirmActions) confirmActions.style.display = 'none';
+}
+window.backToCancelStep1 = backToCancelStep1;
+
+async function executeCancelSubmission() {
+  if (!cancelModalSub || !selectedCancelActionType) return;
+
+  const btnExec = document.getElementById('btn-confirm-cancel-exec');
+  if (btnExec) {
+    btnExec.disabled = true;
+    btnExec.textContent = 'Bajarilmoqda...';
+  }
+
+  try {
+    const res = await fetch('/api/dashboard/submissions/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        submission_id: cancelModalSub.id,
+        action: selectedCancelActionType
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Xatolik yuz berdi');
+    }
+
+    showToast(data.message || 'Muvaffaqiyatli bajarildi!', 'success');
+    closeCancelSubModal();
+    closeSubmissionModal();
+
+    // Reload submissions and overview
+    if (typeof loadSubmissions === 'function') loadSubmissions();
+    if (typeof loadOverview === 'function') loadOverview();
+  } catch (err) {
+    showToast(String(err.message || err), 'danger');
+  } finally {
+    if (btnExec) {
+      btnExec.disabled = false;
+      btnExec.textContent = 'Ha, tasdiqlayman';
+    }
+  }
+}
+window.executeCancelSubmission = executeCancelSubmission;
+

@@ -6177,6 +6177,94 @@ async def handle_dashboard_late_action(request):
         log.error(f"Dashboard late action error: {e}", exc_info=True)
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
+async def handle_dashboard_cancel_submission(request):
+    """
+    O'quvchining test javobini bekor qilish amallari:
+    1. action == 'reject': Javobni qabul qilmaslik (rad etish, qayta topshira olmaydi)
+    2. action == 'allow_retake': Qayta topshirish (avvalgi javob o'chiriladi, qayta topshira oladi)
+    Ikkala holatda ham o'quvchining Telegram chatiga xabar boradi.
+    """
+    try:
+        data = await request.json()
+        sub_id = int(data.get('submission_id', 0))
+        action = str(data.get('action', '')).strip().lower()
+        reason = str(data.get('reason', '')).strip()
+
+        if not sub_id:
+            return web.json_response({"success": False, "error": "Submission ID ko'rsatilmadi"}, status=400)
+        if action not in ['reject', 'allow_retake']:
+            return web.json_response({"success": False, "error": "Noto'g'ri amal turi (reject yoki allow_retake)"}, status=400)
+
+        sub = test_db.get_submission_by_id(sub_id)
+        if not sub:
+            return web.json_response({"success": False, "error": "Topshirilgan natija topilmadi"}, status=404)
+
+        user_tg_id = sub.get('user_tg_id')
+        fullname = sub.get('fullname', 'Foydalanuvchi')
+        test_id = sub.get('test_id')
+        test_code = sub.get('test_code', '')
+        test_obj = test_db.get_test_by_id(test_id) if test_id else None
+        test_title = test_obj.get('title', f"Test #{test_code}") if test_obj else f"Test #{test_code}"
+
+        if action == 'reject':
+            # 1. Javobni qabul qilmaslik (rad etish)
+            success = test_db.reject_submission(sub_id, reason=reason)
+            if not success:
+                return web.json_response({"success": False, "error": "Natijani rad etishda xatolik yuz berdi"}, status=500)
+
+            user_msg = (
+                f"⛔️ <b>DIQQAT: TEST JAVOBLARINGIZ QABUL QILINMADI!</b>\n\n"
+                f"Hurmatli <b>{fullname}</b>!\n\n"
+                f"Sizning <b>«{test_title}»</b> (Kod: <code>#{test_code}</code>) testi bo'yicha topshirgan javoblaringiz ma'muriyat tomonidan bekor qilindi va <b>qabul qilinmadi</b>.\n\n"
+                f"ℹ️ <i>Izoh: Ushbu test natijangiz hisobga olinmaydi. Qayta topshirishga ruxsat berilmagan.</i>\n\n"
+                f"Savollaringiz bo'lsa administrator bilan bog'lanishingiz mumkin."
+            )
+            admin_msg = f"{fullname}ning javoblari qabul qilinmadi (rad etildi)."
+
+        elif action == 'allow_retake':
+            # 2. Qayta topshirish (avvalgi javob o'chiriladi, yangidan topshira oladi)
+            success = test_db.delete_submission(sub_id)
+            if not success:
+                return web.json_response({"success": False, "error": "Natijani o'chirishda xatolik yuz berdi"}, status=500)
+
+            user_msg = (
+                f"🔄 <b>DIQQAT: TESTNI QAYTA TOPSHIRISHINGIZ MUMKIN!</b>\n\n"
+                f"Hurmatli <b>{fullname}</b>!\n\n"
+                f"Sizning <b>«{test_title}»</b> (Kod: <code>#{test_code}</code>) testi bo'yicha topshirgan avvalgi javoblaringiz ma'muriyat tomonidan bekor qilindi va sizga testni <b>QAYTA TOPSHIRISHGA RUXSAT BERILDI!</b> ✅\n\n"
+                f"Endi botimiz (@bm_rashtest_bot) va Mini ilova orqali testga qaytadan kirib, barcha savollarni boshidan ishlab topshirishingiz mumkin.\n\n"
+                f"Omad tilaymiz! 🚀"
+            )
+            admin_msg = f"{fullname}ning avvalgi javoblari o'chirildi va unga qayta topshirishga ruxsat berildi."
+
+        # Foydalanuvchining shaxsiy Telegram chatiga xabar yuborish
+        sent_to_user = False
+        try:
+            if user_tg_id and int(user_tg_id) > 0:
+                await bot.send_message(chat_id=int(user_tg_id), text=user_msg)
+                sent_to_user = True
+        except Exception as e:
+            log.warning(f"Foydalanuvchiga ({user_tg_id}) xabar jo'natishda xatolik: {e}")
+
+        # Audit jurnaliga yozish
+        try:
+            test_db.log_activity(
+                action=f"submission_{action}",
+                details=f"Test #{test_code} (Sub ID: {sub_id}) - {fullname} (ID: {user_tg_id}) amali: {action}. Userga xabar: {'yetkazildi' if sent_to_user else 'yetkazilmadi'}",
+                actor="admin"
+            )
+        except Exception:
+            pass
+
+        return web.json_response({
+            "success": True,
+            "message": admin_msg,
+            "sent_to_user": sent_to_user,
+            "action": action
+        })
+    except Exception as e:
+        log.error(f"Dashboard cancel submission error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
 async def handle_dashboard_test_toggle(request):
     try:
         data = await request.json()
@@ -6290,6 +6378,7 @@ async def create_web_app():
     app.router.add_get('/api/dashboard/logs', handle_dashboard_logs)
     app.router.add_post('/api/dashboard/user-action', handle_dashboard_user_action)
     app.router.add_post('/api/dashboard/late-action', handle_dashboard_late_action)
+    app.router.add_post('/api/dashboard/submissions/cancel', handle_dashboard_cancel_submission)
     app.router.add_post('/api/dashboard/test-toggle', handle_dashboard_test_toggle)
     app.router.add_post('/api/dashboard/test-publish', handle_dashboard_test_publish)
     app.router.add_post('/api/dashboard/query', handle_dashboard_query)

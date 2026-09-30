@@ -540,7 +540,7 @@ body {
   gap: 10px;
 }
 
-/* ── Safari / VisionOS Liquid Glass Search Capsule ── */
+/* ── Clean macOS Search Capsule ── */
 .search-box {
   position: relative;
   width: 320px;
@@ -550,48 +550,32 @@ body {
 
 .search-box input {
   width: 100%;
-  height: 42px;
-  background: 
-    radial-gradient(120% 90% at 50% -10%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.10) 45%, transparent 75%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.03) 50%, rgba(255, 255, 255, 0.12) 100%),
-    rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(28px) saturate(210%) contrast(106%);
-  -webkit-backdrop-filter: blur(28px) saturate(210%) contrast(106%);
-  border: 1.2px solid rgba(255, 255, 255, 0.35);
+  height: 38px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 9999px;
   padding: 0 44px 0 38px;
   color: var(--text-main);
   font-size: 13px;
   font-weight: 600;
   outline: none;
-  box-shadow: 
-    0 12px 30px -4px rgba(0, 0, 0, 0.38),
-    0 4px 10px -2px rgba(0, 0, 0, 0.22),
-    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.85),
-    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.28),
-    inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.35),
-    inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.35);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
 }
 
 .search-box input:hover {
-  border-color: rgba(255, 255, 255, 0.55);
-  box-shadow: 
-    0 14px 34px -4px rgba(0, 0, 0, 0.45),
-    0 4px 12px -2px rgba(0, 0, 0, 0.25),
-    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.28),
-    inset 1.5px 0 2px 0 rgba(255, 255, 255, 0.45),
-    inset -1.5px 0 2px 0 rgba(255, 255, 255, 0.45);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .search-box input:focus {
   border-color: var(--primary);
-  box-shadow: 
-    0 12px 30px -4px rgba(0, 163, 137, 0.35),
-    0 0 0 3px rgba(0, 163, 137, 0.25),
-    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1.5px 2px 0 rgba(0, 0, 0, 0.2);
+  box-shadow: 0 0 0 3px rgba(0, 163, 137, 0.2);
+}
+
+.cancel-action-card:hover {
+  border-color: var(--primary) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  transform: translateY(-1px);
 }
 
 .search-box .search-icon {
