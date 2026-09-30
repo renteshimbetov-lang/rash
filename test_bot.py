@@ -160,6 +160,68 @@ def get_test_schedule_status(test: Dict[str, Any]) -> Dict[str, Any]:
         "reason": "default"
     }
 
+# ── 45 DAQIQALIK TOPSHIRISH CHEKLOVI (MILLIY SERTIFIKAT STANDARTI) ──
+def get_test_min_submit_info(test: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Test boshlanganidan keyingi dastlabki 45 daqiqa davomida javob yuborishni cheklash holatini aniqlaydi.
+    Qaytaradi:
+    - can_submit: bool (45 daqiqa o'tgan bo'lsa True, aks holda False)
+    - remaining_seconds: int (topshirish ochilishigacha qolgan soniyalar)
+    - start_time_str: str (boshlangan vaqt, masalan: '20:00')
+    - unlock_time_str: str (topshirish ochiladigan vaqt, masalan: '20:45:00')
+    - is_before_start: bool (test hali boshlanmaganmi)
+    """
+    now_uzb = datetime.now(UZB_TZ)
+    now_ts = now_uzb.timestamp()
+
+    sdate = str(test.get('scheduled_date') or '').strip()
+    sstart = str(test.get('scheduled_start') or '').strip()
+
+    start_dt = None
+    if sstart:
+        test_date = now_uzb.date()
+        if sdate:
+            for fmt in ("%Y-%m-%d", "%d.%m.%Y", "%d-%m-%Y", "%Y.%m.%d"):
+                try:
+                    test_date = datetime.strptime(sdate, fmt).date()
+                    break
+                except Exception:
+                    pass
+        try:
+            sh, sm = map(int, sstart.split(":"))
+            start_dt = datetime(test_date.year, test_date.month, test_date.day, sh, sm, 0, tzinfo=UZB_TZ)
+        except Exception:
+            start_dt = None
+
+    if not start_dt:
+        created_at = test.get('created_at')
+        if created_at:
+            start_dt = datetime.fromtimestamp(created_at, tz=UZB_TZ)
+        else:
+            start_dt = now_uzb
+
+    start_ts = start_dt.timestamp()
+    unlock_dt = start_dt + timedelta(minutes=45)
+    unlock_ts = unlock_dt.timestamp()
+
+    if now_ts < unlock_ts:
+        rem_sec = max(0, int(unlock_ts - now_ts))
+        return {
+            "can_submit": False,
+            "remaining_seconds": rem_sec,
+            "start_time_str": start_dt.strftime("%H:%M"),
+            "unlock_time_str": unlock_dt.strftime("%H:%M:%S"),
+            "is_before_start": (now_ts < start_ts)
+        }
+
+    return {
+        "can_submit": True,
+        "remaining_seconds": 0,
+        "start_time_str": start_dt.strftime("%H:%M"),
+        "unlock_time_str": unlock_dt.strftime("%H:%M:%S"),
+        "is_before_start": False
+    }
+
 # ── TUN REJIMI: 23:00 – 07:00 ────────────────────────────
 WORK_START_HOUR = 7   # 07:00 Toshkent
 WORK_END_HOUR   = 23  # 23:00 Toshkent
@@ -4501,6 +4563,29 @@ async def handle_submit_test_api(request):
                 "message": f"Test hali boshlanmagan! Boshlanish vaqti: {sdate} {sstart} (UZB)"
             }, status=400)
 
+        # Dastlabki 45 daqiqa davomida javob topshirishni cheklash (Milliy sertifikat qoidasi)
+        min_submit_info = get_test_min_submit_info(test_obj)
+        if not min_submit_info["can_submit"] and not test_db.is_admin(user_tg_id, ADMIN_ID):
+            rem_sec = min_submit_info["remaining_seconds"]
+            rem_min = rem_sec // 60
+            rem_s = rem_sec % 60
+            unlock_t = min_submit_info["unlock_time_str"]
+            return web.json_response({
+                "success": False,
+                "error_code": "EARLY_SUBMISSION_BLOCKED",
+                "remaining_seconds": rem_sec,
+                "unlock_time": unlock_t,
+                "message": (
+                    f"⚠️ Test boshlanganidan so'ng dastlabki 45 daqiqa davomida javob topshirish mumkin emas!\n\n"
+                    f"⏱ Qolgan vaqt: {rem_min} daqiqa {rem_s} soniya\n"
+                    f"🕒 Topshirish ochiladigan vaqt: {unlock_t}\n\n"
+                    f"Sababi: Milliy sertifikat qoidalari va imtihon shaffofligini ta'minlash, "
+                    f"shoshmashosharlik hamda tasodifiy (tavakkal) belgilashlarning oldini olish maqsadida "
+                    f"test boshlanganidan so'ng dastlabki 45 daqiqa davomida javoblarni topshirish taqiqlanadi. "
+                    f"Iltimos, ajratilgan vaqtdan unumli foydalanib savollarni qayta tekshirib chiqing!"
+                )
+            }, status=400)
+
         # Kech topshirilgan holatni aniqlash
         is_late_submission = False
         if not test_db.is_admin(user_tg_id, ADMIN_ID):
@@ -5428,11 +5513,14 @@ async def handle_app_active_tests(request):
             else:
                 td['code_hidden'] = False
 
+            td['min_submit_info'] = get_test_min_submit_info(t)
             result.append(td)
         now_uzb = datetime.now(UZB_TZ)
+        is_user_admin = bool(tg_id and test_db.is_admin(tg_id, ADMIN_ID))
         return web.json_response({
             "success": True, 
             "tests": result,
+            "is_admin": is_user_admin,
             "server_time": int(time.time()),
             "server_uzb": now_uzb.strftime('%Y-%m-%d %H:%M:%S')
         })

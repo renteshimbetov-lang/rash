@@ -10,6 +10,9 @@ const TestApp = {
   userTgId: 0,
   userFullname: 'Foydalanuvchi',
   isDarkMode: false,
+  minSubmitInfo: null,
+  minSubmitTimerInterval: null,
+  isAdmin: false,
 
   // Foydalanuvchi belgilagan javoblar
   answers: {},
@@ -99,24 +102,31 @@ const TestApp = {
     // 4. Mavzuga mos kirish animatsiyasini ishga tushirish
     this.runIntroAnimation();
 
-    // 5. Allaqachon topshirganlikni tekshirish
+    // 5. Allaqachon topshirganlikni va 45 daqiqalik cheklovni tekshirish
     if (this.userTgId) {
       fetch('/api/app/active-tests?tg_id=' + this.userTgId)
         .then(function(res) { return res.json(); })
         .then(function(d) {
           if (d && d.tests) {
+            TestApp.isAdmin = Boolean(d.is_admin);
             var cur = d.tests.find(function(t) { return Number(t.id) === Number(TestApp.testId); });
-            if (cur && cur.already_submitted) {
-              var submitBtn = document.getElementById('btn-submit-test');
-              if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Topshirilgan ✅';
-                submitBtn.style.background = '#10b981';
-                submitBtn.style.cursor = 'not-allowed';
+            if (cur) {
+              if (cur.min_submit_info) {
+                TestApp.minSubmitInfo = cur.min_submit_info;
+                TestApp.startMinSubmitTimer();
               }
-              setTimeout(function() {
-                alert("⛔️ Siz ushbu testni allaqachon topshirgansiz!\n\nJavoblaringiz qabul qilingan. Natijalar Rasch modeli tahlili e'lon qilingandan so'ng botingizga yuboriladi.");
-              }, 400);
+              if (cur.already_submitted) {
+                var submitBtn = document.getElementById('btn-submit-test');
+                if (submitBtn) {
+                  submitBtn.disabled = true;
+                  submitBtn.textContent = 'Topshirilgan ✅';
+                  submitBtn.style.background = '#10b981';
+                  submitBtn.style.cursor = 'not-allowed';
+                }
+                setTimeout(function() {
+                  alert("⛔️ Siz ushbu testni allaqachon topshirgansiz!\n\nJavoblaringiz qabul qilingan. Natijalar Rasch modeli tahlili e'lon qilingandan so'ng botingizga yuboriladi.");
+                }, 400);
+              }
             }
           }
         }).catch(function(e) {});
@@ -376,6 +386,12 @@ const TestApp = {
     if (typeof MathKeyboard !== 'undefined' && MathKeyboard.close) {
       MathKeyboard.close();
     }
+
+    // 45 daqiqalik topshirish cheklovini tekshirish
+    if (this.minSubmitInfo && !this.minSubmitInfo.can_submit && !this.isAdmin) {
+      this.openMinSubmitModal();
+      return;
+    }
     
     // Barcha ochiq savol inputlarini sinxronlashtirish
     for (let q = 36; q <= 45; q++) {
@@ -419,12 +435,117 @@ const TestApp = {
     if (modal) modal.classList.remove('open');
   },
 
+  openMinSubmitModal() {
+    const modal = document.getElementById('min-submit-modal');
+    if (!modal) return;
+    this.updateMinSubmitModalUI();
+    modal.classList.add('open');
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      try { window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning'); } catch(e) {}
+    }
+  },
+
+  closeMinSubmitModal() {
+    const modal = document.getElementById('min-submit-modal');
+    if (modal) modal.classList.remove('open');
+  },
+
+  startMinSubmitTimer() {
+    if (this.minSubmitTimerInterval) {
+      clearInterval(this.minSubmitTimerInterval);
+      this.minSubmitTimerInterval = null;
+    }
+    if (!this.minSubmitInfo || this.minSubmitInfo.can_submit) return;
+
+    this.minSubmitTimerInterval = setInterval(() => {
+      if (!this.minSubmitInfo) return;
+      if (this.minSubmitInfo.remaining_seconds > 0) {
+        this.minSubmitInfo.remaining_seconds--;
+        this.updateMinSubmitModalUI();
+      } else {
+        this.minSubmitInfo.can_submit = true;
+        this.minSubmitInfo.remaining_seconds = 0;
+        clearInterval(this.minSubmitTimerInterval);
+        this.minSubmitTimerInterval = null;
+        this.updateMinSubmitModalUI();
+      }
+    }, 1000);
+  },
+
+  updateMinSubmitModalUI() {
+    const countEl = document.getElementById('min-submit-countdown');
+    const unlockEl = document.getElementById('min-submit-unlock-info');
+    const titleEl = document.getElementById('min-submit-title');
+    const descEl = document.getElementById('min-submit-desc');
+    const iconWrap = document.getElementById('min-submit-icon-wrap');
+    const actionBtn = document.getElementById('min-submit-action-btn');
+
+    if (!this.minSubmitInfo) return;
+
+    const rem = Math.max(0, this.minSubmitInfo.remaining_seconds || 0);
+    const mins = Math.floor(rem / 60);
+    const secs = rem % 60;
+    const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    if (rem > 0 && !this.minSubmitInfo.can_submit) {
+      if (countEl) {
+        countEl.textContent = timeStr;
+        countEl.style.color = 'var(--primary, #2563EB)';
+      }
+      if (unlockEl && this.minSubmitInfo.unlock_time_str) {
+        unlockEl.innerHTML = `Topshirish ochiladigan vaqt: <b style="color:var(--text-main);">${this.minSubmitInfo.unlock_time_str}</b>`;
+      }
+      if (titleEl) titleEl.textContent = 'Hali javob yubora olmaysiz!';
+      if (descEl) descEl.innerHTML = 'Test boshlanganidan so\'ng dastlabki <b>45 daqiqa</b> davomida javoblarni topshirish cheklangan.';
+      if (iconWrap) {
+        iconWrap.textContent = '⏳';
+        iconWrap.style.borderColor = '#F59E0B';
+        iconWrap.style.background = 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(239, 68, 68, 0.15))';
+      }
+      if (actionBtn) {
+        actionBtn.textContent = 'Savollarni qayta tekshirish 🔍';
+        actionBtn.className = 'btn-modal-cancel';
+        actionBtn.onclick = () => this.closeMinSubmitModal();
+      }
+    } else {
+      if (countEl) {
+        countEl.textContent = '00:00';
+        countEl.style.color = '#10B981';
+      }
+      if (unlockEl) {
+        unlockEl.innerHTML = '✅ <b style="color:#10B981;">45 daqiqalik cheklov yakunlandi!</b>';
+      }
+      if (titleEl) titleEl.textContent = 'Topshirish vaqti yetib keldi!';
+      if (descEl) descEl.textContent = 'Endi javoblaringizni bemalol topshirishingiz mumkin.';
+      if (iconWrap) {
+        iconWrap.textContent = '✅';
+        iconWrap.style.borderColor = '#10B981';
+        iconWrap.style.background = 'rgba(16, 185, 129, 0.15)';
+      }
+      if (actionBtn) {
+        actionBtn.textContent = 'Testni yakunlashga o\'tish 🚀';
+        actionBtn.className = 'btn-modal-confirm';
+        actionBtn.onclick = () => {
+          this.closeMinSubmitModal();
+          this.openConfirmSubmitModal();
+        };
+      }
+    }
+  },
+
   async submitTestNow() {
     if (!this.userTgId || this.userTgId <= 0) {
       this.closeConfirmSubmitModal();
       alert("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin.");
       const webBlock = document.getElementById('web-block-screen');
       if (webBlock) webBlock.style.display = 'flex';
+      return;
+    }
+
+    // 45 daqiqa tekshiruvi
+    if (this.minSubmitInfo && !this.minSubmitInfo.can_submit && !this.isAdmin) {
+      this.closeConfirmSubmitModal();
+      this.openMinSubmitModal();
       return;
     }
 
@@ -473,6 +594,19 @@ const TestApp = {
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Testni yakunlash';
+        }
+        if (result.error_code === 'EARLY_SUBMISSION_BLOCKED') {
+          if (!this.minSubmitInfo) this.minSubmitInfo = {};
+          this.minSubmitInfo.can_submit = false;
+          if (result.remaining_seconds !== undefined) {
+            this.minSubmitInfo.remaining_seconds = result.remaining_seconds;
+          }
+          if (result.unlock_time) {
+            this.minSubmitInfo.unlock_time_str = result.unlock_time;
+          }
+          this.startMinSubmitTimer();
+          this.openMinSubmitModal();
+          return;
         }
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
           window.Telegram.WebApp.showAlert(result.message || 'Javoblarni yuborishda xatolik!');
