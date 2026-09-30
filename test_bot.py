@@ -359,6 +359,8 @@ def admin_menu_kb() -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton(text="💻 MacBook Dashboard (Katta Baza)", url=f"{WEBAPP_URL}/dashboard")],
         [InlineKeyboardButton(text="📢 O'quvchilarga xabar yuborish", callback_data="admin_broadcast_menu")],
+        [InlineKeyboardButton(text="⚠️ Faoliyatsizlarga ogohlantirish", callback_data="admin_warn_inactive_menu")],
+        [InlineKeyboardButton(text="🧹 Botni bloklaganlarni tozalash", callback_data="admin_clean_blocked_prompt")],
         [InlineKeyboardButton(text=maint_btn_text, callback_data="admin_toggle_maint_prompt")],
         [InlineKeyboardButton(text="👑 Adminlar boshqaruvi", callback_data="admin_manage_admins")],
         [make_webapp_button("👥 Foydalanuvchilar boshqaruvi (Web App)", f"{WEBAPP_URL}/app.html?tab=admin&tg_id={ADMIN_ID}", "admin_webapp_redirect_info")]
@@ -1322,26 +1324,61 @@ async def admin_check_blocks_handler(message: Message):
     except Exception:
         await message.answer(res_text)
 
-async def send_inactive_warning_messages(initiator_id: int = ADMIN_ID) -> dict:
+def get_inactive_target_users(target_count: str = "both", time_filter: str = "min_2d") -> list:
     """
-    Shu paytgacha 0 va 1 ta test ishlagan barcha faol o'quvchilarga formal ogohlantirish xabari yuborish.
-    Adminlarga yuborilmaydi.
+    Shartlar bo'yicha nishondagi foydalanuvchilar ro'yxatini hisoblash.
+    target_count: "0", "1", "both"
+    time_filter: "min_2d" (2+ kun oldin), "last_2d" (oxirgi 2 kun ichida), "all" (barchasi)
     """
     users = test_db.get_all_users()
     admin_ids = set(get_all_admin_ids())
+    now_ts = int(time.time())
+    two_days_secs = 2 * 86400
 
     target_users = []
     for u in users:
         uid = u.get("tg_id")
-        if not uid or uid in admin_ids:
+        if not uid or uid <= 0 or uid in admin_ids:
             continue
+        if u.get("status") != "approved":
+            continue
+
         t_count = u.get("tests_count", 0)
-        # Faqat 0 va 1 ta test ishlagan, tasdiqlangan (faol) foydalanuvchilar
-        if t_count in (0, 1) and u.get("status") == "approved":
-            target_users.append(u)
+        if target_count == "0" and t_count != 0:
+            continue
+        elif target_count == "1" and t_count != 1:
+            continue
+        elif target_count == "both" and t_count not in (0, 1):
+            continue
+
+        reg_at = u.get("registered_at") or 0
+        if time_filter == "min_2d":
+            # Qo'shilganiga kamida 2 kun bo'lganlar (2 kundan oshganlar)
+            if reg_at > (now_ts - two_days_secs):
+                continue
+        elif time_filter == "last_2d":
+            # Oxirgi 2 kunda qo'shilganlar (so'nggi 48 soat)
+            if reg_at < (now_ts - two_days_secs):
+                continue
+
+        target_users.append(u)
+
+    return target_users
+
+async def send_inactive_warning_messages(
+    initiator_id: int = ADMIN_ID,
+    target_count: str = "both",
+    time_filter: str = "min_2d"
+) -> dict:
+    """
+    Tanlangan parametrlar bo'yicha foydalanuvchilarga formal ogohlantirish xabari yuborish.
+    Adminlarga yuborilmaydi. Botni bloklaganlar avtomatik bazadan o'chiriladi.
+    """
+    target_users = get_inactive_target_users(target_count=target_count, time_filter=time_filter)
 
     sent_users = []
     failed_users = []
+    deleted_blocked_users = []
 
     for u in target_users:
         uid = u.get("tg_id")
@@ -1385,6 +1422,7 @@ async def send_inactive_warning_messages(initiator_id: int = ADMIN_ID) -> dict:
             err_text = str(e).lower()
             if "blocked" in err_text or "forbidden" in err_text or "deactivated" in err_text:
                 test_db.delete_user(uid)
+                deleted_blocked_users.append(u)
             failed_users.append({
                 "id": u.get("id"),
                 "tg_id": uid,
@@ -1401,11 +1439,15 @@ async def send_inactive_warning_messages(initiator_id: int = ADMIN_ID) -> dict:
         z_count = len([u for u in target_users if u.get('tests_count') == 0])
         o_count = len([u for u in target_users if u.get('tests_count') == 1])
         report_text = (
-            "📊 <b>0 VA 1 TA TEST ISHLAGANLARGA OGOHLANTIRISH YUBORILDI</b>\n\n"
+            "📊 <b>FAOLIYATSIZ FOYDALANUVCHILARGA OGOHLANTIRISH YUBORILDI</b>\n\n"
             f"🎯 <b>Jami rejalashtirilgan:</b> {len(target_users)} nafar\n"
             f"✅ <b>Yetkazildi:</b> {len(sent_users)} nafar\n"
-            f"⚠️ <b>Yetkazilmadi (bloklagan):</b> {len(failed_users)} nafar\n\n"
-            f"• 0 ta test ishlaganlar: {z_count} nafar\n"
+            f"⚠️ <b>Yetkazilmadi:</b> {len(failed_users)} nafar\n"
+        )
+        if deleted_blocked_users:
+            report_text += f"🗑 <b>Botni bloklagani uchun bazadan o'chirildi:</b> {len(deleted_blocked_users)} nafar\n"
+        report_text += (
+            f"\n• 0 ta test ishlaganlar: {z_count} nafar\n"
             f"• 1 ta test ishlaganlar: {o_count} nafar"
         )
         await bot.send_message(chat_id=ADMIN_ID, text=report_text)
@@ -1417,46 +1459,238 @@ async def send_inactive_warning_messages(initiator_id: int = ADMIN_ID) -> dict:
         "total_targets": len(target_users),
         "sent_count": len(sent_users),
         "fail_count": len(failed_users),
+        "deleted_count": len(deleted_blocked_users),
+        "deleted_users": deleted_blocked_users,
         "zero_tests_count": len([u for u in target_users if u.get("tests_count") == 0]),
         "one_test_count": len([u for u in target_users if u.get("tests_count") == 1]),
         "sent_users": sent_users,
         "failed_users": failed_users
     }
 
+def get_warn_inactive_step1_kb():
+    text = (
+        "⚠️ <b>FAOLIYATSIZ FOYDALANUVCHILARGA OGOHLANTIRISH</b>\n\n"
+        "Qaysi toifadagi foydalanuvchilarga ogohlantirish yubormoqchisiz?\n\n"
+        "0️⃣ <b>Faqat 0 ta test ishlaganlar:</b> Ro'yxatdan o'tib, umuman test topshirmaganlar\n"
+        "1️⃣ <b>Faqat 1 ta test ishlaganlar:</b> Shu kungacha faqat bitta testda qatnashganlar\n"
+        "🔢 <b>Ikkalasi ham (0 va 1 ta):</b> Barcha sust/kam faol o'quvchilar"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="0️⃣ Faqat 0 ta ishlaganlar", callback_data="adm_warn_cnt_0")],
+        [InlineKeyboardButton(text="1️⃣ Faqat 1 ta ishlaganlar", callback_data="adm_warn_cnt_1")],
+        [InlineKeyboardButton(text="🔢 Ikkalasi ham (0 va 1 ta)", callback_data="adm_warn_cnt_both")],
+        [InlineKeyboardButton(text="🔙 Admin Menyuga", callback_data="admin_back_to_menu")]
+    ])
+    return text, kb
+
 @router.message(Command("warn_inactive"))
 async def admin_warn_inactive_handler(message: Message):
-    """
-    Admin buyrug'i: Shu paytgacha 0 va 1 ta test ishlaganlarga rasmiy ogohlantirish yuborish.
-    """
     if not test_db.is_admin(message.from_user.id, ADMIN_ID):
         await message.answer("⛔️ Bu buyruq faqat bot administratori uchun!")
         return
+    text, kb = get_warn_inactive_step1_kb()
+    await message.answer(text, reply_markup=kb)
 
-    status_msg = await message.answer(
-        "⏳ <b>0 va 1 ta test ishlagan foydalanuvchilar aniqlanmoqda va ogohlantirish yuborilmoqda...</b>\n\n"
-        "<i>Iltimos kuting, xabarlar ketma-ket yetkazilmoqda...</i>"
+@router.callback_query(F.data == "admin_warn_inactive_menu")
+async def admin_warn_inactive_menu_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        await call.answer("Ruxsat yo'q!", show_alert=True)
+        return
+    text, kb = get_warn_inactive_step1_kb()
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data.startswith("adm_warn_cnt_"))
+async def adm_warn_cnt_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    cnt = call.data.replace("adm_warn_cnt_", "")
+    cnt_labels = {
+        "0": "Faqat 0 ta test ishlaganlar",
+        "1": "Faqat 1 ta test ishlaganlar",
+        "both": "0 va 1 ta test ishlaganlar"
+    }
+    label = cnt_labels.get(cnt, cnt)
+
+    text = (
+        f"⏱ <b>RO'YXATDAN O'TGAN VAQTI BO'YICHA SARALASH</b>\n\n"
+        f"🎯 Tanlangan toifa: <b>{label}</b>\n\n"
+        f"Foydalanuvchilar qaysi muddat bo'yicha saralansin?\n\n"
+        f"⏳ <b>Qo'shilganiga 2+ kun bo'lganlar (tavsiya):</b>\n"
+        f"<i>Yangi ro'yxatdan o'tganlarga (bugun yoki kecha kirganlarga) tegilmaydi, faqat kamida 2 kun oldin qo'shilganlarga yuboriladi.</i>\n\n"
+        f"🆕 <b>Oxirgi 2 kunda qo'shilganlar:</b>\n"
+        f"<i>Faqat so'nggi 48 soat ichida ro'yxatdan o'tganlarga yuboriladi.</i>\n\n"
+        f"🗓 <b>Barcha vaqt bo'yicha:</b>\n"
+        f"<i>Qachon qo'shilganidan qat'i nazar barcha tegishli o'quvchilarga yuboriladi.</i>"
     )
-    result = await send_inactive_warning_messages(initiator_id=message.from_user.id)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏳ Qo'shilganiga 2+ kun bo'lganlar", callback_data=f"adm_warn_time_{cnt}_min_2d")],
+        [InlineKeyboardButton(text="🆕 Oxirgi 2 kunda qo'shilganlar", callback_data=f"adm_warn_time_{cnt}_last_2d")],
+        [InlineKeyboardButton(text="🗓 Barcha vaqt bo'yicha (hammasi)", callback_data=f"adm_warn_time_{cnt}_all")],
+        [InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_warn_inactive_menu")]
+    ])
+    await call.message.edit_text(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data.startswith("adm_warn_time_"))
+async def adm_warn_time_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    parts = call.data.replace("adm_warn_time_", "").split("_", 1)
+    cnt = parts[0]
+    time_f = parts[1]
+
+    cnt_labels = {
+        "0": "Faqat 0 ta test ishlaganlar",
+        "1": "Faqat 1 ta test ishlaganlar",
+        "both": "0 va 1 ta test ishlaganlar"
+    }
+    time_labels = {
+        "min_2d": "Qo'shilganiga 2+ kun bo'lganlar (2 kundan oshganlar)",
+        "last_2d": "Oxirgi 2 kunda qo'shilganlar (so'nggi 48 soat)",
+        "all": "Barcha vaqt bo'yicha (cheklovsiz)"
+    }
+
+    target_users = get_inactive_target_users(target_count=cnt, time_filter=time_f)
+    user_count = len(target_users)
+
+    if user_count == 0:
+        text = (
+            f"ℹ️ <b>FOYDALANUVCHILAR TOPILMADI</b>\n\n"
+            f"Siz tanlagan shartlar bo'yicha:\n"
+            f"• Toifa: <b>{cnt_labels.get(cnt)}</b>\n"
+            f"• Muddat: <b>{time_labels.get(time_f)}</b>\n\n"
+            f"Hozirda hech qanday foydalanuvchi mavjud emas."
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Qayta tanlash", callback_data="admin_warn_inactive_menu")],
+            [InlineKeyboardButton(text="🔙 Admin Menyuga", callback_data="admin_back_to_menu")]
+        ])
+        await call.message.edit_text(text, reply_markup=kb)
+        await call.answer()
+        return
+
+    text = (
+        f"📋 <b>OGOHLANTIRISH YUBORISHNI TASDIQLASH</b>\n\n"
+        f"Siz tanlagan filtr sozlamalari:\n"
+        f"🎯 <b>Toifa:</b> {cnt_labels.get(cnt)}\n"
+        f"⏱ <b>Muddat:</b> {time_labels.get(time_f)}\n\n"
+        f"👥 <b>Topilgan o'quvchilar soni:</b> <b>{user_count} nafar</b>\n\n"
+        f"⚠️ <i>Har bir foydalanuvchiga uning testlari soniga mos rasmiy ogohlantirish xabari yetkaziladi. "
+        f"Agar foydalanuvchi botni bloklagan bo'lsa, u avtomatik bazadan o'chiriladi.</i>\n\n"
+        f"<b>Haqiqatan ham ushbu {user_count} nafar foydalanuvchiga xabar yuborilsinmi?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f"🚀 Ha, yuborilsin ({user_count} ta)", callback_data=f"adm_warn_send_{cnt}_{time_f}")],
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_back_to_menu")]
+    ])
+    await call.message.edit_text(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data.startswith("adm_warn_send_"))
+async def adm_warn_send_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    parts = call.data.replace("adm_warn_send_", "").split("_", 1)
+    cnt = parts[0]
+    time_f = parts[1]
+
+    await call.answer("⏳ Xabarlar yuborilmoqda...")
+    status_msg = await call.message.edit_text(
+        "⏳ <b>Xabarlar yuborilmoqda, iltimos kuting...</b>\n\n"
+        "<i>Har bir foydalanuvchiga xabar yetkazilmoqda va bloklaganlar tekshirilmoqda...</i>"
+    )
+
+    result = await send_inactive_warning_messages(
+        initiator_id=call.from_user.id,
+        target_count=cnt,
+        time_filter=time_f
+    )
 
     total = result["total_targets"]
     sent = result["sent_count"]
     fail = result["fail_count"]
-    z_count = result["zero_tests_count"]
-    o_count = result["one_test_count"]
+    deleted = result.get("deleted_count", 0)
 
     res_text = (
         f"✅ <b>Ogohlantirish xabarlari muvaffaqiyatli tarqatildi!</b>\n\n"
-        f"🎯 <b>Jami rejalashtirilgan:</b> {total} nafar\n"
+        f"🎯 <b>Rejalashtirilgan:</b> {total} nafar\n"
         f"📨 <b>Yetkazildi:</b> {sent} nafar\n"
-        f"⚠️ <b>Yetkazilmadi (bloklagan):</b> {fail} nafar\n\n"
-        f"• 0 ta test ishlaganlar: {z_count} nafar\n"
-        f"• 1 ta test ishlaganlar: {o_count} nafar\n\n"
-        f"<i>Batafsil ro'yxat va hisobot qabul qilindi.</i>"
+        f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} nafar\n"
     )
+    if deleted > 0:
+        res_text += f"🗑 <b>Botni bloklagani uchun bazadan o'chirildi:</b> {deleted} nafar\n"
+
+    res_text += "\n<i>Batafsil hisobot qabul qilindi.</i>"
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+    ])
     try:
-        await status_msg.edit_text(res_text)
+        await status_msg.edit_text(res_text, reply_markup=kb)
     except Exception:
-        await message.answer(res_text)
+        await call.message.answer(res_text, reply_markup=kb)
+
+@router.callback_query(F.data == "admin_clean_blocked_prompt")
+async def admin_clean_blocked_prompt_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+
+    users_count = len(test_db.get_all_users())
+    text = (
+        f"🧹 <b>BOTNI BLOKLAGANLARNI TOZALASH</b>\n\n"
+        f"Hozirda bazada jami: <b>{users_count} nafar</b> foydalanuvchi mavjud.\n\n"
+        f"Ushbu funksiya barcha foydalanuvchilarni ko'rinmas usulda (hech qanday xabar bormasdan) tekshirib chiqadi.\n\n"
+        f"Agar biror foydalanuvchi botni to'xtatgan yoki bloklagan bo'lsa, u <b>bazadan to'liq o'chirib tashlanadi</b>.\n\n"
+        f"<b>Tekshiruv va tozalashni boshlashni tasdiqlaysizmi?</b>"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🧹 Ha, tozalashni boshlash", callback_data="adm_clean_blocked_start")],
+        [InlineKeyboardButton(text="🔙 Bekor qilish", callback_data="admin_back_to_menu")]
+    ])
+    await call.message.edit_text(text, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data == "adm_clean_blocked_start")
+async def adm_clean_blocked_start_cb(call: CallbackQuery):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+
+    await call.answer("⏳ Tozalash boshlandi...")
+    await call.message.edit_text(
+        "⏳ <b>Bazadagi barcha foydalanuvchilar tekshirilmoqda...</b>\n\n"
+        "<i>Bu bir necha soniya vaqt olishi mumkin, iltimos kuting...</i>"
+    )
+
+    result = await clean_blocked_users_from_db(initiator_id=call.from_user.id)
+    total = result["total_checked"]
+    active = result["active_count"]
+    deleted = result["deleted_count"]
+    deleted_list = result["deleted_users"]
+
+    res_text = (
+        f"📊 <b>Foydalanuvchilar holati tekshiruvi yakunlandi:</b>\n\n"
+        f"👥 <b>Jami tekshirildi:</b> {total} ta\n"
+        f"✅ <b>Faol foydalanuvchilar:</b> {active} ta\n"
+        f"🗑 <b>Botni bloklagani uchun bazadan o'chirildi:</b> {deleted} ta\n\n"
+    )
+    if deleted_list:
+        res_text += "<b>Bazadan o'chirilgan foydalanuvchilar:</b>\n"
+        for i, bu in enumerate(deleted_list[:25], 1):
+            bun = f" ({bu['username']})" if bu.get('username') and bu['username'] != '—' else ""
+            res_text += f"{i}. <b>{bu['fullname']}</b>{bun} — <code>{bu['tg_id']}</code>\n"
+        if len(deleted_list) > 25:
+            res_text += f"\n<i>...va yana {len(deleted_list) - 25} ta foydalanuvchi.</i>"
+    else:
+        res_text += "🎉 <i>Hozirda botni bloklagan foydalanuvchilar aniqlanmadi (baza toza)!</i>"
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
+    ])
+    await call.message.edit_text(res_text, reply_markup=kb)
 
 # 4. ℹ️ Yordam va murojaat
 @router.message(F.text == "ℹ️ Yordam")
@@ -5524,12 +5758,18 @@ async def handle_notify_inactive_users(request):
             pass
         admin_id = int(data.get('admin_id', 0) or request.rel_url.query.get('admin_id', 0))
         secret_key = str(data.get('secret_key', '') or request.rel_url.query.get('secret_key', '')).strip()
+        target_count = str(data.get('target_count', '') or request.rel_url.query.get('target_count', 'both')).strip()
+        time_filter = str(data.get('time_filter', '') or request.rel_url.query.get('time_filter', 'min_2d')).strip()
 
         is_auth = (admin_id and test_db.is_admin(admin_id, ADMIN_ID)) or (secret_key == "rash_admin_secret_2026") or (admin_id == ADMIN_ID)
         if not is_auth:
             return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
 
-        result = await send_inactive_warning_messages(initiator_id=admin_id or ADMIN_ID)
+        result = await send_inactive_warning_messages(
+            initiator_id=admin_id or ADMIN_ID,
+            target_count=target_count,
+            time_filter=time_filter
+        )
         return web.json_response(result)
     except Exception as e:
         log.error(f"Notify inactive users error: {e}", exc_info=True)
