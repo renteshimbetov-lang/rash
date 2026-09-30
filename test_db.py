@@ -1452,6 +1452,15 @@ def normalize_answer(ans: Any) -> str:
     # 7. Pi soni: \pi, pi, PI -> π
     s = re.sub(r"(^|[^a-zA-Z])\\*pi(?![a-zA-Z])", r"\g<1>π", s, flags=re.IGNORECASE)
 
+    # 7b. Cheksizlik (Infinity): \infty, infty, infinity, inf, cheksiz, cheksizlik -> ∞
+    s = s.replace(r"\\infty", "∞").replace(r"\infty", "∞").replace(r"\inf", "∞")
+    s = re.sub(r"(?:infinity|infty|inf|cheksiz(?:lik)?)\b", "∞", s, flags=re.IGNORECASE)
+    # Musbat cheksizlik: +∞ -> ∞
+    s = re.sub(r"(?<![0-9a-zA-Z])\+∞", "∞", s)
+
+    # Oraliqlardagi vergul: [0, ∞) -> [0;∞), (-∞, 5) -> (-∞;5)
+    s = re.sub(r"([0-9a-zA-Z∞\.\-\+]+),([0-9a-zA-Z∞\.\-\+]+)", r"\1;\2", s)
+
     # 8. Darajalarni standart ^ shakliga keltirish
     for sup, norm in [("⁰", "^0"), ("¹", "^1"), ("²", "^2"), ("³", "^3"), ("⁴", "^4"),
                       ("⁵", "^5"), ("⁶", "^6"), ("⁷", "^7"), ("⁸", "^8"), ("⁹", "^9"), ("ⁿ", "^n")]:
