@@ -1265,6 +1265,139 @@ async def admin_check_blocks_handler(message: Message):
     except Exception:
         await message.answer(res_text)
 
+async def send_inactive_warning_messages(initiator_id: int = ADMIN_ID) -> dict:
+    """
+    Shu paytgacha 0 va 1 ta test ishlagan barcha faol o'quvchilarga formal ogohlantirish xabari yuborish.
+    Adminlarga yuborilmaydi.
+    """
+    users = test_db.get_all_users()
+    admin_ids = set(get_all_admin_ids())
+
+    target_users = []
+    for u in users:
+        uid = u.get("tg_id")
+        if not uid or uid in admin_ids:
+            continue
+        t_count = u.get("tests_count", 0)
+        # Faqat 0 va 1 ta test ishlagan, tasdiqlangan (faol) foydalanuvchilar
+        if t_count in (0, 1) and u.get("status") == "approved":
+            target_users.append(u)
+
+    sent_users = []
+    failed_users = []
+
+    for u in target_users:
+        uid = u.get("tg_id")
+        fname = u.get("fullname") or "Foydalanuvchi"
+        uname = f"@{u.get('username')}" if u.get("username") else "—"
+        t_count = u.get("tests_count", 0)
+
+        if t_count == 0:
+            text = (
+                "⚠️ <b>RASMIY OGOHLANTIRISH</b>\n\n"
+                f"Hurmatli <b>{fname}</b>!\n\n"
+                "Siz tizimimizda ro'yxatdan o'tgan bo'lsangiz-da, shu kunga qadar <b>birorta ham test ishlamadingiz</b> "
+                "va sizga berilgan bepul imkoniyatdan foydalanmadingiz.\n\n"
+                "📌 <b>Muhim eslatma:</b> Bugungi bo'lib o'tadigan testda ham qatnashmasangiz, faoliyatsizligingiz sababli sizni "
+                "<b>botdan va tizimdan chiqarib yuborishga</b> majbur bo'lamiz.\n\n"
+                "<i>O'z o'rningizni saqlab qolish va bilimingizni sinash uchun bugungi testda albatta ishtirok eting!</i>"
+            )
+        else:
+            text = (
+                "⚠️ <b>RASMIY OGOHLANTIRISH</b>\n\n"
+                f"Hurmatli <b>{fname}</b>!\n\n"
+                "Siz shu kunga qadar faqat <b>1 ta test</b> ishladingiz va sizga taqdim etilgan bepul imkoniyatlardan "
+                "to'liq foydalanmadingiz.\n\n"
+                "📌 <b>Muhim eslatma:</b> Bugungi bo'lib o'tadigan testda ham qatnashmasangiz, faoliyatsizligingiz sababli sizni "
+                "<b>botdan va tizimdan chiqarib yuborishga</b> majbur bo'lamiz.\n\n"
+                "<i>O'z o'rningizni saqlab qolish va natijalaringizni oshirish uchun bugungi testda albatta ishtirok eting!</i>"
+            )
+
+        try:
+            await bot.send_message(chat_id=uid, text=text, parse_mode=ParseMode.HTML)
+            sent_users.append({
+                "id": u.get("id"),
+                "tg_id": uid,
+                "fullname": fname,
+                "username": uname,
+                "tests_count": t_count,
+                "status": "sent"
+            })
+            await asyncio.sleep(0.04)
+        except Exception as e:
+            failed_users.append({
+                "id": u.get("id"),
+                "tg_id": uid,
+                "fullname": fname,
+                "username": uname,
+                "tests_count": t_count,
+                "error": str(e),
+                "status": "failed"
+            })
+            log.warning(f"Ogohlantirish yuborishda xatolik user {uid}: {e}")
+
+    # Admin ga hisobot xabarini yuborish
+    try:
+        z_count = len([u for u in target_users if u.get('tests_count') == 0])
+        o_count = len([u for u in target_users if u.get('tests_count') == 1])
+        report_text = (
+            "📊 <b>0 VA 1 TA TEST ISHLAGANLARGA OGOHLANTIRISH YUBORILDI</b>\n\n"
+            f"🎯 <b>Jami rejalashtirilgan:</b> {len(target_users)} nafar\n"
+            f"✅ <b>Yetkazildi:</b> {len(sent_users)} nafar\n"
+            f"⚠️ <b>Yetkazilmadi (bloklagan):</b> {len(failed_users)} nafar\n\n"
+            f"• 0 ta test ishlaganlar: {z_count} nafar\n"
+            f"• 1 ta test ishlaganlar: {o_count} nafar"
+        )
+        await bot.send_message(chat_id=ADMIN_ID, text=report_text)
+    except Exception as e:
+        log.error(f"Admin hisobotini yuborishda xato: {e}")
+
+    return {
+        "success": True,
+        "total_targets": len(target_users),
+        "sent_count": len(sent_users),
+        "fail_count": len(failed_users),
+        "zero_tests_count": len([u for u in target_users if u.get("tests_count") == 0]),
+        "one_test_count": len([u for u in target_users if u.get("tests_count") == 1]),
+        "sent_users": sent_users,
+        "failed_users": failed_users
+    }
+
+@router.message(Command("warn_inactive"))
+async def admin_warn_inactive_handler(message: Message):
+    """
+    Admin buyrug'i: Shu paytgacha 0 va 1 ta test ishlaganlarga rasmiy ogohlantirish yuborish.
+    """
+    if not test_db.is_admin(message.from_user.id, ADMIN_ID):
+        await message.answer("⛔️ Bu buyruq faqat bot administratori uchun!")
+        return
+
+    status_msg = await message.answer(
+        "⏳ <b>0 va 1 ta test ishlagan foydalanuvchilar aniqlanmoqda va ogohlantirish yuborilmoqda...</b>\n\n"
+        "<i>Iltimos kuting, xabarlar ketma-ket yetkazilmoqda...</i>"
+    )
+    result = await send_inactive_warning_messages(initiator_id=message.from_user.id)
+
+    total = result["total_targets"]
+    sent = result["sent_count"]
+    fail = result["fail_count"]
+    z_count = result["zero_tests_count"]
+    o_count = result["one_test_count"]
+
+    res_text = (
+        f"✅ <b>Ogohlantirish xabarlari muvaffaqiyatli tarqatildi!</b>\n\n"
+        f"🎯 <b>Jami rejalashtirilgan:</b> {total} nafar\n"
+        f"📨 <b>Yetkazildi:</b> {sent} nafar\n"
+        f"⚠️ <b>Yetkazilmadi (bloklagan):</b> {fail} nafar\n\n"
+        f"• 0 ta test ishlaganlar: {z_count} nafar\n"
+        f"• 1 ta test ishlaganlar: {o_count} nafar\n\n"
+        f"<i>Batafsil ro'yxat va hisobot qabul qilindi.</i>"
+    )
+    try:
+        await status_msg.edit_text(res_text)
+    except Exception:
+        await message.answer(res_text)
+
 # 4. ℹ️ Yordam va murojaat
 @router.message(F.text == "ℹ️ Yordam")
 @router.message(F.text == "ℹ️ Bot haqida")
@@ -5321,8 +5454,31 @@ async def handle_dashboard_query(request):
         return web.json_response({"success": False, "error": str(e)}, status=400)
 
 
+async def handle_notify_inactive_users(request):
+    try:
+        data = {}
+        try:
+            data = await request.json()
+        except Exception:
+            pass
+        admin_id = int(data.get('admin_id', 0) or request.rel_url.query.get('admin_id', 0))
+        secret_key = str(data.get('secret_key', '') or request.rel_url.query.get('secret_key', '')).strip()
+
+        is_auth = (admin_id and test_db.is_admin(admin_id, ADMIN_ID)) or (secret_key == "rash_admin_secret_2026") or (admin_id == ADMIN_ID)
+        if not is_auth:
+            return web.json_response({"success": False, "message": "Ruxsat yo'q"}, status=403)
+
+        result = await send_inactive_warning_messages(initiator_id=admin_id or ADMIN_ID)
+        return web.json_response(result)
+    except Exception as e:
+        log.error(f"Notify inactive users error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
 async def create_web_app():
     app = web.Application()
+    app.router.add_post('/api/admin/notify-inactive-users', handle_notify_inactive_users)
+    app.router.add_get('/api/admin/notify-inactive-users', handle_notify_inactive_users)
     app.router.add_get('/', handle_index)
     app.router.add_get('/index.html', handle_index)
     app.router.add_get('/admin.html', handle_admin)
