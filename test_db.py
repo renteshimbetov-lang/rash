@@ -986,20 +986,86 @@ def delete_user(tg_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()}", (tg_id,))
+        cur.execute(f"SELECT * FROM users WHERE tg_id = {_ph()} OR id = {_ph()}", (tg_id, tg_id))
         user_row = _row_to_dict(cur.fetchone())
+        actual_tg_id = user_row.get("tg_id") if user_row else tg_id
 
+        # 1. broadcast_messages (chat_id ustuni)
         try:
-            cur.execute(f"DELETE FROM broadcast_messages WHERE user_tg_id = {_ph()}", (tg_id,))
+            cur.execute(f"DELETE FROM broadcast_messages WHERE chat_id = {_ph()}", (actual_tg_id,))
+            conn.commit()
         except Exception:
-            pass
-        cur.execute(f"DELETE FROM submissions WHERE user_tg_id = {_ph()}", (tg_id,))
-        cur.execute(f"DELETE FROM users WHERE tg_id = {_ph()}", (tg_id,))
-        conn.commit()
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+        # 2. submissions (user_tg_id ustuni)
+        try:
+            cur.execute(f"DELETE FROM submissions WHERE user_tg_id = {_ph()}", (actual_tg_id,))
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
+        # 3. users (tg_id va id bo'yicha to'liq o'chirish)
+        try:
+            cur.execute(f"DELETE FROM users WHERE tg_id = {_ph()} OR id = {_ph()}", (actual_tg_id, tg_id))
+            conn.commit()
+        except Exception as e3:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise e3
+
         return user_row or {"tg_id": tg_id, "fullname": "Noma'lum", "phone": "—", "username": ""}
     except Exception as e:
-        print(f"Error deleting user: {e}")
+        print(f"Error deleting user {tg_id}: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         return None
+    finally:
+        _close_conn(conn)
+
+
+def delete_all_blocked_users() -> List[Dict[str, Any]]:
+    """Bazada status = 'blocked' bo'lgan barcha foydalanuvchilarni butunlay o'chirib tashlash."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE status = 'blocked'")
+        rows = cur.fetchall()
+        blocked_users = [_row_to_dict(r) for r in rows if r]
+
+        for u in blocked_users:
+            uid = u.get("tg_id")
+            if uid:
+                try:
+                    cur.execute(f"DELETE FROM broadcast_messages WHERE chat_id = {_ph()}", (uid,))
+                except Exception:
+                    pass
+                try:
+                    cur.execute(f"DELETE FROM submissions WHERE user_tg_id = {_ph()}", (uid,))
+                except Exception:
+                    pass
+
+        cur.execute("DELETE FROM users WHERE status = 'blocked'")
+        conn.commit()
+        return blocked_users
+    except Exception as e:
+        print(f"Error deleting blocked users: {e}")
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        return []
     finally:
         _close_conn(conn)
 

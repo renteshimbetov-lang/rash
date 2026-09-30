@@ -1208,11 +1208,23 @@ async def clean_blocked_users_from_db(initiator_id: int = ADMIN_ID) -> dict:
     """
     Bazada mavjud barcha foydalanuvchilarni tekshirib, botni bloklaganlarni bazadan to'liq o'chirib tashlash.
     """
+    # 1. Bazada 'blocked' holatida turganlarni avval butunlay o'chirib olamiz
+    already_blocked = test_db.delete_all_blocked_users()
+    deleted_users = []
+    for bu in already_blocked:
+        deleted_users.append({
+            "id": bu.get("id"),
+            "tg_id": bu.get("tg_id"),
+            "fullname": bu.get("fullname") or "Noma'lum",
+            "username": f"@{bu.get('username')}" if bu.get("username") else "—",
+            "tests_count": bu.get("tests_count", 0),
+            "reason": "Oldindan bloklangan holatda"
+        })
+
     users = test_db.get_all_users()
     admin_ids = set(get_all_admin_ids())
 
     active_users = []
-    deleted_users = []
 
     for u in users:
         uid = u.get("tg_id")
@@ -6291,6 +6303,12 @@ async def schedule_checker():
 async def main():
     global WEBAPP_URL
     test_db.init_db()
+    try:
+        cleaned = test_db.delete_all_blocked_users()
+        if cleaned:
+            log.info(f"🧹 Bot ishga tushganda {len(cleaned)} ta oldindan bloklangan foydalanuvchi bazadan o'chirildi")
+    except Exception as ex:
+        log.warning(f"Startup clean blocked xatolik: {ex}")
 
     # 1. aiohttp serverini ishga tushirish (bo'sh portni avtomatik topish)
     app = await create_web_app()
