@@ -883,6 +883,22 @@ function renderTests() {
 // ----------------------------------------------------
 // TEST DETAILS MODAL (Ustiga bosganda ma'lumot berish)
 // ----------------------------------------------------
+function extractKeyValue(val) {
+  if (val === null || val === undefined) return '—';
+  if (typeof val === 'string' || typeof val === 'number') return String(val).trim();
+  if (typeof val === 'object') {
+    if (val.ans !== undefined) return String(val.ans).trim();
+    if (val.answer !== undefined) return String(val.answer).trim();
+    if (val.key !== undefined) return String(val.key).trim();
+    if (val.val !== undefined) return String(val.val).trim();
+    if (val.correct !== undefined) return String(val.correct).trim();
+    const values = Object.values(val);
+    if (values.length > 0 && typeof values[0] !== 'object') return String(values[0]).trim();
+    return JSON.stringify(val);
+  }
+  return String(val).trim();
+}
+
 function openTestModal(testId) {
   const modal = document.getElementById('test-detail-modal');
   if (!modal) return;
@@ -896,33 +912,45 @@ function openTestModal(testId) {
   modal.classList.add('open');
 
   document.getElementById('modal-test-title').textContent = `#${t.test_code} — ${t.title || 'Test'}`;
-  document.getElementById('modal-test-sub').textContent = `Fan: ${t.subject || 'Matematika'} • Yaratilgan: ${t.created_at_fmt || t.created_date || '—'}`;
+  document.getElementById('modal-test-sub').textContent = `Fan: ${t.subject || 'Matematika'} • Yaratilgan sana: ${t.created_at_fmt || t.created_date || '—'}`;
 
+  // 1. Schedule & Times (Qachon boshlangan, qachon tugagan)
+  const startTimeStr = t.scheduled_date ? `${t.scheduled_date} ${t.scheduled_start || ''}`.trim() : (t.created_at_fmt || 'E\'lon qilingan vaqtdan');
+  const endTimeStr = t.scheduled_end ? `${t.scheduled_date || ''} ${t.scheduled_end}`.trim() : (t.is_active == 1 ? '🟢 Hozirda davom etmoqda' : '🔴 Yakunlangan');
+  const durationStr = t.time_limit_min ? `${t.time_limit_min} daqiqa (${(t.time_limit_min/60).toFixed(1)} soat)` : 'Vaqt chegarasisiz';
+  
+  document.getElementById('modal-test-start-time').textContent = startTimeStr;
+  document.getElementById('modal-test-end-time').textContent = endTimeStr;
+  document.getElementById('modal-test-duration').textContent = durationStr;
+  document.getElementById('modal-test-q-count').textContent = `${t.total_questions || 55} ta savol`;
+
+  // 2. Statistics
   document.getElementById('modal-test-subs-count').textContent = `${t.submissions_count || 0} kishi`;
+  document.getElementById('modal-test-subs-sub').textContent = t.submissions_count > 0 ? "O'quvchilar topshirdi" : "Hozircha topshirilmadi";
   document.getElementById('modal-test-avg-score').textContent = `${Number(t.avg_score || 0).toFixed(1)} ball`;
+  document.getElementById('modal-test-avg-corr').textContent = `O'rtacha ko'rsatkich`;
   document.getElementById('modal-test-max-score').textContent = `${Number(t.max_score_achieved || 0).toFixed(1)} ball`;
-  document.getElementById('modal-test-time-limit').textContent = `${t.total_questions || 55} ta / ${t.time_limit_min || 180} min`;
 
   const isAct = t.is_active == 1;
   const isPub = t.results_published == 1;
 
   document.getElementById('modal-test-status-badge').innerHTML = `
-    <span class="badge badge-${isAct ? 'success' : 'danger'}" style="font-size:12px;">
-      ${isAct ? '🟢 Test Faol (Qabul ochiq)' : '🔴 Test To\'xtatilgan'}
+    <span class="badge badge-${isAct ? 'success' : 'danger'}" style="font-size:11.5px;">
+      ${isAct ? '🟢 Qabul ochiq (Faol)' : '🔴 To\'xtatilgan'}
     </span>
   `;
   document.getElementById('modal-test-pub-badge').innerHTML = `
-    <span class="badge badge-${isPub ? 'success' : 'warning'}" style="font-size:12px;">
+    <span class="badge badge-${isPub ? 'success' : 'warning'}" style="font-size:11.5px;">
       ${isPub ? '📢 Natijalar e\'lon qilingan' : '🔒 Natijalar yashirin'}
     </span>
   `;
 
-  // Action buttons inside modal
+  // 3. Action buttons inside modal
   const actContainer = document.getElementById('modal-test-actions');
   if (actContainer) {
     actContainer.innerHTML = `
       <button class="btn btn-secondary btn-sm" onclick="toggleTestStatusFromModal(${t.id})">
-        ${isAct ? '⏸ Testni to\'xtatish' : '▶️ Testni yoqish'}
+        ${isAct ? '⏸ Qabulni to\'xtatish' : '▶️ Testni yoqish'}
       </button>
       <button class="btn btn-secondary btn-sm" onclick="toggleTestPublishFromModal(${t.id})">
         ${isPub ? '🔒 Natijalarni yashirish' : '📢 Natijalarni e\'lon qilish'}
@@ -930,9 +958,30 @@ function openTestModal(testId) {
     `;
   }
 
-  // Parse and render test keys
-  renderTestKeysGrid(t);
+  // 4. Reset keys drawer (boshida yopiq turadi!)
+  const drawer = document.getElementById('modal-test-keys-drawer');
+  if (drawer) drawer.style.display = 'none';
+  const btnKeys = document.getElementById('btn-toggle-test-keys');
+  if (btnKeys) btnKeys.textContent = '🔑 Kalitlarni ko\'rish ▼';
 }
+
+function toggleTestKeysView() {
+  const drawer = document.getElementById('modal-test-keys-drawer');
+  const btn = document.getElementById('btn-toggle-test-keys');
+  if (!drawer) return;
+  const isHidden = drawer.style.display === 'none' || !drawer.style.display;
+  if (isHidden) {
+    drawer.style.display = 'block';
+    if (btn) btn.textContent = '🔒 Kalitlarni yashirish ▲';
+    if (State.currentModalTest) {
+      renderTestKeysGrid(State.currentModalTest);
+    }
+  } else {
+    drawer.style.display = 'none';
+    if (btn) btn.textContent = '🔑 Kalitlarni ko\'rish ▼';
+  }
+}
+window.toggleTestKeysView = toggleTestKeysView;
 
 function renderTestKeysGrid(t) {
   const grid = document.getElementById('modal-test-keys-grid');
@@ -962,13 +1011,14 @@ function renderTestKeysGrid(t) {
   }
 
   if (Object.keys(keysObj).length === 0) {
-    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">Ushbu test uchun to\'g\'ri kalitlar kiritilmagan.</div>';
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted);">Ushbu test uchun to\'g\'ri kalitlar bazada kiritilmagan.</div>';
     return;
   }
 
   let html = '';
   keysList.forEach(k => {
-    const val = keysObj[k] || keysObj[k.toUpperCase()] || '—';
+    const rawVal = keysObj[k] !== undefined ? keysObj[k] : keysObj[k.toUpperCase()];
+    const val = extractKeyValue(rawVal);
     const isSpecial = k.includes('a') || k.includes('b');
     html += `
       <div class="answer-card" style="border-left: 3px solid var(--primary);">
@@ -976,7 +1026,7 @@ function renderTestKeysGrid(t) {
           <span>${k}-savol</span>
           <span style="font-size:10px;color:var(--text-muted);">${isSpecial ? 'Yozma' : 'Variant'}</span>
         </div>
-        <div style="font-size:13px;color:var(--primary);font-weight:800;font-family:var(--font-mono);margin-top:2px;">
+        <div style="font-size:13.5px;color:var(--primary);font-weight:800;font-family:var(--font-mono);margin-top:2px;">
           ${esc(val)}
         </div>
       </div>
