@@ -5695,11 +5695,11 @@ async def schedule_checker():
                 # 1. ⏳ 30 daqiqa qoldi ogohlantirishi (start - 30 daqiqadan start - 10 daqiqagacha)
                 if (start_minutes - 30) <= now_minutes < (start_minutes - 10) and "30m" not in notified:
                     test_db.mark_test_auto_notified(test_id, "30m")
+                    clean_title = re.sub(r'\s*#[\w\d]+\s*$', '', test_title).strip() or test_title
                     msg_30m = (
                         "⏳ <b>Diqqat! Test boshlanishiga 30 daqiqa qoldi!</b>\n\n"
                         "Internet aloqangizni tekshirib, qoralama qog'ozlarni tayyorlab oling.\n\n"
-                        f"📖 <b>Test:</b> {test_title}\n"
-                        f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n"
+                        f"📖 <b>Test:</b> {clean_title}\n"
                         f"🕐 <b>Boshlanish vaqti:</b> {sstart} (UZB)"
                     )
                     await send_broadcast_to_users(message_text=msg_30m)
@@ -5708,11 +5708,11 @@ async def schedule_checker():
                 # 2. ⚠️ 10 daqiqa qoldi ogohlantirishi (start - 10 daqiqadan start gacha)
                 if (start_minutes - 10) <= now_minutes < start_minutes and "10m" not in notified:
                     test_db.mark_test_auto_notified(test_id, "10m")
+                    clean_title = re.sub(r'\s*#[\w\d]+\s*$', '', test_title).strip() or test_title
                     msg_10m = (
                         "⚠️ <b>Test boshlanishiga 10 daqiqa qoldi!</b>\n\n"
                         "Mini ilovaga kirib, tayyor bo'lib turing.\n\n"
-                        f"📖 <b>Test:</b> {test_title}\n"
-                        f"📌 <b>Test kodi:</b> <code>{code_display}</code>\n"
+                        f"📖 <b>Test:</b> {clean_title}\n"
                         f"🕐 <b>Boshlanish vaqti:</b> {sstart} (UZB)"
                     )
                     await send_broadcast_to_users(message_text=msg_10m)
