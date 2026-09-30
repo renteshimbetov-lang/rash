@@ -563,13 +563,96 @@ async def start_handler(message: Message, state: FSMContext):
             reply_markup=main_menu_kb(user_tg_id)
         )
 
+BLACKLIST_NAME_WORDS = {
+    "kimsan", "kimsanov", "kimsanova", "hechkim", "hechkimov", "hechkimova", "hech", "kim",
+    "falonchi", "pismadonchi", "nomalum", "noma'lum", "noma’lum", "nomaʼlum", "kimdir", "birov",
+    "test", "tester", "testov", "testova", "admin", "administrator", "moderator",
+    "bot", "user", "foydalanuvchi", "anonim", "anonymous", "null", "undefined",
+    "qwerty", "asdf", "asdfgh", "zxcv", "salom", "qalesan", "ism", "familiya",
+    "yoq", "yo'q", "yo’q", "yoʼq", "bilmayman", "blabla", "bla", "hacker", "pro", "master",
+    "super", "king", "killer", "qizaloq", "yigit", "patsan", "brat", "aka", "uka",
+    "shohruh", "matematika", "susik", "susiksks", "ahshshs", "ahahaha", "hahaha", "xaxa",
+    "nik", "login", "parol", "password"
+}
+
+def validate_fullname(fullname: str) -> tuple[bool, str]:
+    """Ism va familiyani g'alati belgilar, buyruqlar, soxta nomlar va klaviatura terishlaridan tekshirish."""
+    if not fullname or not isinstance(fullname, str):
+        return False, "⚠️ Iltimos, Ism va Familiyangizni kiriting."
+    
+    name = fullname.strip()
+    
+    # 1. Bot buyruqlari tekshiruvi (/start, /help va h.k.)
+    if name.startswith("/"):
+        return False, "⚠️ Bot buyruqlari ism sifatida qabul qilinmaydi. Iltimos, haqiqiy Ism va Familiyangizni kiriting."
+    
+    # 2. Maxsus belgilar va raqamlar tekshiruvi (Faqat lotin/kirill harflari, bo'sh joy, defis, apostroflar)
+    clean_chars = re.sub(r"[a-zA-Zа-яА-ЯёЁўқғҳЎҚҒҲ\s\-\'ʻʼ`’]", "", name)
+    if clean_chars:
+        return False, "⚠️ Ism-familiyada raqamlar yoki maxsus belgilar bo'lmasligi kerak. Faqat harflar bilan yozing."
+
+    # 3. So'zlar soni (kamida Ism va Familiya bo'lishi shart)
+    words = [w for w in name.split() if w]
+    if len(words) < 2:
+        return False, "⚠️ Iltimos, Ism va Familiyangizni to'liq kiriting (kamida 2 ta so'z, masalan: <i>Ali Valiyev</i>)."
+    if len(words) > 4:
+        return False, "⚠️ Iltimos, faqat o'zingizning haqiqiy Ism va Familiyangizni kiriting (ortiqcha so'zlarsiz)."
+
+    vowels = set("aeiouyаеёиоуыэюяў")
+
+    for w in words:
+        w_lower = w.lower().strip("'-`ʻʼ’")
+        letters_only = re.sub(r"[^a-zA-Zа-яА-ЯёЁўқғҳЎҚҒҲ]", "", w_lower)
+        
+        # Har bir so'z kamida 2 ta harfdan iborat bo'lishi kerak
+        if len(letters_only) < 2:
+            return False, f"⚠️ Kiritilgan so'z juda qisqa: <b>{w}</b>. Haqiqiy ism va familiyangizni kiriting."
+        
+        # Qora ro'yxat (soxta, hazil yoki buyruq ma'nosidagi nomlar)
+        if letters_only in BLACKLIST_NAME_WORDS:
+            return False, f"⚠️ Hazil yoki soxta nomlar (<b>{w}</b>) qabul qilinmaydi! Iltimos, haqiqiy Ism va Familiyangizni kiriting."
+        
+        # 3 tadan ortiq ketma-ket bir xil harf (masalan: aaa, sss, zzz)
+        if re.search(r"(.)\1\1", letters_only):
+            return False, "⚠️ Ism-familiyada harflarni ketma-ket asossiz takrorlash mumkin emas. Haqiqiy ismingizni kiriting."
+        
+        # Qisqa takrorlanuvchi klaviatura bo'g'inlari (masalan: shshsh, sksks, ababab)
+        if re.search(r"(.{2,3})\1\1", letters_only):
+            return False, "⚠️ Tushunarsiz yoki soxta nom kiritildi. Iltimos, haqiqiy Ism va Familiyangizni kiriting."
+
+        # Unli harf tekshiruvi (so'z 3 harfdan uzun bo'lsa va unli umuman bo'lmasa — klaviatura spam)
+        if len(letters_only) >= 3 and not any(ch in vowels for ch in letters_only):
+            return False, f"⚠️ Noto'g'ri so'z kiritildi: <b>{w}</b>. Iltimos, haqiqiy Ism va Familiyangizni kiriting."
+
+        # Ketma-ket 5 ta undosh harf (o'zbek va rus tilida 5 ta undosh ketma-ket kelmaydi: Ahshshs, susiksks)
+        consec_cons = 0
+        for ch in letters_only:
+            if ch not in vowels:
+                consec_cons += 1
+                if consec_cons >= 5:
+                    return False, "⚠️ Tushunarsiz yoki xato yozilgan ism. Iltimos, haqiqiy Ism va Familiyangizni kiriting."
+            else:
+                consec_cons = 0
+
+    return True, ""
+
+
 # Ro'yxatdan o'tish: Ism kiritildi (Telefon so'ralmaydi, darhol ro'yxatdan o'tadi)
 @router.message(RegistrationState.fullname)
 async def reg_fullname(message: Message, state: FSMContext):
-    fullname = (message.text or "").strip()
-    if len(fullname) < 3:
-        await message.answer("⚠️ Iltimos, to'liq ism va familiyangizni kiriting:")
+    raw_fullname = (message.text or "").strip()
+    
+    # Qat'iy tekshiruv: g'alati nomlar, buyruqlar va klaviatura spamlarini rad etish
+    is_valid, err_msg = validate_fullname(raw_fullname)
+    if not is_valid:
+        await message.answer(
+            f"{err_msg}\n\n"
+            f"✍️ <i>Masalan: Rustam Karimov yoki Dilnoza Rahimova</i>"
+        )
         return
+
+    # Chiroyli bosh harflar bilan formatlash
+    fullname = " ".join(w.capitalize() for w in raw_fullname.split())
 
     user_tg_id = message.from_user.id
     username = message.from_user.username
@@ -4755,6 +4838,14 @@ async def handle_app_update_profile(request):
 
         if not fullname:
             return web.json_response({"success": False, "message": "Ism kiritilmadi"}, status=400)
+
+        is_valid, err_msg = validate_fullname(fullname)
+        if not is_valid:
+            clean_err = re.sub(r'<[^>]+>', '', err_msg)
+            return web.json_response({"success": False, "message": clean_err}, status=400)
+
+        # Chiroyli bosh harflar bilan formatlash
+        fullname = " ".join(w.capitalize() for w in fullname.split())
 
         ok = test_db.update_user_profile(tg_id, fullname=fullname, phone=phone if phone else None)
         return web.json_response({"success": ok})
