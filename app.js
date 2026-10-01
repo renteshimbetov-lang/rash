@@ -960,7 +960,7 @@ async function checkBotServerStatus() {
 
   try {
     var controller = new AbortController();
-    var timeoutId = setTimeout(function() { controller.abort(); }, 4000);
+    var timeoutId = setTimeout(function() { controller.abort(); }, 10000);
     var res = await fetch(API_BASE + '/api/app/status', { signal: controller.signal });
     clearTimeout(timeoutId);
 

@@ -278,6 +278,8 @@ if _raw_url:
 else:
     WEBAPP_URL = "https://rash-vmrm.onrender.com"
 
+CACHED_BOT_USERNAME = os.getenv("BOT_USERNAME", "bm_rashtest_bot")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s"
@@ -5479,15 +5481,23 @@ async def handle_static_file(request):
 
 # ── ASOSIY MINI APP API ENDPOINTLARI ────────────────────────────────────────
 
+def _fetch_profile_data_sync(tg_id: int):
+    user = test_db.get_user(tg_id)
+    is_admin = test_db.is_admin(tg_id, ADMIN_ID)
+    submissions = test_db.get_user_submissions(tg_id)
+    pending_users = 0
+    if is_admin:
+        try:
+            counts = test_db.get_users_count()
+            pending_users = counts.get('pending', 0)
+        except Exception:
+            pass
+    return user, is_admin, submissions, pending_users
+
 async def handle_app_profile(request):
     """Foydalanuvchi profili va statistikasi (Asosiy Mini App uchun)."""
     try:
-        bot_user = ""
-        try:
-            me = await bot.get_me()
-            bot_user = me.username or ""
-        except Exception:
-            pass
+        bot_user = CACHED_BOT_USERNAME
 
         tg_id = int(request.rel_url.query.get('tg_id', 0))
         if not tg_id or tg_id == 0:
@@ -5510,26 +5520,15 @@ async def handle_app_profile(request):
                 "bot_username": bot_user
             })
 
-        user = test_db.get_user(tg_id)
-        is_admin = test_db.is_admin(tg_id, ADMIN_ID)
+        user, is_admin, submissions, pending_users = await asyncio.to_thread(_fetch_profile_data_sync, tg_id)
 
         # Foydalanuvchi statistikasi
-        submissions = test_db.get_user_submissions(tg_id)
         avg_score = 0.0
         max_score_val = 0
         if submissions:
             scores = [float(s.get('score', s.get('correct_count', 0))) for s in submissions]
             avg_score = sum(scores) / len(scores) if scores else 0
             max_score_val = max(scores) if scores else 0
-
-        # Pending users count for admins
-        pending_users = 0
-        if is_admin:
-            try:
-                counts = test_db.get_users_count()
-                pending_users = counts.get('pending', 0)
-            except Exception:
-                pass
 
         if not user:
             user_data = {
@@ -5571,7 +5570,7 @@ async def handle_app_set_pin(request):
         pin = str(data.get('pin', '')).strip()
         if not tg_id or len(pin) != 4:
             return web.json_response({"success": False, "message": "4 xonali PIN kerak"}, status=400)
-        test_db.set_user_pin(tg_id, pin)
+        await asyncio.to_thread(test_db.set_user_pin, tg_id, pin)
         return web.json_response({"success": True})
     except Exception as e:
         return web.json_response({"success": False, "message": str(e)}, status=400)
@@ -5579,17 +5578,11 @@ async def handle_app_set_pin(request):
 async def handle_app_status(request):
     """Bot va server holatini (online/active) tekshirish."""
     import time
-    bot_user = ""
-    try:
-        me = await bot.get_me()
-        bot_user = me.username or ""
-    except Exception:
-        pass
     return web.json_response({
         "success": True,
         "status": "online",
         "bot_active": True,
-        "bot_username": bot_user,
+        "bot_username": CACHED_BOT_USERNAME,
         "server_time": int(time.time()),
         "uptime": int(time.time())
     }, headers={"Access-Control-Allow-Origin": "*"})
@@ -5600,7 +5593,7 @@ async def handle_app_verify_pin(request):
         data = await request.json()
         tg_id = int(data.get('tg_id', 0))
         pin = str(data.get('pin', '')).strip()
-        stored = test_db.get_user_pin(tg_id)
+        stored = await asyncio.to_thread(test_db.get_user_pin, tg_id)
         if stored and stored == pin:
             return web.json_response({"success": True, "valid": True})
         return web.json_response({"success": True, "valid": False})
@@ -5618,11 +5611,12 @@ async def handle_app_compare_keys(request):
         if not tg_id or not test_id:
             return web.json_response({"success": False, "message": "Noto'g'ri so'rov"}, status=400)
 
-        test = test_db.get_test_by_id(test_id)
+        test = await asyncio.to_thread(test_db.get_test_by_id, test_id)
         if not test:
             return web.json_response({"success": False, "message": "Test topilmadi"}, status=404)
 
-        if not test_db.is_test_results_published(test_id):
+        is_published = await asyncio.to_thread(test_db.is_test_results_published, test_id)
+        if not is_published:
             return web.json_response({
                 "success": False, 
                 "message": "Natijalar va kalitlar admin tomonidan test yakunlanib, rasmiy e'lon qilingach ochiladi."
@@ -5632,7 +5626,7 @@ async def handle_app_compare_keys(request):
         if expected_code and expected_code != code:
             return web.json_response({"success": False, "message": "Parol noto'g'ri!"}, status=403)
 
-        sub = test_db.get_user_submission_for_test(test_id, tg_id)
+        sub = await asyncio.to_thread(test_db.get_user_submission_for_test, test_id, tg_id)
         if not sub:
             return web.json_response({"success": False, "message": "Siz ushbu testni topshirmagansiz"}, status=400)
 
@@ -5647,6 +5641,71 @@ async def handle_app_compare_keys(request):
     except Exception as e:
         log.error(f"App Compare Keys API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)
+
+def _fetch_active_tests_payload_sync(tg_id: int):
+    all_tests = test_db.get_all_tests()
+    all_bounds = test_db.get_all_tests_submission_bounds()
+    user_subs = test_db.get_user_submissions_map(tg_id) if tg_id else {}
+    is_user_admin = bool(tg_id and test_db.is_admin(tg_id, ADMIN_ID))
+
+    result = []
+    for t in all_tests:
+        td = dict(t)
+        td.pop('answers_json', None)  # Javoblarni yashirish
+
+        # Foydalanuvchi allaqachon topshirganmi?
+        if tg_id:
+            existing = user_subs.get(t['id'])
+            td['already_submitted'] = bool(existing)
+            is_pub = bool(t.get('results_published', 0))
+            if existing:
+                if is_pub:
+                    td['user_score'] = existing.get('score')
+                    td['user_correct'] = existing.get('correct_count')
+                    td['user_incorrect'] = existing.get('incorrect_count')
+                    td['user_total'] = existing.get('total_count')
+                    td['user_grade'] = existing.get('grade')
+                else:
+                    td['user_score'] = None
+                    td['user_correct'] = None
+                    td['user_incorrect'] = None
+                    td['user_total'] = None
+                    td['user_grade'] = "Kutilmoqda"
+                td['submitted_at'] = existing.get('submitted_at')
+        else:
+            td['already_submitted'] = False
+
+        sched_stat = get_test_schedule_status(t)
+        is_upcoming = sched_stat['is_upcoming']
+        is_act = sched_stat['is_active']
+        is_closed = sched_stat['is_closed']
+
+        td['is_active'] = is_act
+        td['is_upcoming'] = is_upcoming
+        td['is_planned'] = is_upcoming
+        td['is_closed'] = is_closed
+
+        # Haqiqiy topshirilish vaqtlari (har bir testning o'ziga xos vaqt chegaralari)
+        bounds = all_bounds.get(t['id'], {})
+        if bounds.get('first_submitted_at'):
+            td['first_submission_at'] = bounds['first_submitted_at']
+        if bounds.get('last_submitted_at'):
+            td['last_submission_at'] = bounds['last_submitted_at']
+        td['submissions_count'] = bounds.get('count', 0)
+
+        # Agar test boshlanish vaqti kelmagan bo'lsa (is_upcoming):
+        if is_upcoming:
+            td['code_hidden'] = True
+            td['test_code'] = '🔒 Boshlanganda ochiladi'
+            if td.get('title'):
+                td['title'] = re.sub(r'\s*#[\w\d]+\s*$', '', td['title']).strip()
+        else:
+            td['code_hidden'] = False
+
+        td['min_submit_info'] = get_test_min_submit_info(t)
+        result.append(td)
+    now_uzb = datetime.now(UZB_TZ)
+    return result, is_user_admin, now_uzb
 
 async def handle_app_active_tests(request):
     """Faol testlar ro'yxati (user uchun topshirilgan-topshirilmaganligini ham qaytaradi)."""
@@ -5665,67 +5724,7 @@ async def handle_app_active_tests(request):
                 except Exception:
                     pass
 
-        all_tests = test_db.get_all_tests()
-        result = []
-        for t in all_tests:
-            td = dict(t)
-            td.pop('answers_json', None)  # Javoblarni yashirish
-
-            # Foydalanuvchi allaqachon topshirganmi?
-            if tg_id:
-                existing = test_db.get_user_submission_for_test(t['id'], tg_id)
-                td['already_submitted'] = bool(existing)
-                is_pub = bool(t.get('results_published', 0))
-                if existing:
-                    if is_pub:
-                        td['user_score'] = existing.get('score')
-                        td['user_correct'] = existing.get('correct_count')
-                        td['user_incorrect'] = existing.get('incorrect_count')
-                        td['user_total'] = existing.get('total_count')
-                        td['user_grade'] = existing.get('grade')
-                    else:
-                        td['user_score'] = None
-                        td['user_correct'] = None
-                        td['user_incorrect'] = None
-                        td['user_total'] = None
-                        td['user_grade'] = "Kutilmoqda"
-                    td['submitted_at'] = existing.get('submitted_at')
-            else:
-                td['already_submitted'] = False
-
-            sched_stat = get_test_schedule_status(t)
-            is_upcoming = sched_stat['is_upcoming']
-            is_act = sched_stat['is_active']
-            is_closed = sched_stat['is_closed']
-
-            td['is_active'] = is_act
-            td['is_upcoming'] = is_upcoming
-            td['is_planned'] = is_upcoming
-            td['is_closed'] = is_closed
-
-            # Haqiqiy topshirilish vaqtlari (har bir testning o'ziga xos vaqt chegaralari)
-            bounds = test_db.get_test_submission_bounds(t['id'])
-            if bounds.get('first_submitted_at'):
-                td['first_submission_at'] = bounds['first_submitted_at']
-            if bounds.get('last_submitted_at'):
-                td['last_submission_at'] = bounds['last_submitted_at']
-            td['submissions_count'] = bounds.get('count', 0)
-
-            # Agar test boshlanish vaqti kelmagan bo'lsa (is_upcoming):
-            # Test kodini foydalanuvchilarga ko'rsatmaymiz (faqat vaqti kelganda ochiladi)
-            if is_upcoming:
-                td['code_hidden'] = True
-                td['test_code'] = '🔒 Boshlanganda ochiladi'
-                if td.get('title'):
-                    # Sarlavhadagi '#118' kabi test kodlarini ham yashirish
-                    td['title'] = re.sub(r'\s*#[\w\d]+\s*$', '', td['title']).strip()
-            else:
-                td['code_hidden'] = False
-
-            td['min_submit_info'] = get_test_min_submit_info(t)
-            result.append(td)
-        now_uzb = datetime.now(UZB_TZ)
-        is_user_admin = bool(tg_id and test_db.is_admin(tg_id, ADMIN_ID))
+        result, is_user_admin, now_uzb = await asyncio.to_thread(_fetch_active_tests_payload_sync, tg_id)
         return web.json_response({
             "success": True, 
             "tests": result,
@@ -5743,7 +5742,7 @@ async def handle_app_my_results(request):
         tg_id = int(request.rel_url.query.get('tg_id', 0))
         if not tg_id:
             return web.json_response({"success": True, "results": []})
-        submissions = test_db.get_user_submissions(tg_id)
+        submissions = await asyncio.to_thread(test_db.get_user_submissions, tg_id)
         return web.json_response({"success": True, "results": submissions})
     except Exception as e:
         log.error(f"App My Results API Error: {e}", exc_info=True)

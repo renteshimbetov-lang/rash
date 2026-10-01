@@ -32,7 +32,16 @@ def _get_pg_pool():
     if _pg_pool is None:
         try:
             import psycopg2.pool
-            _pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=2, maxconn=20, dsn=DATABASE_URL)
+            _pg_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=20,
+                dsn=DATABASE_URL,
+                connect_timeout=10,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5
+            )
         except Exception as e:
             print(f"Connection pool xatolik: {e}")
             _pg_pool = None
@@ -109,6 +118,7 @@ def get_connection():
                 try:
                     with conn.cursor() as cur_check:
                         cur_check.execute("SELECT 1")
+                    conn.rollback()
                 except Exception:
                     try:
                         pool.putconn(conn, close=True)
@@ -121,7 +131,15 @@ def get_connection():
                 return conn
             except Exception:
                 pass
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        conn = psycopg2.connect(
+            DATABASE_URL,
+            cursor_factory=RealDictCursor,
+            connect_timeout=10,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5
+        )
         conn.autocommit = False
         return conn
     else:
@@ -1431,6 +1449,39 @@ def get_test_submission_bounds(test_id: int) -> Dict[str, Any]:
         _close_conn(conn)
 
 
+def get_all_tests_submission_bounds() -> Dict[int, Dict[str, Any]]:
+    """Barcha testlar uchun birinchi va oxirgi topshirilgan vaqtlarni bitta so'rovda qaytaradi."""
+    conn = get_connection()
+    res = {}
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT test_id, MIN(submitted_at) as min_ts, MAX(submitted_at) as max_ts, COUNT(*) as cnt FROM submissions GROUP BY test_id")
+        rows = cur.fetchall()
+        for row in rows:
+            if isinstance(row, dict):
+                tid = row.get("test_id")
+                if tid:
+                    res[int(tid)] = {
+                        "first_submitted_at": row.get("min_ts") or row.get("min"),
+                        "last_submitted_at": row.get("max_ts") or row.get("max"),
+                        "count": row.get("cnt") or row.get("count") or 0
+                    }
+            else:
+                tid = row[0]
+                if tid:
+                    res[int(tid)] = {
+                        "first_submitted_at": row[1],
+                        "last_submitted_at": row[2],
+                        "count": row[3] or 0
+                    }
+        return res
+    except Exception as e:
+        print(f"Error getting all submission bounds: {e}")
+        return res
+    finally:
+        _close_conn(conn)
+
+
 def update_test_time_limit(test_id: int, time_limit_min: int) -> bool:
     conn = get_connection()
     try:
@@ -1856,6 +1907,31 @@ def get_user_submission_for_test(test_id: int, user_tg_id: int) -> Optional[Dict
         )
         row = cur.fetchone()
         return _row_to_dict(row)
+    finally:
+        _close_conn(conn)
+
+
+def get_user_submissions_map(user_tg_id: int) -> Dict[int, Dict[str, Any]]:
+    """Foydalanuvchining barcha topshirgan testlarini {test_id: submission_dict} qilib qaytaradi."""
+    if not user_tg_id:
+        return {}
+    conn = get_connection()
+    res = {}
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT * FROM submissions WHERE user_tg_id = {_ph()}",
+            (user_tg_id,)
+        )
+        rows = cur.fetchall()
+        for r in rows:
+            d = _row_to_dict(r)
+            if d and d.get('test_id'):
+                res[int(d['test_id'])] = d
+        return res
+    except Exception as e:
+        print(f"Error get_user_submissions_map: {e}")
+        return res
     finally:
         _close_conn(conn)
 
