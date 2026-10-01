@@ -628,6 +628,8 @@ body {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 .page-view {
@@ -776,6 +778,8 @@ body {
   width: 100%;
   overflow-x: auto;
   position: relative;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mac-table {
@@ -1444,7 +1448,7 @@ body {
 /* Toast Notifications */
 .toast-container {
   position: fixed;
-  bottom: 24px;
+  top: 60px;
   right: 24px;
   z-index: 10000;
   display: flex;
@@ -1554,4 +1558,193 @@ body {
     top: 4px;
     right: 4px;
   }
+}
+
+/* ===== FLOATING NAVIGATION D-PAD (Tepaga, Pastga, Chapga, O'ngga) ===== */
+.mac-nav-dock {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 950;
+  background: var(--bg-card);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  user-select: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mac-nav-dock:hover {
+  border-color: rgba(0, 163, 137, 0.4);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 163, 137, 0.2);
+}
+
+.mac-nav-dock.minimized .nav-dpad {
+  display: none;
+}
+
+.mac-nav-dock.minimized {
+  padding: 6px;
+  border-radius: 9999px;
+}
+
+.mac-nav-dock.minimized .nav-dock-header {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.mac-nav-dock.minimized .nav-dock-title span {
+  display: none;
+}
+
+.nav-dock-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-dock-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nav-dock-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.nav-dock-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+}
+
+.nav-dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.dpad-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dpad-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.dpad-btn:hover {
+  background: rgba(0, 163, 137, 0.18);
+  border-color: var(--primary);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.dpad-btn:active, .dpad-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  transform: scale(0.94);
+  box-shadow: 0 0 12px rgba(0, 163, 137, 0.6);
+}
+
+.dpad-up, .dpad-down {
+  width: 96px;
+  height: 38px;
+}
+
+.dpad-left, .dpad-right {
+  width: 62px;
+  height: 48px;
+}
+
+.dpad-center {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dpad-center:hover .dpad-core-dot {
+  transform: scale(1.3);
+}
+
+.dpad-core-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+  transition: transform 0.2s ease;
+}
+
+.dpad-text {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 1;
+}
+
+/* In-table horizontal scroll buttons */
+.table-scroll-btns {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px 5px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.table-scroll-btns .btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.table-scroll-btns .btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }

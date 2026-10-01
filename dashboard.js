@@ -1695,8 +1695,128 @@ function handleGlobalSearch(val) {
   else if (State.activeTab === 'users') renderUsers();
 }
 
+/* ============================================================
+   DIRECTIONAL NAVIGATION & SCROLLING (Pastga, Tepaga, Chapga, O'ngga)
+   ============================================================ */
+function getActiveScrollableContainer() {
+  const visibleModals = Array.from(document.querySelectorAll('.modal-overlay')).filter(m => {
+    return window.getComputedStyle(m).display !== 'none';
+  });
+  if (visibleModals.length > 0) {
+    const modalBody = visibleModals[visibleModals.length - 1].querySelector('.modal-body');
+    if (modalBody) return modalBody;
+  }
+  return document.querySelector('.views-container') || document.documentElement;
+}
+
+function getActiveTableResponsive() {
+  const visibleModals = Array.from(document.querySelectorAll('.modal-overlay')).filter(m => {
+    return window.getComputedStyle(m).display !== 'none';
+  });
+  if (visibleModals.length > 0) {
+    const tbl = visibleModals[visibleModals.length - 1].querySelector('.table-responsive');
+    if (tbl) return tbl;
+  }
+  const activeView = document.querySelector('.page-view.active');
+  if (activeView) {
+    const tbl = activeView.querySelector('.table-responsive');
+    if (tbl) return tbl;
+  }
+  return document.querySelector('.table-responsive');
+}
+
+function flashDpadButton(btnId) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.classList.add('active');
+  setTimeout(() => btn.classList.remove('active'), 180);
+}
+
+function navScroll(direction, amount) {
+  const container = getActiveScrollableContainer();
+  const table = getActiveTableResponsive();
+  const vStep = amount || 240;
+  const hStep = amount || 280;
+
+  if (direction === 'up') {
+    flashDpadButton('btn-dpad-up');
+    container.scrollBy({ top: -vStep, behavior: 'smooth' });
+  } else if (direction === 'down') {
+    flashDpadButton('btn-dpad-down');
+    container.scrollBy({ top: vStep, behavior: 'smooth' });
+  } else if (direction === 'left') {
+    flashDpadButton('btn-dpad-left');
+    if (table) {
+      table.scrollBy({ left: -hStep, behavior: 'smooth' });
+    } else {
+      container.scrollBy({ left: -hStep, behavior: 'smooth' });
+    }
+  } else if (direction === 'right') {
+    flashDpadButton('btn-dpad-right');
+    if (table) {
+      table.scrollBy({ left: hStep, behavior: 'smooth' });
+    } else {
+      container.scrollBy({ left: hStep, behavior: 'smooth' });
+    }
+  } else if (direction === 'top') {
+    flashDpadButton('btn-dpad-center');
+    container.scrollTo({ top: 0, behavior: 'smooth' });
+    if (table) table.scrollTo({ left: 0, behavior: 'smooth' });
+  } else if (direction === 'bottom') {
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  }
+}
+window.navScroll = navScroll;
+
+function scrollActiveTable(direction) {
+  const table = getActiveTableResponsive();
+  if (table) {
+    const step = direction === 'left' ? -280 : 280;
+    table.scrollBy({ left: step, behavior: 'smooth' });
+    flashDpadButton(direction === 'left' ? 'btn-dpad-left' : 'btn-dpad-right');
+  }
+}
+window.scrollActiveTable = scrollActiveTable;
+
+function navigateTabs(delta) {
+  const tabs = ['overview', 'submissions', 'users', 'tests', 'activity', 'database'];
+  const curIdx = tabs.indexOf(State.activeTab);
+  if (curIdx !== -1) {
+    let nextIdx = curIdx + delta;
+    if (nextIdx < 0) nextIdx = tabs.length - 1;
+    if (nextIdx >= tabs.length) nextIdx = 0;
+    switchDashboardTab(tabs[nextIdx]);
+  }
+}
+window.navigateTabs = navigateTabs;
+
+function toggleNavDock() {
+  const dock = document.getElementById('mac-nav-dock');
+  if (!dock) return;
+  dock.classList.toggle('minimized');
+  const isMin = dock.classList.contains('minimized');
+  try {
+    localStorage.setItem('bm_nav_dock_minimized', isMin ? '1' : '0');
+  } catch (e) {}
+}
+window.toggleNavDock = toggleNavDock;
+
+function initNavDockState() {
+  try {
+    if (localStorage.getItem('bm_nav_dock_minimized') === '1') {
+      const dock = document.getElementById('mac-nav-dock');
+      if (dock) dock.classList.add('minimized');
+    }
+  } catch (e) {}
+}
+
 function setupKeyboardShortcuts() {
+  initNavDockState();
+
   window.addEventListener('keydown', (e) => {
+    // If typing in input, textarea, or contentEditable, do not hijack typing
+    const isInputFocused = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+
     // Cmd+K or Ctrl+K to focus search
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
@@ -1705,15 +1825,21 @@ function setupKeyboardShortcuts() {
         inp.focus();
         inp.select();
       }
+      return;
     }
     // Cmd+R to refresh data
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r') {
       e.preventDefault();
       fetchDashboardData(true);
+      return;
     }
     // Escape to close modals
     if (e.key === 'Escape') {
       closeSubmissionModal();
+      closeUserTestsModal();
+      closeCancelSubModal();
+      closeTestModal();
+      return;
     }
     // Cmd+1..6 tab switching
     if ((e.metaKey || e.ctrlKey) && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
@@ -1721,6 +1847,44 @@ function setupKeyboardShortcuts() {
       const tabs = ['overview', 'submissions', 'users', 'tests', 'activity', 'database'];
       const idx = parseInt(e.key) - 1;
       if (tabs[idx]) switchDashboardTab(tabs[idx]);
+      return;
+    }
+
+    if (isInputFocused) return;
+
+    // Directional keys: Pastga, Tepaga, Chapga, O'ngga
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      navScroll('down', 160);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      navScroll('up', 160);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (e.altKey || e.metaKey || e.ctrlKey) {
+        navigateTabs(-1);
+      } else {
+        navScroll('left', 240);
+      }
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (e.altKey || e.metaKey || e.ctrlKey) {
+        navigateTabs(1);
+      } else {
+        navScroll('right', 240);
+      }
+    } else if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) {
+      e.preventDefault();
+      navScroll('down', 480);
+    } else if (e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) {
+      e.preventDefault();
+      navScroll('up', 480);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      navScroll('top');
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      navScroll('bottom');
     }
   });
 }

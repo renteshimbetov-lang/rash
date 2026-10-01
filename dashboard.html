@@ -6,7 +6,7 @@
   <title>Shohruh Matematika — Admin Dashboard (MacBook)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/dashboard.css?v=20261001_icons">
+  <link rel="stylesheet" href="/dashboard.css?v=20261001_nav">
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -359,9 +359,21 @@
                     </svg>
                     <span>So'nggi topshirilgan natijalar</span>
                   </div>
-                  <button class="btn btn-secondary btn-sm" onclick="switchDashboardTab('submissions')">
-                    Barchasini ko'rish →
-                  </button>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="table-scroll-btns">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('left')" title="Jadvalni chapga surish (←)">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                        <span>Chapga</span>
+                      </button>
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('right')" title="Jadvalni o'ngga surish (→)">
+                        <span>O'ngga</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                      </button>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="switchDashboardTab('submissions')">
+                      Barchasini ko'rish →
+                    </button>
+                  </div>
                 </div>
                 <div class="table-responsive">
                   <table class="mac-table">
@@ -444,6 +456,17 @@
                     </button>
                   </div>
 
+                  <div class="table-scroll-btns">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('left')" title="Jadvalni chapga surish (←)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                      <span>Chapga</span>
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('right')" title="Jadvalni o'ngga surish (→)">
+                      <span>O'ngga</span>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                  </div>
+
                   <select id="filter-test-select" class="btn btn-secondary btn-sm" onchange="filterSubmissionsByTest(this.value)">
                     <option value="">Barcha testlar</option>
                   </select>
@@ -512,6 +535,17 @@
                     <span>Bloklangan</span>
                   </button>
                 </div>
+
+                <div class="table-scroll-btns">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('left')" title="Jadvalni chapga surish (←)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Chapga</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('right')" title="Jadvalni o'ngga surish (→)">
+                    <span>O'ngga</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                </div>
               </div>
 
               <div class="table-responsive">
@@ -549,6 +583,16 @@
                     <path d="M16 17H8"/>
                   </svg>
                   <span>Mavjud Testlar Ro'yxati</span>
+                </div>
+                <div class="table-scroll-btns">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('left')" title="Jadvalni chapga surish (←)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    <span>Chapga</span>
+                  </button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('right')" title="Jadvalni o'ngga surish (→)">
+                    <span>O'ngga</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
                 </div>
               </div>
 
@@ -1059,9 +1103,63 @@
     </div>
   </div>
 
+  <!-- Floating Navigation Pad (Tepaga, Pastga, Chapga, O'ngga) -->
+  <aside class="mac-nav-dock" id="mac-nav-dock" aria-label="Navigatsiya tugmalari">
+    <div class="nav-dock-header">
+      <div class="nav-dock-title">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+        </svg>
+        <span>Navigatsiya</span>
+      </div>
+      <button class="nav-dock-toggle" onclick="toggleNavDock()" title="Kichraytirish / Ochish" aria-label="Toggle Navigation Pad">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+    </div>
+    <div class="nav-dpad">
+      <!-- Tepaga -->
+      <button class="dpad-btn dpad-up" id="btn-dpad-up" onclick="navScroll('up')" title="Tepaga siljitish (↑ tugmasi)" aria-label="Tepaga">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m18 15-6-6-6 6"/>
+        </svg>
+        <span class="dpad-text">Tepaga</span>
+      </button>
+      <div class="dpad-row">
+        <!-- Chapga -->
+        <button class="dpad-btn dpad-left" id="btn-dpad-left" onclick="navScroll('left')" title="Chapga / Jadvalni surish (← tugmasi)" aria-label="Chapga">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m15 18-6-6 6-6"/>
+          </svg>
+          <span class="dpad-text">Chapga</span>
+        </button>
+        <!-- Boshiga (Center) -->
+        <button class="dpad-btn dpad-center" id="btn-dpad-center" onclick="navScroll('top')" title="Eng boshiga qaytish (Home tugmasi)" aria-label="Boshiga">
+          <div class="dpad-core-dot"></div>
+        </button>
+        <!-- O'ngga -->
+        <button class="dpad-btn dpad-right" id="btn-dpad-right" onclick="navScroll('right')" title="O'ngga / Jadvalni surish (→ tugmasi)" aria-label="O'ngga">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m9 18 6-6-6-6"/>
+          </svg>
+          <span class="dpad-text">O'ngga</span>
+        </button>
+      </div>
+      <!-- Pastga -->
+      <button class="dpad-btn dpad-down" id="btn-dpad-down" onclick="navScroll('down')" title="Pastga siljitish (↓ tugmasi)" aria-label="Pastga">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+        <span class="dpad-text">Pastga</span>
+      </button>
+    </div>
+  </aside>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/dashboard.js?v=20261001_icons"></script>
+  <script src="/dashboard.js?v=20261001_nav"></script>
 </body>
 </html>
