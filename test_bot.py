@@ -6164,7 +6164,8 @@ _dashboard_tests_cache = {"data": None, "ts": 0}
 async def handle_dashboard_overview(request):
     global _dashboard_overview_cache
     now = time.time()
-    if _dashboard_overview_cache["data"] and (now - _dashboard_overview_cache["ts"] < 15.0):
+    refresh = request.rel_url.query.get('refresh') == 'true'
+    if not refresh and _dashboard_overview_cache["data"] and (now - _dashboard_overview_cache["ts"] < 30.0):
         return web.json_response(_dashboard_overview_cache["data"])
 
     try:

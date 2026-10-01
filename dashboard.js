@@ -245,15 +245,29 @@ function runBootAnimation() {
 }
 
 // ----------------------------------------------------
-// INITIALIZATION
-// ----------------------------------------------------
 document.addEventListener('DOMContentLoaded', () => {
+  restoreCachedDashboard();
   runBootAnimation();
   initLiveClock();
   setupKeyboardShortcuts();
   fetchDashboardData();
   startAutoRefresh();
 });
+
+function restoreCachedDashboard() {
+  try {
+    const raw = sessionStorage.getItem('bm_cached_overview');
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && data.success && data.summary) {
+        State.overview = data.summary;
+        State.tests = data.tests || [];
+        updateHeaderAndBadges(data.summary);
+        renderOverviewData(data);
+      }
+    }
+  } catch (e) {}
+}
 
 // Live Tashkent Clock (UTC+5)
 function initLiveClock() {
@@ -334,10 +348,12 @@ async function fetchDashboardData(manual = false) {
 
   try {
     // 1. Overview & Stats
-    const resOverview = await fetch('/api/dashboard/overview');
+    const url = manual ? '/api/dashboard/overview?refresh=true' : '/api/dashboard/overview';
+    const resOverview = await fetch(url);
     if (resOverview.ok) {
       const data = await resOverview.json();
       if (data.success) {
+        try { sessionStorage.setItem('bm_cached_overview', JSON.stringify(data)); } catch (e) {}
         State.overview = data.summary;
         State.tests = data.tests || [];
         updateHeaderAndBadges(data.summary);
@@ -1593,9 +1609,9 @@ function toggleAutoRefresh() {
   const icon = document.getElementById('refresh-icon');
   if (State.autoRefresh) {
     startAutoRefresh();
-    if (label) label.textContent = 'Jonli (10s)';
+    if (label) label.textContent = 'Jonli (25s)';
     if (icon) icon.textContent = '⚡️';
-    showToast('Avtomatik yangilanish yoqildi (har 10s)', 'success');
+    showToast('Avtomatik yangilanish yoqildi (har 25s)', 'success');
   } else {
     stopAutoRefresh();
     if (label) label.textContent = 'To\'xtatilgan';
@@ -1610,7 +1626,7 @@ function startAutoRefresh() {
     if (State.autoRefresh) {
       fetchDashboardData();
     }
-  }, 10000);
+  }, 25000);
 }
 
 function stopAutoRefresh() {
