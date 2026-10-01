@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Test Tekshirish Tizimi — PostgreSQL Database moduli (psycopg2)
 Neon.tech PostgreSQL bilan ishlash uchun to'liq refaktoring qilingan.
@@ -9,7 +10,7 @@ import re
 import time
 import math
 from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 UZB_TZ = timezone(timedelta(hours=5))
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))

@@ -5,7 +5,7 @@ Aiogram 3.x + aiohttp WebApp Server
 Barcha muhim sozlamalar environment variable orqali o'rnatiladi.
 Tokenlar va ID lar bu yerda saqlanmaydi — faqat os.getenv() ishlatiladi.
 """
-
+from __future__ import annotations
 import asyncio
 import json
 import logging
