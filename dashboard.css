@@ -1748,3 +1748,29 @@ body {
   border-color: var(--primary);
   color: var(--primary);
 }
+
+/* Selected table row keyboard navigation (1 ta user pastga/tepaga tushadigan) */
+.mac-table tbody tr.table-row-selected {
+  background: rgba(0, 163, 137, 0.22) !important;
+  box-shadow: inset 4px 0 0 0 var(--primary), inset 0 0 0 1px rgba(0, 163, 137, 0.5) !important;
+  position: relative;
+  z-index: 2;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+
+[data-theme="light"] .mac-table tbody tr.table-row-selected {
+  background: rgba(0, 163, 137, 0.14) !important;
+  box-shadow: inset 4px 0 0 0 var(--primary), inset 0 0 0 1px rgba(0, 163, 137, 0.5) !important;
+}
+
+/* Sidebar navigation item keyboard focus/highlight (2-rasm: bo'limlar navigatsiyasi) */
+.nav-item.nav-item-focused {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: -2px;
+  background: rgba(0, 163, 137, 0.26) !important;
+  color: var(--text-main) !important;
+  transform: translateX(4px);
+  box-shadow: 0 4px 16px rgba(0, 163, 137, 0.35) !important;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+

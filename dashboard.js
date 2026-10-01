@@ -313,6 +313,13 @@ function initLiveClock() {
 function switchDashboardTab(tabId) {
   State.activeTab = tabId;
 
+  if (typeof NavState !== 'undefined') {
+    const sIdx = NavState.sidebarTabs.indexOf(tabId);
+    if (sIdx !== -1) NavState.sidebarIndex = sIdx;
+    clearTableRowSelection();
+    clearSidebarFocus();
+  }
+
   // Update navigation classes
   document.querySelectorAll('.sidebar-nav .nav-item').forEach(el => {
     el.classList.toggle('active', el.getAttribute('data-tab') === tabId);
@@ -840,16 +847,16 @@ function renderUsers() {
     const regDt = formatUzbSmartDateTime(u.registered_at || u.registered_at_fmt);
 
     return `
-      <tr>
-        <td class="copyable-cell" onclick="copyToClipboard('${u.tg_id}', 'ID')" title="Nusxalash uchun bosing">
+      <tr class="clickable-row" onclick="openUserTestsModal(${u.tg_id}, '${esc(u.fullname || 'Foydalanuvchi')}', '${rawUsername ? '@' + rawUsername : ''}')">
+        <td class="copyable-cell" onclick="event.stopPropagation(); copyToClipboard('${u.tg_id}', 'ID')" title="Nusxalash uchun bosing">
           <span class="copy-val" style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);font-weight:700;">${u.tg_id}</span>
           <span class="copy-icon">${Icons.copy}</span>
         </td>
-        <td class="copyable-cell" onclick="copyToClipboard('${esc(u.fullname || '')}', 'Ism')" title="Nusxalash uchun bosing">
+        <td class="copyable-cell" onclick="event.stopPropagation(); copyToClipboard('${esc(u.fullname || '')}', 'Ism')" title="Nusxalash uchun bosing">
           <div class="copy-val" style="font-weight:700;font-size:13.5px;color:var(--text-main);display:inline-block;">${esc(u.fullname || 'Foydalanuvchi')}</div>
           <span class="copy-icon">${Icons.copy}</span>
         </td>
-        <td class="copyable-cell" onclick="${rawUsername ? `copyToClipboard('@${rawUsername}', 'Username')` : ''}" title="${rawUsername ? 'Nusxalash uchun bosing' : ''}">
+        <td class="copyable-cell" onclick="event.stopPropagation(); ${rawUsername ? `copyToClipboard('@${rawUsername}', 'Username')` : ''}" title="${rawUsername ? 'Nusxalash uchun bosing' : ''}">
           <span class="copy-val">${usernameTag}</span>
           ${rawUsername ? `<span class="copy-icon">${Icons.copy}</span>` : ''}
         </td>
@@ -862,11 +869,11 @@ function renderUsers() {
           </div>
         </td>
         <td>
-          <button type="button" class="user-tests-badge-btn" onclick="openUserTestsModal(${u.tg_id}, '${esc(u.fullname || 'Foydalanuvchi')}', '${rawUsername ? '@' + rawUsername : ''}')" title="Topshirgan barcha testlarini ko'rish">
+          <button type="button" class="user-tests-badge-btn" onclick="event.stopPropagation(); openUserTestsModal(${u.tg_id}, '${esc(u.fullname || 'Foydalanuvchi')}', '${rawUsername ? '@' + rawUsername : ''}')" title="Topshirgan barcha testlarini ko'rish">
             ${u.tests_count || 0} ta <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:2px;"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </td>
-        <td style="text-align:right;">
+        <td style="text-align:right;" onclick="event.stopPropagation();">
           <div style="display:inline-flex;gap:6px;">
             ${st !== 'approved' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'approve')">${Icons.check}Faol</button>` : ''}
             ${st !== 'blocked' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'block')">${Icons.ban}Blok</button>` : ''}
@@ -959,7 +966,7 @@ function openUserTestsModal(userId, userName, userHandle) {
       const dt = formatUzbSmartDateTime(s.submitted_at || s.submitted_at_fmt);
 
       return `
-        <tr>
+        <tr class="clickable-row" onclick="closeUserTestsModal(); openSubmissionModal(${s.id})">
           <td style="color:var(--text-dim);font-weight:700;font-family:var(--font-mono);">${idx + 1}</td>
           <td>
             <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">#${esc(s.test_code || '')} — ${esc(s.test_title || 'Test')}</div>
@@ -1696,8 +1703,35 @@ function handleGlobalSearch(val) {
 }
 
 /* ============================================================
-   DIRECTIONAL NAVIGATION & SCROLLING (Pastga, Tepaga, Chapga, O'ngga)
+   STEP-BY-STEP NAVIGATION SYSTEM (1 ta user pastga/tepaga, Enter, Bo'limlar)
    ============================================================ */
+const NavState = {
+  context: 'table', // 'sidebar' | 'table'
+  sidebarIndex: 0,
+  sidebarTabs: ['overview', 'submissions', 'users', 'tests', 'activity', 'database'],
+  selectedRowIndex: -1,
+};
+
+function getActiveVisibleRows() {
+  // 1. Check if an active modal with a table is visible
+  const visibleModals = Array.from(document.querySelectorAll('.modal-overlay')).filter(m => {
+    return window.getComputedStyle(m).display !== 'none';
+  });
+  if (visibleModals.length > 0) {
+    const modal = visibleModals[visibleModals.length - 1];
+    const rows = modal.querySelectorAll('.mac-table tbody tr');
+    return Array.from(rows).filter(r => !r.querySelector('td[colspan]'));
+  }
+
+  // 2. Otherwise active tab view table
+  const activeView = document.querySelector('.page-view.active');
+  if (activeView) {
+    const rows = activeView.querySelectorAll('.mac-table tbody tr');
+    return Array.from(rows).filter(r => !r.querySelector('td[colspan]'));
+  }
+  return [];
+}
+
 function getActiveScrollableContainer() {
   const visibleModals = Array.from(document.querySelectorAll('.modal-overlay')).filter(m => {
     return window.getComputedStyle(m).display !== 'none';
@@ -1732,6 +1766,181 @@ function flashDpadButton(btnId) {
   setTimeout(() => btn.classList.remove('active'), 180);
 }
 
+function clearTableRowSelection() {
+  document.querySelectorAll('.table-row-selected').forEach(r => r.classList.remove('table-row-selected'));
+  NavState.selectedRowIndex = -1;
+}
+
+function clearSidebarFocus() {
+  document.querySelectorAll('.app-sidebar .nav-item').forEach(i => i.classList.remove('nav-item-focused'));
+}
+
+function highlightTableRow(index) {
+  const rows = getActiveVisibleRows();
+  if (!rows || rows.length === 0) return;
+
+  if (index < 0) index = 0;
+  if (index >= rows.length) index = rows.length - 1;
+
+  NavState.selectedRowIndex = index;
+  NavState.context = 'table';
+  clearSidebarFocus();
+
+  rows.forEach((r, i) => {
+    if (i === index) {
+      r.classList.add('table-row-selected');
+      r.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else {
+      r.classList.remove('table-row-selected');
+    }
+  });
+}
+window.highlightTableRow = highlightTableRow;
+
+function highlightSidebarItem(index) {
+  const navItems = Array.from(document.querySelectorAll('.app-sidebar .nav-item'));
+  if (!navItems || navItems.length === 0) return;
+
+  if (index < 0) index = 0;
+  if (index >= navItems.length) index = navItems.length - 1;
+
+  NavState.sidebarIndex = index;
+  NavState.context = 'sidebar';
+  clearTableRowSelection();
+
+  navItems.forEach((item, i) => {
+    if (i === index) {
+      item.classList.add('nav-item-focused');
+      item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    } else {
+      item.classList.remove('nav-item-focused');
+    }
+  });
+}
+window.highlightSidebarItem = highlightSidebarItem;
+
+function navStep(direction) {
+  // Context 1: SIDEBAR (2-rasm: bo'limlar navigatsiyasi)
+  if (NavState.context === 'sidebar') {
+    const navItems = Array.from(document.querySelectorAll('.app-sidebar .nav-item'));
+    if (!navItems || navItems.length === 0) return;
+
+    if (direction === 'down') {
+      flashDpadButton('btn-dpad-down');
+      NavState.sidebarIndex = (NavState.sidebarIndex + 1) % navItems.length;
+      highlightSidebarItem(NavState.sidebarIndex);
+    } else if (direction === 'up') {
+      flashDpadButton('btn-dpad-up');
+      NavState.sidebarIndex = (NavState.sidebarIndex - 1 + navItems.length) % navItems.length;
+      highlightSidebarItem(NavState.sidebarIndex);
+    } else if (direction === 'right') {
+      // Step from sidebar into the table rows
+      flashDpadButton('btn-dpad-right');
+      NavState.context = 'table';
+      clearSidebarFocus();
+      const rows = getActiveVisibleRows();
+      if (rows && rows.length > 0) {
+        highlightTableRow(0);
+      }
+    } else if (direction === 'left') {
+      flashDpadButton('btn-dpad-left');
+      highlightSidebarItem(NavState.sidebarIndex);
+    }
+    return;
+  }
+
+  // Context 2: TABLE (Userlar qatorida 1 ta pastga, 1 ta tepaga)
+  const rows = getActiveVisibleRows();
+  if (!rows || rows.length === 0) {
+    // If no table rows, scroll view container smoothly
+    navScroll(direction, 180);
+    return;
+  }
+
+  if (direction === 'down') {
+    flashDpadButton('btn-dpad-down');
+    if (NavState.selectedRowIndex < 0) {
+      highlightTableRow(0);
+    } else if (NavState.selectedRowIndex < rows.length - 1) {
+      highlightTableRow(NavState.selectedRowIndex + 1);
+    } else {
+      // At last row, smooth scroll container down
+      const container = getActiveScrollableContainer();
+      container.scrollBy({ top: 120, behavior: 'smooth' });
+    }
+  } else if (direction === 'up') {
+    flashDpadButton('btn-dpad-up');
+    if (NavState.selectedRowIndex > 0) {
+      highlightTableRow(NavState.selectedRowIndex - 1);
+    } else if (NavState.selectedRowIndex === 0) {
+      // At top row, smooth scroll container top
+      const container = getActiveScrollableContainer();
+      container.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      highlightTableRow(0);
+    }
+  } else if (direction === 'left') {
+    flashDpadButton('btn-dpad-left');
+    // Move focus from table back to sidebar (2-rasm)
+    const curTabIdx = NavState.sidebarTabs.indexOf(State.activeTab);
+    highlightSidebarItem(curTabIdx !== -1 ? curTabIdx : 0);
+  } else if (direction === 'right') {
+    flashDpadButton('btn-dpad-right');
+    // Scroll wide table to the right
+    scrollActiveTable('right');
+  }
+}
+window.navStep = navStep;
+
+function executeCurrentSelection() {
+  flashDpadButton('btn-dpad-center');
+
+  if (NavState.context === 'sidebar') {
+    // Activate sidebar section
+    const targetTab = NavState.sidebarTabs[NavState.sidebarIndex];
+    if (targetTab) {
+      switchDashboardTab(targetTab);
+      clearSidebarFocus();
+      setTimeout(() => {
+        const rows = getActiveVisibleRows();
+        if (rows && rows.length > 0) {
+          highlightTableRow(0);
+        }
+      }, 80);
+    }
+    return;
+  }
+
+  // Context: TABLE - click on selected row ("enter bosam ustiga bosiladigan")
+  const rows = getActiveVisibleRows();
+  if (NavState.selectedRowIndex >= 0 && NavState.selectedRowIndex < rows.length) {
+    const row = rows[NavState.selectedRowIndex];
+    if (row) {
+      // Tactile click visual feedback
+      row.style.transform = 'scale(0.985)';
+      setTimeout(() => { row.style.transform = ''; }, 120);
+
+      // Trigger click on row
+      if (typeof row.onclick === 'function') {
+        row.onclick(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      } else {
+        const primaryBtn = row.querySelector('.user-tests-badge-btn, button.btn-secondary, button.btn-primary');
+        if (primaryBtn) {
+          primaryBtn.click();
+        } else {
+          row.click();
+        }
+      }
+    }
+  } else {
+    // If no row was selected yet, select the 1st row
+    if (rows && rows.length > 0) {
+      highlightTableRow(0);
+    }
+  }
+}
+window.executeCurrentSelection = executeCurrentSelection;
+
 function navScroll(direction, amount) {
   const container = getActiveScrollableContainer();
   const table = getActiveTableResponsive();
@@ -1746,18 +1955,12 @@ function navScroll(direction, amount) {
     container.scrollBy({ top: vStep, behavior: 'smooth' });
   } else if (direction === 'left') {
     flashDpadButton('btn-dpad-left');
-    if (table) {
-      table.scrollBy({ left: -hStep, behavior: 'smooth' });
-    } else {
-      container.scrollBy({ left: -hStep, behavior: 'smooth' });
-    }
+    if (table) table.scrollBy({ left: -hStep, behavior: 'smooth' });
+    else container.scrollBy({ left: -hStep, behavior: 'smooth' });
   } else if (direction === 'right') {
     flashDpadButton('btn-dpad-right');
-    if (table) {
-      table.scrollBy({ left: hStep, behavior: 'smooth' });
-    } else {
-      container.scrollBy({ left: hStep, behavior: 'smooth' });
-    }
+    if (table) table.scrollBy({ left: hStep, behavior: 'smooth' });
+    else container.scrollBy({ left: hStep, behavior: 'smooth' });
   } else if (direction === 'top') {
     flashDpadButton('btn-dpad-center');
     container.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1813,8 +2016,33 @@ function initNavDockState() {
 function setupKeyboardShortcuts() {
   initNavDockState();
 
+  // Mouse click row delegation: clicking any row sets it as selected
+  document.addEventListener('click', (e) => {
+    const tr = e.target.closest('.mac-table tbody tr');
+    if (tr && !tr.querySelector('td[colspan]')) {
+      const rows = getActiveVisibleRows();
+      const idx = rows.indexOf(tr);
+      if (idx !== -1) {
+        NavState.selectedRowIndex = idx;
+        NavState.context = 'table';
+        clearSidebarFocus();
+        rows.forEach((r, i) => r.classList.toggle('table-row-selected', i === idx));
+      }
+    }
+    const navItem = e.target.closest('.app-sidebar .nav-item');
+    if (navItem) {
+      const navItems = Array.from(document.querySelectorAll('.app-sidebar .nav-item'));
+      const idx = navItems.indexOf(navItem);
+      if (idx !== -1) {
+        NavState.sidebarIndex = idx;
+        NavState.context = 'sidebar';
+        clearTableRowSelection();
+      }
+    }
+  });
+
   window.addEventListener('keydown', (e) => {
-    // If typing in input, textarea, or contentEditable, do not hijack typing
+    // If typing in an input, textarea, or contentEditable, do not hijack typing
     const isInputFocused = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
 
     // Cmd+K or Ctrl+K to focus search
@@ -1833,12 +2061,18 @@ function setupKeyboardShortcuts() {
       fetchDashboardData(true);
       return;
     }
-    // Escape to close modals
+    // Escape: closes modals if open, or moves focus to sidebar
     if (e.key === 'Escape') {
-      closeSubmissionModal();
-      closeUserTestsModal();
-      closeCancelSubModal();
-      closeTestModal();
+      const visibleModals = Array.from(document.querySelectorAll('.modal-overlay')).filter(m => window.getComputedStyle(m).display !== 'none');
+      if (visibleModals.length > 0) {
+        closeSubmissionModal();
+        closeUserTestsModal();
+        closeCancelSubModal();
+        closeTestModal();
+      } else {
+        const curTabIdx = NavState.sidebarTabs.indexOf(State.activeTab);
+        highlightSidebarItem(curTabIdx !== -1 ? curTabIdx : 0);
+      }
       return;
     }
     // Cmd+1..6 tab switching
@@ -1852,26 +2086,40 @@ function setupKeyboardShortcuts() {
 
     if (isInputFocused) return;
 
-    // Directional keys: Pastga, Tepaga, Chapga, O'ngga
+    // Directional Step Keys: Pastga (↓), Tepaga (↑), Enter (Tanlash), Chapga (←), O'ngga (→)
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      navScroll('down', 160);
+      navStep('down');
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      navScroll('up', 160);
+      navStep('up');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      executeCurrentSelection();
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       if (e.altKey || e.metaKey || e.ctrlKey) {
         navigateTabs(-1);
       } else {
-        navScroll('left', 240);
+        navStep('left');
       }
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
       if (e.altKey || e.metaKey || e.ctrlKey) {
         navigateTabs(1);
       } else {
-        navScroll('right', 240);
+        navStep('right');
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      // Toggle between sidebar (2-rasm) and table rows
+      if (NavState.context === 'sidebar') {
+        NavState.context = 'table';
+        clearSidebarFocus();
+        highlightTableRow(0);
+      } else {
+        const curTabIdx = NavState.sidebarTabs.indexOf(State.activeTab);
+        highlightSidebarItem(curTabIdx !== -1 ? curTabIdx : 0);
       }
     } else if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) {
       e.preventDefault();
@@ -1881,10 +2129,13 @@ function setupKeyboardShortcuts() {
       navScroll('up', 480);
     } else if (e.key === 'Home') {
       e.preventDefault();
-      navScroll('top');
+      if (NavState.context === 'table') highlightTableRow(0);
+      else navScroll('top');
     } else if (e.key === 'End') {
       e.preventDefault();
-      navScroll('bottom');
+      const rows = getActiveVisibleRows();
+      if (NavState.context === 'table' && rows.length > 0) highlightTableRow(rows.length - 1);
+      else navScroll('bottom');
     }
   });
 }

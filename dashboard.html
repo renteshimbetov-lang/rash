@@ -6,7 +6,7 @@
   <title>Shohruh Matematika — Admin Dashboard (MacBook)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/dashboard.css?v=20261001_nav">
+  <link rel="stylesheet" href="/dashboard.css?v=20261001_stepnav">
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1121,7 +1121,7 @@
     </div>
     <div class="nav-dpad">
       <!-- Tepaga -->
-      <button class="dpad-btn dpad-up" id="btn-dpad-up" onclick="navScroll('up')" title="Tepaga siljitish (↑ tugmasi)" aria-label="Tepaga">
+      <button class="dpad-btn dpad-up" id="btn-dpad-up" onclick="navStep('up')" title="1 ta qator tepaga (↑)" aria-label="Tepaga">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="m18 15-6-6-6 6"/>
         </svg>
@@ -1129,18 +1129,18 @@
       </button>
       <div class="dpad-row">
         <!-- Chapga -->
-        <button class="dpad-btn dpad-left" id="btn-dpad-left" onclick="navScroll('left')" title="Chapga / Jadvalni surish (← tugmasi)" aria-label="Chapga">
+        <button class="dpad-btn dpad-left" id="btn-dpad-left" onclick="navStep('left')" title="Chapga / Bo'limlar (←)" aria-label="Chapga">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="m15 18-6-6 6-6"/>
           </svg>
           <span class="dpad-text">Chapga</span>
         </button>
-        <!-- Boshiga (Center) -->
-        <button class="dpad-btn dpad-center" id="btn-dpad-center" onclick="navScroll('top')" title="Eng boshiga qaytish (Home tugmasi)" aria-label="Boshiga">
+        <!-- Boshiga / Enter (Center) -->
+        <button class="dpad-btn dpad-center" id="btn-dpad-center" onclick="executeCurrentSelection()" title="Tanlash / Ochish (Enter)" aria-label="Enter">
           <div class="dpad-core-dot"></div>
         </button>
         <!-- O'ngga -->
-        <button class="dpad-btn dpad-right" id="btn-dpad-right" onclick="navScroll('right')" title="O'ngga / Jadvalni surish (→ tugmasi)" aria-label="O'ngga">
+        <button class="dpad-btn dpad-right" id="btn-dpad-right" onclick="navStep('right')" title="O'ngga / Jadval (→)" aria-label="O'ngga">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="m9 18 6-6-6-6"/>
           </svg>
@@ -1148,7 +1148,7 @@
         </button>
       </div>
       <!-- Pastga -->
-      <button class="dpad-btn dpad-down" id="btn-dpad-down" onclick="navScroll('down')" title="Pastga siljitish (↓ tugmasi)" aria-label="Pastga">
+      <button class="dpad-btn dpad-down" id="btn-dpad-down" onclick="navStep('down')" title="1 ta qator pastga (↓)" aria-label="Pastga">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="m6 9 6 6 6-6"/>
         </svg>
@@ -1160,6 +1160,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/dashboard.js?v=20261001_nav"></script>
+  <script src="/dashboard.js?v=20261001_stepnav"></script>
 </body>
 </html>
