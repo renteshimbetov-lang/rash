@@ -6,7 +6,7 @@
   <title>Shohruh Matematika — Admin Dashboard (MacBook)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/dashboard.css?v=20261001_instant">
+  <link rel="stylesheet" href="/dashboard.css?v=20261001_icons">
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23,7 +23,12 @@
       <!-- Logo -->
       <div class="boot-logo-wrap">
         <img src="/img/bm_logo.png" alt="Shohruh Matematika" class="boot-logo-img" onerror="this.style.display='none';document.querySelector('.boot-logo-emoji').style.display='block'">
-        <span class="boot-logo-emoji" style="display:none">📐</span>
+        <span class="boot-logo-emoji" style="display:none">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#00c9a7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          </svg>
+        </span>
       </div>
 
       <!-- Bouncing letters (Speed tuned for 1.5s intro) -->
@@ -42,7 +47,7 @@
       </div>
 
       <!-- Skip button -->
-      <div class="boot-skip" onclick="skipBootSplash()">Davom etish ➔</div>
+      <div class="boot-skip" onclick="skipBootSplash()">Davom etish <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:2px;"><polyline points="9 18 15 12 9 6"/></svg></div>
     </div>
   </div>
 
@@ -67,16 +72,28 @@
         </div>
 
         <button class="header-btn" onclick="toggleAutoRefresh()" id="btn-auto-refresh" title="Avtomatik yangilanish">
-          <span id="refresh-icon">⚡️</span>
-          <span id="refresh-label">Jonli (10s)</span>
+          <span id="refresh-icon" style="display:inline-flex;align-items:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+          </span>
+          <span id="refresh-label">Jonli (25s)</span>
         </button>
 
         <button class="header-btn" onclick="fetchDashboardData(true)" title="Qayta yuklash (Cmd+R)">
-          🔄 Yangilash
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+            <path d="M16 21h5v-5"/>
+          </svg>
+          <span>Yangilash</span>
         </button>
 
         <button class="header-btn" onclick="toggleTheme()" id="btn-theme-toggle" title="Yorug'/Qorong'u mavzu">
-          🌙
+          <svg id="theme-toggle-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+          </svg>
         </button>
       </div>
     </header>
@@ -88,7 +105,12 @@
       <aside class="app-sidebar">
         <div>
           <div class="sidebar-brand">
-            <div class="sidebar-brand-logo">📐</div>
+            <div class="sidebar-brand-logo">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+              </svg>
+            </div>
             <div class="sidebar-brand-text">
               <h2>Shohruh Test</h2>
               <span>MacBook Desktop Pro</span>
@@ -99,14 +121,30 @@
           <nav class="sidebar-nav">
             <a class="nav-item active" data-tab="overview" onclick="switchDashboardTab('overview')">
               <div class="nav-item-left">
-                <span class="nav-icon">📊</span>
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <rect width="7" height="9" x="3" y="3" rx="1"/>
+                    <rect width="7" height="5" x="14" y="3" rx="1"/>
+                    <rect width="7" height="9" x="14" y="12" rx="1"/>
+                    <rect width="7" height="5" x="3" y="16" rx="1"/>
+                  </svg>
+                </span>
                 <span>Dashboard</span>
               </div>
             </a>
 
             <a class="nav-item" data-tab="submissions" onclick="switchDashboardTab('submissions')">
               <div class="nav-item-left">
-                <span class="nav-icon">🏆</span>
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="m8 21 8 0"/>
+                    <path d="M12 17v4"/>
+                    <path d="M7 4h10"/>
+                    <path d="M17 4v8a5 5 0 0 1-10 0V4"/>
+                    <path d="M3 9a4 4 0 0 0 4 4"/>
+                    <path d="M21 9a4 4 0 0 1-4 4"/>
+                  </svg>
+                </span>
                 <span>Natijalar Bazasi</span>
               </div>
               <span class="nav-badge" id="badge-submissions-count">0</span>
@@ -114,7 +152,14 @@
 
             <a class="nav-item" data-tab="users" onclick="switchDashboardTab('users')">
               <div class="nav-item-left">
-                <span class="nav-icon">👥</span>
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
+                </span>
                 <span>Foydalanuvchilar</span>
               </div>
               <span class="nav-badge" id="badge-users-count">0</span>
@@ -122,7 +167,15 @@
 
             <a class="nav-item" data-tab="tests" onclick="switchDashboardTab('tests')">
               <div class="nav-item-left">
-                <span class="nav-icon">📝</span>
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+                    <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+                    <path d="M10 9H8"/>
+                    <path d="M16 13H8"/>
+                    <path d="M16 17H8"/>
+                  </svg>
+                </span>
                 <span>Testlar Bazasi</span>
               </div>
               <span class="nav-badge" id="badge-tests-count">0</span>
@@ -132,14 +185,24 @@
 
             <a class="nav-item" data-tab="activity" onclick="switchDashboardTab('activity')">
               <div class="nav-item-left">
-                <span class="nav-icon">⚡️</span>
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </span>
                 <span>Jarayonlar & Audit</span>
               </div>
             </a>
 
             <a class="nav-item" data-tab="database" onclick="switchDashboardTab('database')">
               <div class="nav-item-left">
-                <span class="nav-icon">🗄</span>
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+                    <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>
+                  </svg>
+                </span>
                 <span>Baza & SQL</span>
               </div>
             </a>
@@ -176,13 +239,23 @@
 
           <div class="toolbar-actions">
             <div class="search-box">
-              <span class="search-icon">🔍</span>
+              <span class="search-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.3-4.3"/>
+                </svg>
+              </span>
               <input type="text" id="global-search-input" placeholder="Qidiruv (Ism, @username, test...)" oninput="handleGlobalSearch(this.value)">
               <span class="search-shortcut">⌘K</span>
             </div>
 
             <button class="btn btn-secondary" onclick="exportCurrentTable()" title="Excel / CSV eksport">
-              📥 Eksport
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" x2="12" y1="15" y2="3"/>
+              </svg>
+              <span>Eksport</span>
             </button>
           </div>
         </div>
@@ -197,7 +270,14 @@
               <div class="stat-card">
                 <div class="stat-card-header">
                   <span class="stat-card-title">Foydalanuvchilar</span>
-                  <div class="stat-card-icon" style="color:#3b82f6;">👥</div>
+                  <div class="stat-card-icon" style="color:#3b82f6;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                      <circle cx="9" cy="7" r="4"/>
+                      <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                  </div>
                 </div>
                 <div class="stat-card-value" id="stat-total-users">0</div>
                 <div class="stat-card-sub">
@@ -210,7 +290,16 @@
               <div class="stat-card">
                 <div class="stat-card-header">
                   <span class="stat-card-title">Topshirilgan Ishlar</span>
-                  <div class="stat-card-icon" style="color:#10b981;">🏆</div>
+                  <div class="stat-card-icon" style="color:#10b981;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="m8 21 8 0"/>
+                      <path d="M12 17v4"/>
+                      <path d="M7 4h10"/>
+                      <path d="M17 4v8a5 5 0 0 1-10 0V4"/>
+                      <path d="M3 9a4 4 0 0 0 4 4"/>
+                      <path d="M21 9a4 4 0 0 1-4 4"/>
+                    </svg>
+                  </div>
                 </div>
                 <div class="stat-card-value" id="stat-total-subs">0</div>
                 <div class="stat-card-sub">
@@ -223,7 +312,12 @@
               <div class="stat-card">
                 <div class="stat-card-header">
                   <span class="stat-card-title">O'rtacha Natija</span>
-                  <div class="stat-card-icon" style="color:#f59e0b;">📈</div>
+                  <div class="stat-card-icon" style="color:#f59e0b;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                      <polyline points="16 7 22 7 22 13"/>
+                    </svg>
+                  </div>
                 </div>
                 <div class="stat-card-value" id="stat-avg-score">0.0 ball</div>
                 <div class="stat-card-sub">
@@ -234,7 +328,13 @@
               <div class="stat-card">
                 <div class="stat-card-header">
                   <span class="stat-card-title">Testlar Bazasi</span>
-                  <div class="stat-card-icon" style="color:#8b5cf6;">📝</div>
+                  <div class="stat-card-icon" style="color:#8b5cf6;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
+                      <path d="M6 6h10"/>
+                      <path d="M6 10h10"/>
+                    </svg>
+                  </div>
                 </div>
                 <div class="stat-card-value" id="stat-total-tests">0 ta</div>
                 <div class="stat-card-sub">
@@ -249,7 +349,14 @@
               <div class="table-card">
                 <div class="table-card-header">
                   <div class="table-title">
-                    <span>🏆</span>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m8 21 8 0"/>
+                      <path d="M12 17v4"/>
+                      <path d="M7 4h10"/>
+                      <path d="M17 4v8a5 5 0 0 1-10 0V4"/>
+                      <path d="M3 9a4 4 0 0 0 4 4"/>
+                      <path d="M21 9a4 4 0 0 1-4 4"/>
+                    </svg>
                     <span>So'nggi topshirilgan natijalar</span>
                   </div>
                   <button class="btn btn-secondary btn-sm" onclick="switchDashboardTab('submissions')">
@@ -279,7 +386,9 @@
               <div class="table-card">
                 <div class="table-card-header" style="flex-wrap:wrap;gap:8px;">
                   <div class="table-title">
-                    <span>⚡️</span>
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
                     <span>Jonli jarayonlar & Xronologiya</span>
                   </div>
                   <div style="display:flex;align-items:center;gap:6px;">
@@ -305,7 +414,14 @@
             <div class="table-card">
               <div class="table-card-header">
                 <div class="table-title">
-                  <span>🏆</span>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m8 21 8 0"/>
+                    <path d="M12 17v4"/>
+                    <path d="M7 4h10"/>
+                    <path d="M17 4v8a5 5 0 0 1-10 0V4"/>
+                    <path d="M3 9a4 4 0 0 0 4 4"/>
+                    <path d="M21 9a4 4 0 0 1-4 4"/>
+                  </svg>
                   <span>Barcha Test Natijalari va Ishlangan Javoblar Jurnali</span>
                   <span class="badge badge-info" id="submissions-count-badge">0 ta</span>
                 </div>
@@ -313,8 +429,19 @@
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                   <div class="filter-tabs">
                     <button class="filter-btn active" onclick="setSubmissionsFilter('all', this)">Barchasi</button>
-                    <button class="filter-btn" onclick="setSubmissionsFilter('ontime', this)">✅ O'z vaqtida</button>
-                    <button class="filter-btn" onclick="setSubmissionsFilter('late', this)">⏰ Kechikkanlar</button>
+                    <button class="filter-btn" onclick="setSubmissionsFilter('ontime', this)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span>O'z vaqtida</span>
+                    </button>
+                    <button class="filter-btn" onclick="setSubmissionsFilter('late', this)">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      <span>Kechikkanlar</span>
+                    </button>
                   </div>
 
                   <select id="filter-test-select" class="btn btn-secondary btn-sm" onchange="filterSubmissionsByTest(this.value)">
@@ -352,16 +479,38 @@
             <div class="table-card">
               <div class="table-card-header">
                 <div class="table-title">
-                  <span>👥</span>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  </svg>
                   <span>Foydalanuvchilar Bazasi</span>
                   <span class="badge badge-info" id="users-count-badge">0 nafar</span>
                 </div>
 
                 <div class="filter-tabs">
                   <button class="filter-btn active" onclick="setUsersFilter('all', this)">Barchasi</button>
-                  <button class="filter-btn" onclick="setUsersFilter('approved', this)">✅ Faol</button>
-                  <button class="filter-btn" onclick="setUsersFilter('pending', this)">⏳ Kutilmoqda</button>
-                  <button class="filter-btn" onclick="setUsersFilter('blocked', this)">⛔️ Bloklangan</button>
+                  <button class="filter-btn" onclick="setUsersFilter('approved', this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    <span>Faol</span>
+                  </button>
+                  <button class="filter-btn" onclick="setUsersFilter('pending', this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span>Kutilmoqda</span>
+                  </button>
+                  <button class="filter-btn" onclick="setUsersFilter('blocked', this)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                    </svg>
+                    <span>Bloklangan</span>
+                  </button>
                 </div>
               </div>
 
@@ -392,7 +541,13 @@
             <div class="table-card">
               <div class="table-card-header">
                 <div class="table-title">
-                  <span>📝</span>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+                    <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+                    <path d="M10 9H8"/>
+                    <path d="M16 13H8"/>
+                    <path d="M16 17H8"/>
+                  </svg>
                   <span>Mavjud Testlar Ro'yxati</span>
                 </div>
               </div>
@@ -426,7 +581,9 @@
             <div class="table-card">
               <div class="table-card-header">
                 <div class="table-title">
-                  <span>⚡️</span>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#00c9a7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
                   <span>Tizimdagi Barcha Jarayonlar va Audit Jurnali</span>
                 </div>
               </div>
@@ -479,11 +636,17 @@
             <div class="table-card">
               <div class="table-card-header">
                 <div class="table-title">
-                  <span>💻</span>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 17 10 11 4 5"/>
+                    <line x1="12" y1="19" x2="20" y2="19"/>
+                  </svg>
                   <span>Jonli SQL SELECT So'rov Konsoli</span>
                 </div>
                 <button class="btn btn-primary btn-sm" onclick="runSqlConsoleQuery()">
-                  ▶️ So'rovni bajarish
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="vertical-align:-1px;margin-right:4px;">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                  <span>So'rovni bajarish</span>
                 </button>
               </div>
               <div style="padding:16px;">
@@ -506,20 +669,32 @@
     <div class="mac-modal" style="max-width:920px;">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:22px;">📚</span>
+          <span style="display:inline-flex;align-items:center;color:var(--primary);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+          </span>
           <div>
             <div style="font-size:16px;font-weight:800;" id="user-tests-modal-title">Foydalanuvchi Testlari</div>
             <div style="font-size:12px;color:var(--text-muted);" id="user-tests-modal-subtitle">Topshirilgan testlar ro'yxati va tahlili</div>
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="closeUserTestsModal()">✕</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeUserTestsModal()" aria-label="Yopish">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       <div class="modal-body" style="padding:16px 20px;">
         <!-- User Info Strip -->
         <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap;gap:10px;">
           <div style="display:flex;align-items:center;gap:12px;">
-            <div style="width:38px;height:38px;border-radius:10px;background:rgba(37,99,235,0.12);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;" id="user-tests-modal-avatar">👤</div>
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(37,99,235,0.12);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:900;" id="user-tests-modal-avatar">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
             <div>
               <div style="font-weight:800;font-size:14.5px;color:var(--text-main);" id="user-tests-modal-name">--</div>
               <div style="font-size:11.5px;color:var(--text-muted);display:flex;gap:8px;">
@@ -567,13 +742,23 @@
     <div class="mac-modal" style="max-width:860px;">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:20px;">📄</span>
+          <span style="display:inline-flex;align-items:center;color:var(--primary);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </span>
           <div>
             <div style="font-size:16px;font-weight:800;" id="modal-sub-title">O'quvchi Natijasi</div>
             <div style="font-size:12px;color:var(--text-muted);" id="modal-sub-time">--</div>
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="closeSubmissionModal()">✕</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeSubmissionModal()" aria-label="Yopish">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       <div class="modal-body">
@@ -599,10 +784,28 @@
 
         <!-- Late Decision Action Box if Late -->
         <div id="modal-sub-late-box" style="display:none;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);padding:14px;border-radius:10px;margin-bottom:16px;">
-          <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:6px;">⚠️ Ushbu test belgilangan vaqtdan kech topshirilgan!</div>
+          <div style="font-size:13px;font-weight:700;color:var(--warning);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>Ushbu test belgilangan vaqtdan kech topshirilgan!</span>
+          </div>
           <div style="display:flex;gap:10px;">
-            <button class="btn btn-primary btn-sm" onclick="handleModalLateAction('accept')">✅ Testga qabul qilish</button>
-            <button class="btn btn-danger btn-sm" onclick="handleModalLateAction('reject')">❌ Rad etish (Hisobga olmaslik)</button>
+            <button class="btn btn-primary btn-sm" onclick="handleModalLateAction('accept')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              <span>Testga qabul qilish</span>
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="handleModalLateAction('reject')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              <span>Rad etish (Hisobga olmaslik)</span>
+            </button>
           </div>
         </div>
 
@@ -614,7 +817,11 @@
 
       <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
         <button class="btn btn-danger btn-sm" onclick="promptCancelCurrentModalSubmission()">
-          🚫 Javobni bekor qilish
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+          </svg>
+          <span>Javobni bekor qilish</span>
         </button>
         <button class="btn btn-secondary" onclick="closeSubmissionModal()">Yopish</button>
       </div>
@@ -626,13 +833,20 @@
     <div class="mac-modal" style="max-width:540px;">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:22px;">🚫</span>
+          <span style="display:inline-flex;align-items:center;color:#EF4444;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+          </span>
           <div>
             <div style="font-size:16px;font-weight:800;color:var(--text-main);">Javobni bekor qilish</div>
             <div style="font-size:12px;color:var(--text-muted);" id="cancel-sub-user-info">O'quvchi ma'lumotlari</div>
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="closeCancelSubModal()">✕</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeCancelSubModal()" aria-label="Yopish">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       <div class="modal-body" style="padding:18px 20px;">
@@ -646,28 +860,44 @@
             <!-- Amal 1: Javobni qabul qilmaslik -->
             <div class="cancel-action-card" onclick="selectCancelAction('reject')" style="cursor:pointer;padding:14px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg-card);transition:all 0.2s ease;">
               <div style="display:flex;align-items:flex-start;gap:12px;">
-                <div style="font-size:24px;line-height:1;">⛔️</div>
+                <div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:rgba(239,68,68,0.12);color:#EF4444;flex-shrink:0;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                  </svg>
+                </div>
                 <div style="flex:1;">
                   <div style="font-size:14px;font-weight:800;color:#EF4444;margin-bottom:4px;">1. Javobni qabul qilmaslik</div>
                   <div style="font-size:12px;color:var(--text-muted);line-height:1.4;">
                     O'quvchining topshirgan javoblari rad etiladi va hisobga olinmaydi. Qayta topshira olmaydi. User chatiga javobi qabul qilinmagani haqida xabar yuboriladi.
                   </div>
                 </div>
-                <div style="font-size:18px;color:var(--text-dim);">➔</div>
+                <div style="color:var(--text-dim);display:flex;align-items:center;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
               </div>
             </div>
 
             <!-- Amal 2: Qayta topshirish -->
             <div class="cancel-action-card" onclick="selectCancelAction('allow_retake')" style="cursor:pointer;padding:14px;border-radius:12px;border:1.5px solid var(--border);background:var(--bg-card);transition:all 0.2s ease;">
               <div style="display:flex;align-items:flex-start;gap:12px;">
-                <div style="font-size:24px;line-height:1;">🔄</div>
+                <div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:rgba(37,99,235,0.12);color:#2563EB;flex-shrink:0;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                    <path d="M16 21h5v-5"/>
+                  </svg>
+                </div>
                 <div style="flex:1;">
                   <div style="font-size:14px;font-weight:800;color:#2563EB;margin-bottom:4px;">2. Qayta topshirishga ruxsat berish</div>
                   <div style="font-size:12px;color:var(--text-muted);line-height:1.4;">
                     Avvalgi javoblari o'chiriladi va o'quvchiga testni boshidan qayta ishlash imkoniyati beriladi. User chatiga qayta topshirish mumkinligi haqida xabar boradi.
                   </div>
                 </div>
-                <div style="font-size:18px;color:var(--text-dim);">➔</div>
+                <div style="color:var(--text-dim);display:flex;align-items:center;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </div>
               </div>
             </div>
           </div>
@@ -679,8 +909,13 @@
             <div style="font-size:15px;font-weight:800;margin-bottom:6px;" id="cancel-sub-confirm-title">Tasdiqlaysizmi?</div>
             <div style="font-size:12.5px;color:var(--text-main);line-height:1.4;" id="cancel-sub-confirm-desc">--</div>
           </div>
-          <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px;">
-            ℹ️ Tasdiqlaganingizdan so'ng darhol o'quvchining shaxsiy Telegram chatiga xabar yetkaziladi.
+          <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>Tasdiqlaganingizdan so'ng darhol o'quvchining shaxsiy Telegram chatiga xabar yetkaziladi.</span>
           </div>
         </div>
       </div>
@@ -700,20 +935,34 @@
     <div class="mac-modal" style="max-width:820px;">
       <div class="modal-header">
         <div style="display:flex;align-items:center;gap:12px;">
-          <div class="test-modal-icon-badge">📝</div>
+          <div class="test-modal-icon-badge">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+              <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+              <path d="M10 9H8"/>
+              <path d="M16 13H8"/>
+              <path d="M16 17H8"/>
+            </svg>
+          </div>
           <div>
             <div style="font-size:17px;font-weight:800;color:var(--text-main);" id="modal-test-title">Test Tafsilotlari</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;" id="modal-test-sub">--</div>
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="closeTestModal()">✕</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeTestModal()" aria-label="Yopish">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
 
       <div class="modal-body" style="padding:20px;">
         <!-- Schedule / Vaqt & Muddatlar Card (Qachon boshlangan, qachon tugagan) -->
         <div class="glass-info-banner" style="margin-bottom:16px;">
           <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--primary);margin-bottom:10px;display:flex;align-items:center;gap:6px;">
-            <span>⏱</span> <span>Testning Vaqti va Boshlanish/Tugash Jadvali</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span>Testning Vaqti va Boshlanish/Tugash Jadvali</span>
           </div>
           <div class="schedule-grid">
             <div class="schedule-item">
@@ -775,7 +1024,12 @@
               <div style="font-size:11.5px;color:var(--text-muted);">Kalitlarni ko'rish yoki yashirish uchun tugmani bosing</div>
             </div>
             <button class="btn btn-primary" id="btn-toggle-test-keys" onclick="toggleTestKeysView()">
-              🔑 Kalitlarni ko'rish ▼
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="7.5" cy="15.5" r="5.5"/>
+                <path d="m21 2-9.6 9.6"/>
+                <path d="m15.5 7.5 3 3L22 7l-3-3"/>
+              </svg>
+              <span id="btn-toggle-keys-label">Kalitlarni ko'rish ▼</span>
             </button>
           </div>
 
@@ -790,7 +1044,15 @@
 
       <div class="modal-footer">
         <button class="btn btn-primary" id="btn-modal-test-view-subs" onclick="viewTestSubmissionsFromModal()">
-          🏆 Shu test natijalarini ko'rish →
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m8 21 8 0"/>
+            <path d="M12 17v4"/>
+            <path d="M7 4h10"/>
+            <path d="M17 4v8a5 5 0 0 1-10 0V4"/>
+            <path d="M3 9a4 4 0 0 0 4 4"/>
+            <path d="M21 9a4 4 0 0 1-4 4"/>
+          </svg>
+          <span>Shu test natijalarini ko'rish →</span>
         </button>
         <button class="btn btn-secondary" onclick="closeTestModal()">Yopish</button>
       </div>
@@ -800,6 +1062,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/dashboard.js?v=20261001_instant"></script>
+  <script src="/dashboard.js?v=20261001_icons"></script>
 </body>
 </html>

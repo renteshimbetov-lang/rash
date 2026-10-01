@@ -453,7 +453,24 @@ body {
 }
 
 .nav-icon {
-  font-size: 16px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-icon svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 2;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-item:hover .nav-icon svg {
+  transform: scale(1.12);
 }
 
 .nav-badge {
@@ -463,6 +480,26 @@ body {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.15);
   color: inherit;
+}
+
+/* Vector SVG Icon Alignment Utilities */
+.btn svg, .header-btn svg, .filter-btn svg, .table-title svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.badge svg {
+  display: inline-block;
+  vertical-align: -1px;
+  margin-right: 3px;
+  flex-shrink: 0;
+}
+
+.stat-card-icon svg {
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.2;
 }
 
 .sidebar-footer {

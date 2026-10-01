@@ -23,6 +23,26 @@ const State = {
 };
 
 // ----------------------------------------------------
+// VECTOR SVG ICON HELPERS (Replaces all emojis)
+// ----------------------------------------------------
+const Icons = {
+  check: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><polyline points="20 6 9 17 4 12"/></svg>`,
+  clock: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  ban: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`,
+  eye: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  copy: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
+  trash: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:2px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>`,
+  calendar: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>`,
+  megaphone: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>`,
+  lock: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  play: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
+  pause: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`,
+  activitySubmission: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 21 8 0"/><path d="M12 17v4"/><path d="M7 4h10"/><path d="M17 4v8a5 5 0 0 1-10 0V4"/><path d="M3 9a4 4 0 0 0 4 4"/><path d="M21 9a4 4 0 0 1-4 4"/></svg>`,
+  activityLate: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  activityUser: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+};
+
+// ----------------------------------------------------
 // SMART UZBEK DATE & DAY HELPERS
 // ----------------------------------------------------
 const UZB_DAYS = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
@@ -375,7 +395,7 @@ async function fetchDashboardData(manual = false) {
     }
 
     if (manual) {
-      showToast('Ma\'lumotlar muvaffaqiyatli yangilandi! ⚡️', 'success');
+      showToast('Ma\'lumotlar muvaffaqiyatli yangilandi!', 'success');
     }
   } catch (err) {
     console.error('Fetch error:', err);
@@ -486,7 +506,7 @@ function renderOverviewData(data) {
     } else {
       subsBody.innerHTML = list.slice(0, 8).map(s => {
         const usernameTag = s.username ? `<span style="color:var(--primary);font-size:11px;font-weight:700;">@${esc(s.username.replace(/^@/, ''))}</span>` : '';
-        const lateBadge = s.is_late == 1 ? '<span class="badge badge-warning" style="margin-left:4px;">⏰ Kech</span>' : '';
+        const lateBadge = s.is_late == 1 ? `<span class="badge badge-warning" style="margin-left:4px;">${Icons.clock}Kech</span>` : '';
         const dt = formatUzbSmartDateTime(s.submitted_at || s.submitted_at_fmt);
         return `
           <tr class="clickable-row" onclick="openSubmissionModal(${s.id})">
@@ -508,8 +528,8 @@ function renderOverviewData(data) {
             <td><b style="color:var(--primary);font-size:14px;">${s.score || 0} ball</b></td>
             <td onclick="event.stopPropagation();">
               <div style="display:inline-flex;gap:6px;align-items:center;">
-                <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">Ko'rish 👁</button>
-                <button class="btn btn-danger btn-sm" onclick="openCancelSubModalById(${s.id})" title="Javobni bekor qilish">Bekor qilish 🚫</button>
+                <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">${Icons.eye}Ko'rish</button>
+                <button class="btn btn-danger btn-sm" onclick="openCancelSubModalById(${s.id})" title="Javobni bekor qilish">${Icons.ban}Bekor qilish</button>
               </div>
             </td>
           </tr>
@@ -570,7 +590,7 @@ function renderOverviewActivities(logs) {
         return `
           <div class="activity-day-group">
             <div class="activity-day-header ${headerClass}">
-              <span>📅 ${esc(grp.title)}</span>
+              <span>${Icons.calendar}${esc(grp.title)}</span>
               <span class="badge" style="font-size:10px;">0 ta amal</span>
             </div>
             <div style="font-size:12px;color:var(--text-muted);padding:10px 4px;">Ushbu kunda yangi amallar qayd etilmagan</div>
@@ -585,7 +605,7 @@ function renderOverviewActivities(logs) {
       return `
         <div class="activity-item">
           <div class="activity-icon-box">
-            ${l.type === 'submission' ? '🏆' : (l.type === 'late_submission' ? '⏰' : '👤')}
+            ${l.type === 'submission' ? Icons.activitySubmission : (l.type === 'late_submission' ? Icons.activityLate : Icons.activityUser)}
           </div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:12.5px;font-weight:700;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(l.title)}</div>
@@ -605,7 +625,7 @@ function renderOverviewActivities(logs) {
     return `
       <div class="activity-day-group">
         <div class="activity-day-header ${headerClass}">
-          <span>📅 ${esc(grp.title)}</span>
+          <span>${Icons.calendar}${esc(grp.title)}</span>
           <span class="badge" style="font-size:10px;font-weight:800;">${grp.items.length} ta amal</span>
         </div>
         <div>${itemsHtml}</div>
@@ -624,7 +644,7 @@ function renderOverviewActivities(logs) {
       renderedHtml += `
         <div class="activity-day-group">
           <div class="activity-day-header today">
-            <span>📅 Bugungi amallar</span>
+            <span>${Icons.calendar}Bugungi amallar</span>
             <span class="badge badge-warning" style="font-size:10px;">Bugun hozircha yangi amal yo'q</span>
           </div>
         </div>
@@ -706,11 +726,11 @@ function renderSubmissions() {
     // Status Badge
     let stBadge = '';
     if (s.status === 'rejected') {
-      stBadge = '<span class="badge badge-danger" style="background:#EF4444;color:#fff;">⛔️ Bekor qilingan</span>';
+      stBadge = `<span class="badge badge-danger" style="background:#EF4444;color:#fff;">${Icons.ban}Bekor qilingan</span>`;
     } else if (s.is_late == 1) {
-      stBadge = '<span class="badge badge-warning">⏰ Kechikkan</span>';
+      stBadge = `<span class="badge badge-warning">${Icons.clock}Kechikkan</span>`;
     } else {
-      stBadge = '<span class="badge badge-success">✅ O\'z vaqtida</span>';
+      stBadge = `<span class="badge badge-success">${Icons.check}O'z vaqtida</span>`;
     }
 
     // Grade Badge
@@ -748,10 +768,10 @@ function renderSubmissions() {
         <td style="text-align:right;" onclick="event.stopPropagation();">
           <div style="display:inline-flex;gap:6px;align-items:center;">
             <button class="btn btn-secondary btn-sm" onclick="openSubmissionModal(${s.id})">
-              Ko'rish 👁
+              ${Icons.eye}Ko'rish
             </button>
             <button class="btn btn-danger btn-sm" onclick="openCancelSubModalById(${s.id})" title="Javobni bekor qilish">
-              Bekor qilish 🚫
+              ${Icons.ban}Bekor qilish
             </button>
           </div>
         </td>
@@ -813,9 +833,9 @@ function renderUsers() {
     // Status Badge
     let stBadge = '';
     const st = (u.status || 'pending').toLowerCase();
-    if (st === 'approved') stBadge = '<span class="badge badge-success">✅ Faol</span>';
-    else if (st === 'pending') stBadge = '<span class="badge badge-warning">⏳ Kutilmoqda</span>';
-    else if (st === 'blocked') stBadge = '<span class="badge badge-danger">⛔️ Bloklangan</span>';
+    if (st === 'approved') stBadge = `<span class="badge badge-success">${Icons.check}Faol</span>`;
+    else if (st === 'pending') stBadge = `<span class="badge badge-warning">${Icons.clock}Kutilmoqda</span>`;
+    else if (st === 'blocked') stBadge = `<span class="badge badge-danger">${Icons.ban}Bloklangan</span>`;
 
     const regDt = formatUzbSmartDateTime(u.registered_at || u.registered_at_fmt);
 
@@ -823,15 +843,15 @@ function renderUsers() {
       <tr>
         <td class="copyable-cell" onclick="copyToClipboard('${u.tg_id}', 'ID')" title="Nusxalash uchun bosing">
           <span class="copy-val" style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);font-weight:700;">${u.tg_id}</span>
-          <span class="copy-icon">📋</span>
+          <span class="copy-icon">${Icons.copy}</span>
         </td>
         <td class="copyable-cell" onclick="copyToClipboard('${esc(u.fullname || '')}', 'Ism')" title="Nusxalash uchun bosing">
           <div class="copy-val" style="font-weight:700;font-size:13.5px;color:var(--text-main);display:inline-block;">${esc(u.fullname || 'Foydalanuvchi')}</div>
-          <span class="copy-icon">📋</span>
+          <span class="copy-icon">${Icons.copy}</span>
         </td>
         <td class="copyable-cell" onclick="${rawUsername ? `copyToClipboard('@${rawUsername}', 'Username')` : ''}" title="${rawUsername ? 'Nusxalash uchun bosing' : ''}">
           <span class="copy-val">${usernameTag}</span>
-          ${rawUsername ? '<span class="copy-icon">📋</span>' : ''}
+          ${rawUsername ? `<span class="copy-icon">${Icons.copy}</span>` : ''}
         </td>
         <td style="font-size:12px;color:var(--text-muted);font-weight:600;">${esc(u.phone || '—')}</td>
         <td>${stBadge}</td>
@@ -843,14 +863,14 @@ function renderUsers() {
         </td>
         <td>
           <button type="button" class="user-tests-badge-btn" onclick="openUserTestsModal(${u.tg_id}, '${esc(u.fullname || 'Foydalanuvchi')}', '${rawUsername ? '@' + rawUsername : ''}')" title="Topshirgan barcha testlarini ko'rish">
-            ${u.tests_count || 0} ta ➔
+            ${u.tests_count || 0} ta <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:2px;"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </td>
         <td style="text-align:right;">
           <div style="display:inline-flex;gap:6px;">
-            ${st !== 'approved' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'approve')">✅ Faol</button>` : ''}
-            ${st !== 'blocked' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'block')">⛔️ Blok</button>` : ''}
-            <button class="btn btn-danger btn-sm" onclick="changeUserStatus(${u.tg_id}, 'delete')">🗑 O'chirish</button>
+            ${st !== 'approved' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'approve')">${Icons.check}Faol</button>` : ''}
+            ${st !== 'blocked' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'block')">${Icons.ban}Blok</button>` : ''}
+            <button class="btn btn-danger btn-sm" onclick="changeUserStatus(${u.tg_id}, 'delete')">${Icons.trash}O'chirish</button>
           </div>
         </td>
       </tr>
@@ -923,11 +943,11 @@ function openUserTestsModal(userId, userName, userHandle) {
     tbody.innerHTML = list.map((s, idx) => {
       let stBadge = '';
       if (s.status === 'rejected') {
-        stBadge = '<span class="badge badge-danger">⛔️ Bekor</span>';
+        stBadge = `<span class="badge badge-danger">${Icons.ban}Bekor</span>`;
       } else if (s.is_late == 1) {
-        stBadge = '<span class="badge badge-warning">⏰ Kechikkan</span>';
+        stBadge = `<span class="badge badge-warning">${Icons.clock}Kechikkan</span>`;
       } else {
-        stBadge = '<span class="badge badge-success">✅ O\'z vaqtida</span>';
+        stBadge = `<span class="badge badge-success">${Icons.check}O'z vaqtida</span>`;
       }
 
       const gr = s.grade || '—';
@@ -956,7 +976,7 @@ function openUserTestsModal(userId, userName, userHandle) {
           <td>${stBadge}</td>
           <td style="text-align:right;">
             <button class="btn btn-secondary btn-sm" onclick="closeUserTestsModal(); openSubmissionModal(${s.id})" title="Javoblarni ko'rish">
-              Batafsil ➔
+              Batafsil <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-left:2px;"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
           </td>
         </tr>
@@ -969,7 +989,14 @@ function openUserTestsModal(userId, userName, userHandle) {
     tbody.innerHTML = `
       <tr>
         <td colspan="8" style="text-align:center;padding:40px 16px;color:var(--text-muted);">
-          <div style="font-size:32px;margin-bottom:8px;">📭</div>
+          <div style="display:flex;justify-content:center;margin-bottom:10px;">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 12h-6l-2 3h-4l-2-3H2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-7Z"/>
+              <path d="M5.45 5.11 2 12v0"/>
+              <path d="M18.55 5.11 22 12v0"/>
+              <path d="M6 3h12l3.55 7.11a1 1 0 0 1 .45.89V12"/>
+            </svg>
+          </div>
           <div style="font-weight:700;font-size:14px;color:var(--text-main);margin-bottom:4px;">Testlar topilmadi</div>
           <div style="font-size:12px;">Ushbu foydalanuvchi hozircha birorta ham test topshirmagan.</div>
         </td>
@@ -1026,7 +1053,7 @@ function renderTests() {
         <td><b style="color:var(--primary);font-size:14px;font-family:var(--font-mono);">#${esc(t.test_code || '')}</b></td>
         <td>
           <div style="font-weight:700;font-size:14px;color:var(--text-main);">${esc(t.title || 'Test')}</div>
-          <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Batafsil ma'lumot va kalitlar uchun bosing 👆</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Batafsil ma'lumot va kalitlar uchun bosing</div>
         </td>
         <td><span class="badge badge-purple">${esc(t.subject || 'Matematika')}</span></td>
         <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);font-weight:600;">${esc(t.scheduled_date || '—')} ${esc(t.scheduled_start || '')}</td>
@@ -1035,24 +1062,24 @@ function renderTests() {
         <td><b style="color:var(--success);font-size:13.5px;">${t.submissions_count || 0} kishi</b></td>
         <td>
           <span class="badge badge-${isAct ? 'success' : 'danger'}">
-            ${isAct ? '🟢 Faol' : '🔴 To\'xtatilgan'}
+            ${isAct ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;margin-right:4px;"></span>Faol' : '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-right:4px;"></span>To\'xtatilgan'}
           </span>
         </td>
         <td>
           <span class="badge badge-${isPub ? 'success' : 'warning'}">
-            ${isPub ? '📢 E\'lon qilingan' : '🔒 Yashirin'}
+            ${isPub ? `${Icons.megaphone}E'lon qilingan` : `${Icons.lock}Yashirin`}
           </span>
         </td>
         <td style="text-align:right;" onclick="event.stopPropagation();">
           <div style="display:inline-flex;gap:6px;">
             <button class="btn btn-secondary btn-sm" onclick="openTestModal(${t.id})" title="Barcha kalitlar va statistikani ko'rish">
-              Tafsilot 👁
+              ${Icons.eye}Tafsilot
             </button>
             <button class="btn btn-secondary btn-sm" onclick="toggleTestStatus(${t.id})" title="Testni to'xtatish / yoqish">
-              ${isAct ? '⏸' : '▶️'}
+              ${isAct ? Icons.pause : Icons.play}
             </button>
             <button class="btn btn-secondary btn-sm" onclick="toggleTestPublish(${t.id})" title="Natijalarni e'lon qilish / yashirish">
-              ${isPub ? '🔒' : '📢'}
+              ${isPub ? Icons.lock : Icons.megaphone}
             </button>
           </div>
         </td>
@@ -1097,7 +1124,7 @@ function openTestModal(testId) {
 
   // 1. Schedule & Times (Qachon boshlangan, qachon tugagan)
   const startTimeStr = t.scheduled_date ? `${t.scheduled_date} ${t.scheduled_start || ''}`.trim() : (t.created_at_fmt || 'E\'lon qilingan vaqtdan');
-  const endTimeStr = t.scheduled_end ? `${t.scheduled_date || ''} ${t.scheduled_end}`.trim() : (t.is_active == 1 ? '🟢 Hozirda davom etmoqda' : '🔴 Yakunlangan');
+  const endTimeStr = t.scheduled_end ? `${t.scheduled_date || ''} ${t.scheduled_end}`.trim() : (t.is_active == 1 ? 'Hozirda davom etmoqda' : 'Yakunlangan');
   const durationStr = t.time_limit_min ? `${t.time_limit_min} daqiqa (${(t.time_limit_min/60).toFixed(1)} soat)` : 'Vaqt chegarasisiz';
   
   document.getElementById('modal-test-start-time').textContent = startTimeStr;
@@ -1117,12 +1144,12 @@ function openTestModal(testId) {
 
   document.getElementById('modal-test-status-badge').innerHTML = `
     <span class="badge badge-${isAct ? 'success' : 'danger'}" style="font-size:11.5px;">
-      ${isAct ? '🟢 Qabul ochiq (Faol)' : '🔴 To\'xtatilgan'}
+      ${isAct ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#10b981;margin-right:4px;"></span>Qabul ochiq (Faol)' : '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#ef4444;margin-right:4px;"></span>To\'xtatilgan'}
     </span>
   `;
   document.getElementById('modal-test-pub-badge').innerHTML = `
     <span class="badge badge-${isPub ? 'success' : 'warning'}" style="font-size:11.5px;">
-      ${isPub ? '📢 Natijalar e\'lon qilingan' : '🔒 Natijalar yashirin'}
+      ${isPub ? `${Icons.megaphone}Natijalar e'lon qilingan` : `${Icons.lock}Natijalar yashirin`}
     </span>
   `;
 
@@ -1131,10 +1158,10 @@ function openTestModal(testId) {
   if (actContainer) {
     actContainer.innerHTML = `
       <button class="btn btn-secondary btn-sm" onclick="toggleTestStatusFromModal(${t.id})">
-        ${isAct ? '⏸ Qabulni to\'xtatish' : '▶️ Testni yoqish'}
+        ${isAct ? Icons.pause + ' Qabulni to\'xtatish' : Icons.play + ' Testni yoqish'}
       </button>
       <button class="btn btn-secondary btn-sm" onclick="toggleTestPublishFromModal(${t.id})">
-        ${isPub ? '🔒 Natijalarni yashirish' : '📢 Natijalarni e\'lon qilish'}
+        ${isPub ? Icons.lock + ' Natijalarni yashirish' : Icons.megaphone + ' Natijalarni e\'lon qilish'}
       </button>
     `;
   }
@@ -1143,7 +1170,9 @@ function openTestModal(testId) {
   const drawer = document.getElementById('modal-test-keys-drawer');
   if (drawer) drawer.style.display = 'none';
   const btnKeys = document.getElementById('btn-toggle-test-keys');
-  if (btnKeys) btnKeys.textContent = '🔑 Kalitlarni ko\'rish ▼';
+  if (btnKeys) {
+    btnKeys.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg><span>Kalitlarni ko'rish ▼</span>`;
+  }
 }
 
 function toggleTestKeysView() {
@@ -1153,13 +1182,17 @@ function toggleTestKeysView() {
   const isHidden = drawer.style.display === 'none' || !drawer.style.display;
   if (isHidden) {
     drawer.style.display = 'block';
-    if (btn) btn.textContent = '🔒 Kalitlarni yashirish ▲';
+    if (btn) {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Kalitlarni yashirish ▲</span>`;
+    }
     if (State.currentModalTest) {
       renderTestKeysGrid(State.currentModalTest);
     }
   } else {
     drawer.style.display = 'none';
-    if (btn) btn.textContent = '🔑 Kalitlarni ko\'rish ▼';
+    if (btn) {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px;"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg><span>Kalitlarni ko'rish ▼</span>`;
+    }
   }
 }
 window.toggleTestKeysView = toggleTestKeysView;
@@ -1375,10 +1408,10 @@ async function openSubmissionModal(subId) {
     const lateBadgeEl = document.getElementById('modal-sub-late-badge');
     const lateBox = document.getElementById('modal-sub-late-box');
     if (s.is_late == 1) {
-      lateBadgeEl.innerHTML = '<span class="badge badge-warning">⏰ Kechikkan</span>';
+      lateBadgeEl.innerHTML = `<span class="badge badge-warning">${Icons.clock}Kechikkan</span>`;
       if (lateBox) lateBox.style.display = 'block';
     } else {
-      lateBadgeEl.innerHTML = '<span class="badge badge-success">✅ O\'z vaqtida</span>';
+      lateBadgeEl.innerHTML = `<span class="badge badge-success">${Icons.check}O'z vaqtida</span>`;
       if (lateBox) lateBox.style.display = 'none';
     }
 
@@ -1415,13 +1448,13 @@ function renderSubmissionAnswersGrid(s) {
     let statusLabel = '—';
     if (status === 'correct') {
       statusClass = 'correct';
-      statusLabel = '✓ To\'g\'ri';
+      statusLabel = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1.5px;margin-right:3px;"><polyline points="20 6 9 17 4 12"/></svg>To\'g\'ri';
     } else if (status === 'partial') {
       statusClass = 'partial';
-      statusLabel = '⚠️ Qisman (30%)';
+      statusLabel = 'Qisman (30%)';
     } else if (status === 'incorrect') {
       statusClass = 'incorrect';
-      statusLabel = '✗ Noto\'g\'ri';
+      statusLabel = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1.5px;margin-right:3px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Noto\'g\'ri';
     }
 
     const scoreBadge = (status === 'partial') ? `
@@ -1569,7 +1602,7 @@ function exportSubmissionsToCSV() {
     csv += `${s.id},"${fn}","${un}","${ph}",#${s.test_code},"${s.submitted_at_fmt || ''}",${s.correct_count || 0},${s.total_count || 55},${s.score || 0},"${s.grade || ''}",${s.is_late == 1 ? 'HA' : 'YOQ'}\n`;
   });
   downloadFile(csv, `natijalar_baza_${Date.now()}.csv`, 'text/csv;charset=utf-8;');
-  showToast('Natijalar CSV fayli yuklab olindi! 📥', 'success');
+  showToast('Natijalar CSV fayli yuklab olindi!', 'success');
 }
 
 function exportUsersToCSV() {
@@ -1585,7 +1618,7 @@ function exportUsersToCSV() {
     csv += `${u.tg_id},"${fn}","${un}","${ph}","${u.status || ''}","${u.registered_at_fmt || ''}",${u.tests_count || 0}\n`;
   });
   downloadFile(csv, `foydalanuvchilar_baza_${Date.now()}.csv`, 'text/csv;charset=utf-8;');
-  showToast('Foydalanuvchilar CSV fayli yuklab olindi! 📥', 'success');
+  showToast('Foydalanuvchilar CSV fayli yuklab olindi!', 'success');
 }
 
 function downloadFile(content, fileName, mimeType) {
@@ -1610,12 +1643,16 @@ function toggleAutoRefresh() {
   if (State.autoRefresh) {
     startAutoRefresh();
     if (label) label.textContent = 'Jonli (25s)';
-    if (icon) icon.textContent = '⚡️';
+    if (icon) {
+      icon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`;
+    }
     showToast('Avtomatik yangilanish yoqildi (har 25s)', 'success');
   } else {
     stopAutoRefresh();
     if (label) label.textContent = 'To\'xtatilgan';
-    if (icon) icon.textContent = '⏸';
+    if (icon) {
+      icon.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+    }
     showToast('Avtomatik yangilanish to\'xtatildi', 'info');
   }
 }
@@ -1641,8 +1678,15 @@ function toggleTheme() {
   const cur = html.getAttribute('data-theme') || 'dark';
   const nxt = cur === 'dark' ? 'light' : 'dark';
   html.setAttribute('data-theme', nxt);
-  document.getElementById('btn-theme-toggle').textContent = nxt === 'dark' ? '🌙' : '☀️';
-  showToast(`Rejim o'zgartirildi: ${nxt === 'dark' ? 'Qorong\'u' : 'Yorug'}`, 'info');
+  const btn = document.getElementById('btn-theme-toggle');
+  if (btn) {
+    if (nxt === 'dark') {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`;
+    } else {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`;
+    }
+  }
+  showToast(`Rejim o'zgartirildi: ${nxt === 'dark' ? 'Qorong\'u' : 'Yorug\''}`, 'info');
 }
 
 function handleGlobalSearch(val) {
@@ -1709,14 +1753,21 @@ function showToast(msg, type = 'info') {
   const t = document.createElement('div');
   t.className = 'mac-toast';
   
-  let icon = 'ℹ️';
+  let iconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
   let color = 'var(--info)';
-  if (type === 'success') { icon = '✅'; color = 'var(--success)'; }
-  else if (type === 'danger') { icon = '🚫'; color = 'var(--danger)'; }
-  else if (type === 'warning') { icon = '⚠️'; color = 'var(--warning)'; }
+  if (type === 'success') {
+    iconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="16 9 10 15 8 13"/></svg>';
+    color = 'var(--success)';
+  } else if (type === 'danger') {
+    iconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>';
+    color = 'var(--danger)';
+  } else if (type === 'warning') {
+    iconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    color = 'var(--warning)';
+  }
 
   t.style.borderLeft = `4px solid ${color}`;
-  t.innerHTML = `<span style="font-size:16px;">${icon}</span><span style="flex:1;">${esc(msg)}</span>`;
+  t.innerHTML = `<span style="display:inline-flex;align-items:center;color:${color};flex-shrink:0;">${iconSvg}</span><span style="flex:1;">${esc(msg)}</span>`;
   container.appendChild(t);
 
   setTimeout(() => {
@@ -1822,7 +1873,7 @@ function selectCancelAction(actionType) {
 
   if (actionType === 'reject') {
     if (titleEl) {
-      titleEl.innerHTML = '⚠️ Javobni qabul qilmaslikni tasdiqlaysizmi?';
+      titleEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Javobni qabul qilmaslikni tasdiqlaysizmi?';
       titleEl.style.color = '#EF4444';
     }
     if (descEl) {
@@ -1834,7 +1885,7 @@ function selectCancelAction(actionType) {
     }
   } else if (actionType === 'allow_retake') {
     if (titleEl) {
-      titleEl.innerHTML = '🔄 Qayta topshirishga ruxsat berishni tasdiqlaysizmi?';
+      titleEl.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg> Qayta topshirishga ruxsat berishni tasdiqlaysizmi?';
       titleEl.style.color = '#2563EB';
     }
     if (descEl) {
