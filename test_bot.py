@@ -6505,6 +6505,128 @@ async def handle_dashboard_query(request):
         return web.json_response({"success": False, "error": str(e)}, status=400)
 
 
+async def handle_dashboard_warn_user(request):
+    """Bitta foydalanuvchiga Telegram orqali rasmiy ogohlantirish xabari yuborish."""
+    try:
+        data = await request.json()
+        tg_id = int(data.get('tg_id', 0))
+        tests_count = int(data.get('tests_count', 0))
+        if not tg_id:
+            return web.json_response({"success": False, "error": "tg_id ko'rsatilmadi"}, status=400)
+
+        user = await asyncio.to_thread(test_db.get_user, tg_id)
+        fname = user.get("fullname") if user else "Foydalanuvchi"
+
+        if tests_count == 0:
+            text = (
+                "⚠️ <b>RASMIY OGOHLANTIRISH</b>\n\n"
+                f"Hurmatli <b>{fname}</b>!\n\n"
+                "Siz tizimimizda ro'yxatdan o'tgan bo'lsangiz-da, shu kunga qadar <b>birorta ham test ishlamadingiz</b> "
+                "va sizga berilgan bepul imkoniyatdan foydalanmadingiz.\n\n"
+                "📌 <b>Muhim eslatma:</b> Bugungi bo'lib o'tadigan testda ham qatnashmasangiz, faoliyatsizligingiz sababli sizni "
+                "<b>botdan va tizimdan chiqarib yuborishga</b> majbur bo'lamiz.\n\n"
+                "<i>O'z o'rningizni saqlab qolish va bilimingizni sinash uchun bugungi testda albatta ishtirok eting!</i>"
+            )
+        else:
+            text = (
+                "⚠️ <b>RASMIY OGOHLANTIRISH</b>\n\n"
+                f"Hurmatli <b>{fname}</b>!\n\n"
+                f"Siz shu kunga qadar faqat <b>{tests_count} ta test</b> ishladingiz va sizga taqdim etilgan bepul imkoniyatlardan "
+                "to'liq foydalanmadingiz.\n\n"
+                "📌 <b>Muhim eslatma:</b> Bugungi bo'lib o'tadigan testda ham qatnashmasangiz, faoliyatsizligingiz sababli sizni "
+                "<b>botdan va tizimdan chiqarib yuborishga</b> majbur bo'lamiz.\n\n"
+                "<i>O'z o'rningizni saqlab qolish va natijalaringizni oshirish uchun bugungi testda albatta ishtirok eting!</i>"
+            )
+
+        try:
+            await bot.send_message(chat_id=tg_id, text=text, parse_mode=ParseMode.HTML)
+            return web.json_response({
+                "success": True,
+                "message": f"✅ {fname} ({tg_id}) ga rasmiy ogohlantirish xabari yetkazildi!"
+            })
+        except Exception as e:
+            err_text = str(e).lower()
+            if "blocked" in err_text or "forbidden" in err_text or "deactivated" in err_text:
+                await asyncio.to_thread(test_db.delete_user, tg_id)
+                return web.json_response({
+                    "success": False,
+                    "blocked": True,
+                    "message": f"🚫 Foydalanuvchi botni bloklagani aniqlandi va bazadan o'chirildi!"
+                })
+            return web.json_response({
+                "success": False,
+                "error": f"Telegram xatolik: {e}"
+            }, status=500)
+    except Exception as e:
+        log.error(f"Dashboard warn user error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def handle_dashboard_warn_users_batch(request):
+    """Filtrdagi barcha foydalanuvchilarga rasmiy ogohlantirish xabari yuborish."""
+    try:
+        data = await request.json()
+        users_list = data.get('users', [])
+        if not users_list:
+            return web.json_response({"success": False, "error": "Foydalanuvchilar ro'yxati bo'sh"}, status=400)
+
+        sent_count = 0
+        failed_count = 0
+        deleted_count = 0
+
+        for item in users_list:
+            tg_id = int(item.get('tg_id', 0))
+            if not tg_id:
+                continue
+            tests_count = int(item.get('tests_count', 0))
+            fname = item.get('fullname') or "Foydalanuvchi"
+
+            if tests_count == 0:
+                text = (
+                    "⚠️ <b>RASMIY OGOHLANTIRISH</b>\n\n"
+                    f"Hurmatli <b>{fname}</b>!\n\n"
+                    "Siz tizimimizda ro'yxatdan o'tgan bo'lsangiz-da, shu kunga qadar <b>birorta ham test ishlamadingiz</b> "
+                    "va sizga berilgan bepul imkoniyatdan foydalanmadingiz.\n\n"
+                    "📌 <b>Muhim eslatma:</b> Bugungi bo'lib o'tadigan testda ham qatnashmasangiz, faoliyatsizligingiz sababli sizni "
+                    "<b>botdan va tizimdan chiqarib yuborishga</b> majbur bo'lamiz.\n\n"
+                    "<i>O'z o'rningizni saqlab qolish va bilimingizni sinash uchun bugungi testda albatta ishtirok eting!</i>"
+                )
+            else:
+                text = (
+                    "⚠️ <b>RASMIY OGOHLANTIRISH</b>\n\n"
+                    f"Hurmatli <b>{fname}</b>!\n\n"
+                    f"Siz shu kunga qadar faqat <b>{tests_count} ta test</b> ishladingiz va sizga taqdim etilgan bepul imkoniyatlardan "
+                    "to'liq foydalanmadingiz.\n\n"
+                    "📌 <b>Muhim eslatma:</b> Bugungi bo'lib o'tadigan testda ham qatnashmasangiz, faoliyatsizligingiz sababli sizni "
+                    "<b>botdan va tizimdan chiqarib yuborishga</b> majbur bo'lamiz.\n\n"
+                    "<i>O'z o'rningizni saqlab qolish va natijalaringizni oshirish uchun bugungi testda albatta ishtirok eting!</i>"
+                )
+
+            try:
+                await bot.send_message(chat_id=tg_id, text=text, parse_mode=ParseMode.HTML)
+                sent_count += 1
+                await asyncio.sleep(0.04)
+            except Exception as e:
+                err_text = str(e).lower()
+                if "blocked" in err_text or "forbidden" in err_text or "deactivated" in err_text:
+                    await asyncio.to_thread(test_db.delete_user, tg_id)
+                    deleted_count += 1
+                else:
+                    failed_count += 1
+
+        del_msg = f" ({deleted_count} ta bloklagan akkaunt o'chirildi)" if deleted_count else ""
+        return web.json_response({
+            "success": True,
+            "sent_count": sent_count,
+            "failed_count": failed_count,
+            "deleted_count": deleted_count,
+            "message": f"✅ {sent_count} nafar foydalanuvchiga ogohlantirish muvaffaqiyatli yetkazildi!{del_msg}"
+        })
+    except Exception as e:
+        log.error(f"Dashboard warn users batch error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
 async def handle_notify_inactive_users(request):
     try:
         data = {}
@@ -6581,6 +6703,8 @@ async def create_web_app():
     app.router.add_post('/api/dashboard/test-toggle', handle_dashboard_test_toggle)
     app.router.add_post('/api/dashboard/test-publish', handle_dashboard_test_publish)
     app.router.add_post('/api/dashboard/query', handle_dashboard_query)
+    app.router.add_post('/api/dashboard/warn-user', handle_dashboard_warn_user)
+    app.router.add_post('/api/dashboard/warn-users-batch', handle_dashboard_warn_users_batch)
 
     app.router.add_get('/api/rasch/{test_id}', handle_rasch_evaluate_api)
     app.router.add_post('/api/submit-test', handle_submit_test_api)

@@ -1184,6 +1184,33 @@ body {
   color: #fff;
 }
 
+.btn-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+.btn-warning:hover {
+  background: #f59e0b;
+  color: #ffffff;
+  border-color: #f59e0b;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+[data-theme="light"] .btn-warning {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.3);
+}
+[data-theme="light"] .btn-warning:hover {
+  background: #d97706;
+  color: #ffffff;
+}
+
 .btn-sm {
   padding: 4px 9px;
   font-size: 11.5px;
@@ -1560,19 +1587,19 @@ body {
   }
 }
 
-/* ===== FLOATING NAVIGATION D-PAD (Tepaga, Pastga, Chapga, O'ngga) ===== */
+/* ===== FLOATING NAVIGATION D-PAD (Toza piktogrammalar, so'zlarsiz) ===== */
 .mac-nav-dock {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  bottom: 18px;
+  right: 18px;
   z-index: 950;
   background: var(--bg-card);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--border);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
-  padding: 8px 10px 10px;
+  border-radius: 14px;
+  padding: 6px 8px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1609,21 +1636,21 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 6px;
-  margin-bottom: 6px;
+  gap: 6px;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
   border-bottom: 1px solid var(--border);
 }
 
 .nav-dock-title {
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+.nav-dock-title span {
+  display: none !important;
 }
 
 .nav-dock-toggle {
@@ -1648,26 +1675,24 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .dpad-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .dpad-btn {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border);
   color: var(--text-main);
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
   transition: all 0.15s ease;
   outline: none;
 }
@@ -1683,23 +1708,23 @@ body {
   background: var(--primary);
   border-color: var(--primary);
   color: #ffffff;
-  transform: scale(0.94);
+  transform: scale(0.92);
   box-shadow: 0 0 12px rgba(0, 163, 137, 0.6);
 }
 
 .dpad-up, .dpad-down {
-  width: 96px;
-  height: 38px;
+  width: 58px;
+  height: 26px;
 }
 
 .dpad-left, .dpad-right {
-  width: 62px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
 }
 
 .dpad-center {
-  width: 48px;
-  height: 48px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
 }
@@ -1709,8 +1734,8 @@ body {
 }
 
 .dpad-core-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--primary);
   box-shadow: 0 0 8px var(--primary);
@@ -1718,10 +1743,156 @@ body {
 }
 
 .dpad-text {
-  font-size: 9.5px;
+  display: none !important;
+}
+
+/* ===== USER TESTS COUNT FILTER BAR ===== */
+.user-tests-filter-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.test-count-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: 9px;
+  transition: all 0.2s ease;
+}
+
+.test-count-input-wrap:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(0, 163, 137, 0.15);
+}
+
+.test-count-label {
+  font-size: 11.5px;
   font-weight: 700;
+  color: var(--text-muted);
   letter-spacing: -0.2px;
-  line-height: 1;
+}
+
+.test-count-num-input {
+  width: 68px;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.test-count-num-input::placeholder {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.test-count-presets {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.test-preset-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.test-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  border-color: var(--text-dim);
+}
+
+.test-preset-btn.active {
+  background: rgba(0, 163, 137, 0.2);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.test-preset-clear {
+  color: #ff5c77;
+  border-color: rgba(255, 92, 119, 0.3);
+  background: rgba(255, 92, 119, 0.08);
+}
+
+.test-preset-clear:hover {
+  background: rgba(255, 92, 119, 0.2);
+  color: #ff3b5c;
+  border-color: #ff3b5c;
+}
+
+/* Warning button in user row (Only visible when test count filter is active) */
+.btn-warn-user {
+  background: rgba(255, 179, 0, 0.12) !important;
+  border: 1px solid rgba(255, 179, 0, 0.4) !important;
+  color: #ffb300 !important;
+  font-weight: 700 !important;
+  font-size: 11.5px !important;
+  padding: 5px 10px !important;
+  border-radius: 7px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.btn-warn-user:hover {
+  background: rgba(255, 179, 0, 0.25) !important;
+  border-color: #ffb300 !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 179, 0, 0.3);
+}
+
+.btn-warn-user:active {
+  transform: scale(0.96);
+}
+
+[data-theme="light"] .test-count-input-wrap {
+  background: #f1f4f9;
+  border-color: #d1d9e6;
+}
+
+[data-theme="light"] .test-preset-btn {
+  background: #f1f4f9;
+  border-color: #d1d9e6;
+  color: #4a5568;
+}
+
+[data-theme="light"] .test-preset-btn.active {
+  background: #e6f7f4;
+  border-color: #00a389;
+  color: #007c68;
+}
+
+[data-theme="light"] .btn-warn-user {
+  background: #fff8e1 !important;
+  border-color: #f6ad55 !important;
+  color: #b7791f !important;
+}
+
+[data-theme="light"] .btn-warn-user:hover {
+  background: #feebc8 !important;
+  color: #744210 !important;
 }
 
 /* In-table horizontal scroll buttons */

@@ -536,14 +536,22 @@
                   </button>
                 </div>
 
-                <div class="table-scroll-btns">
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('left')" title="Jadvalni chapga surish (←)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-                    <span>Chapga</span>
-                  </button>
-                  <button type="button" class="btn btn-secondary btn-sm" onclick="scrollActiveTable('right')" title="Jadvalni o'ngga surish (→)">
-                    <span>O'ngga</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                <div class="user-tests-filter-bar" id="user-tests-filter-bar">
+                  <div class="test-count-input-wrap" title="Faqat ko'rsatilgan miqdorda test ishlagan foydalanuvchilarni saralash">
+                    <span class="test-count-label">Testlar:</span>
+                    <input type="number" id="filter-user-tests-count" class="test-count-num-input" min="0" max="999" placeholder="Raqam..." oninput="setUserTestsCountFilter(this.value)">
+                  </div>
+                  <div class="test-count-presets">
+                    <button type="button" class="test-preset-btn" id="preset-tests-0" onclick="applyUserTestsCountPreset(0)">0 ta</button>
+                    <button type="button" class="test-preset-btn" id="preset-tests-1" onclick="applyUserTestsCountPreset(1)">1 ta</button>
+                    <button type="button" class="test-preset-btn test-preset-clear" id="preset-tests-clear" onclick="clearUserTestsCountFilter()" style="display:none;" title="Filtrni tozalash">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      Barchasi
+                    </button>
+                  </div>
+                  <button type="button" class="btn btn-warning btn-sm" id="btn-warn-all-users" style="display:none;" onclick="sendWarningToAllFilteredUsers()" title="Filtrlangan barcha foydalanuvchilarga ogohlantirish yuborish">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span id="warn-all-count-label">Barchasiga ogohlantirish</span>
                   </button>
                 </div>
               </div>
@@ -1103,15 +1111,14 @@
     </div>
   </div>
 
-  <!-- Floating Navigation Pad (Tepaga, Pastga, Chapga, O'ngga) -->
+  <!-- Floating Navigation Pad (Toza piktogrammalar, so'zlarsiz) -->
   <aside class="mac-nav-dock" id="mac-nav-dock" aria-label="Navigatsiya tugmalari">
     <div class="nav-dock-header">
-      <div class="nav-dock-title">
+      <div class="nav-dock-title" title="Navigatsiya">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/>
           <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
         </svg>
-        <span>Navigatsiya</span>
       </div>
       <button class="nav-dock-toggle" onclick="toggleNavDock()" title="Kichraytirish / Ochish" aria-label="Toggle Navigation Pad">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1125,7 +1132,6 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="m18 15-6-6-6 6"/>
         </svg>
-        <span class="dpad-text">Tepaga</span>
       </button>
       <div class="dpad-row">
         <!-- Chapga -->
@@ -1133,7 +1139,6 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="m15 18-6-6 6-6"/>
           </svg>
-          <span class="dpad-text">Chapga</span>
         </button>
         <!-- Boshiga / Enter (Center) -->
         <button class="dpad-btn dpad-center" id="btn-dpad-center" onclick="executeCurrentSelection()" title="Tanlash / Ochish (Enter)" aria-label="Enter">
@@ -1144,7 +1149,6 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="m9 18 6-6-6-6"/>
           </svg>
-          <span class="dpad-text">O'ngga</span>
         </button>
       </div>
       <!-- Pastga -->
@@ -1152,7 +1156,6 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="m6 9 6 6 6-6"/>
         </svg>
-        <span class="dpad-text">Pastga</span>
       </button>
     </div>
   </aside>
@@ -1160,6 +1163,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/dashboard.js?v=20261001_stepnav"></script>
+  <script src="/dashboard.js?v=20261001_filterwarn"></script>
 </body>
 </html>

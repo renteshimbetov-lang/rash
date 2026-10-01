@@ -14,6 +14,7 @@ const State = {
   submissionsFilter: 'all',
   submissionsTestFilter: '',
   usersFilter: 'all',
+  userTestsFilter: null,
   globalSearch: '',
   autoRefresh: true,
   refreshTimer: null,
@@ -805,6 +806,8 @@ function renderUsers() {
 
   const q = State.globalSearch.toLowerCase().trim();
   const cleanQ = q.replace(/^@+/, '').trim();
+  const isTestFilterActive = (State.userTestsFilter !== null && State.userTestsFilter !== undefined && State.userTestsFilter !== '');
+  const targetTc = isTestFilterActive ? parseInt(State.userTestsFilter, 10) : null;
 
   let filtered = State.users.filter(u => {
     // 1. Status Filter
@@ -813,7 +816,13 @@ function renderUsers() {
     if (State.usersFilter === 'pending' && st !== 'pending') return false;
     if (State.usersFilter === 'blocked' && st !== 'blocked') return false;
 
-    // 2. Search query
+    // 2. User Tests Count Filter (faqat raqam kiritilganda yoki preset tanlanganda)
+    if (isTestFilterActive) {
+      const tc = parseInt(u.tests_count || 0, 10);
+      if (tc !== targetTc) return false;
+    }
+
+    // 3. Search query
     if (q) {
       const uName = (u.username || '').toLowerCase().replace(/^@+/, '').trim();
       const fn = (u.fullname || '').toLowerCase();
@@ -828,8 +837,28 @@ function renderUsers() {
   const countBadge = document.getElementById('users-count-badge');
   if (countBadge) countBadge.textContent = `${filtered.length} nafar`;
 
+  // Update header filter controls (preset buttons, clear button, bulk warn button)
+  const clearBtn = document.getElementById('preset-tests-clear');
+  if (clearBtn) clearBtn.style.display = isTestFilterActive ? 'inline-flex' : 'none';
+
+  const p0 = document.getElementById('preset-tests-0');
+  const p1 = document.getElementById('preset-tests-1');
+  if (p0) p0.classList.toggle('active', isTestFilterActive && targetTc === 0);
+  if (p1) p1.classList.toggle('active', isTestFilterActive && targetTc === 1);
+
+  const warnAllBtn = document.getElementById('btn-warn-all-users');
+  const warnAllCountLabel = document.getElementById('warn-all-count-label');
+  if (warnAllBtn) {
+    if (isTestFilterActive && filtered.length > 0) {
+      warnAllBtn.style.display = 'inline-flex';
+      if (warnAllCountLabel) warnAllCountLabel.textContent = `Barchasiga ogohlantirish (${filtered.length} ta)`;
+    } else {
+      warnAllBtn.style.display = 'none';
+    }
+  }
+
   if (filtered.length === 0) {
-    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Foydalanuvchilar topilmadi</td></tr>';
+    body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">${isTestFilterActive ? `${targetTc} ta test ishlagan foydalanuvchilar topilmadi` : "Foydalanuvchilar topilmadi"}</td></tr>`;
     return;
   }
 
@@ -874,7 +903,13 @@ function renderUsers() {
           </button>
         </td>
         <td style="text-align:right;" onclick="event.stopPropagation();">
-          <div style="display:inline-flex;gap:6px;">
+          <div style="display:inline-flex;gap:6px;align-items:center;">
+            ${isTestFilterActive ? `
+              <button type="button" class="btn btn-warning btn-sm btn-warn-user" onclick="warnUserDirect(${u.tg_id}, ${u.tests_count || 0}, '${esc(u.fullname || 'Foydalanuvchi')}')" title="Telegram orqali rasmiy ogohlantirish yuborish">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Ogohlantirish
+              </button>
+            ` : ''}
             ${st !== 'approved' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'approve')">${Icons.check}Faol</button>` : ''}
             ${st !== 'blocked' ? `<button class="btn btn-secondary btn-sm" onclick="changeUserStatus(${u.tg_id}, 'block')">${Icons.ban}Blok</button>` : ''}
             <button class="btn btn-danger btn-sm" onclick="changeUserStatus(${u.tg_id}, 'delete')">${Icons.trash}O'chirish</button>
@@ -884,6 +919,138 @@ function renderUsers() {
     `;
   }).join('');
 }
+
+// ----------------------------------------------------
+// USER TESTS COUNT FILTER & DIRECT TELEGRAM WARNING
+// ----------------------------------------------------
+function setUserTestsCountFilter(val) {
+  if (val === '' || val === null || val === undefined) {
+    State.userTestsFilter = null;
+  } else {
+    const parsed = parseInt(val, 10);
+    State.userTestsFilter = isNaN(parsed) || parsed < 0 ? null : parsed;
+  }
+  const input = document.getElementById('filter-user-tests-count');
+  if (input && input.value !== (State.userTestsFilter !== null ? String(State.userTestsFilter) : '')) {
+    input.value = State.userTestsFilter !== null ? State.userTestsFilter : '';
+  }
+  renderUsers();
+}
+window.setUserTestsCountFilter = setUserTestsCountFilter;
+
+function applyUserTestsCountPreset(num) {
+  const input = document.getElementById('filter-user-tests-count');
+  if (input) input.value = num;
+  setUserTestsCountFilter(num);
+}
+window.applyUserTestsCountPreset = applyUserTestsCountPreset;
+
+function clearUserTestsCountFilter() {
+  const input = document.getElementById('filter-user-tests-count');
+  if (input) input.value = '';
+  setUserTestsCountFilter(null);
+}
+window.clearUserTestsCountFilter = clearUserTestsCountFilter;
+
+async function warnUserDirect(tgId, testsCount, fullname) {
+  const countNum = parseInt(testsCount || 0, 10);
+  const msgIntro = countNum === 0 
+    ? `Hurmatli ${fullname}!\nSiz birorta ham test ishlamagansiz (0 ta). Bugungi testda qatnashmasangiz botdan chiqarib yuborilishingiz haqida rasmiy ogohlantirish yuborilsinmi?`
+    : `Hurmatli ${fullname}!\nSiz hozirgacha faqat ${countNum} ta test ishlagansiz. Bugungi testda qatnashmasangiz botdan chiqarib yuborilishingiz haqida rasmiy ogohlantirish yuborilsinmi?`;
+
+  if (!confirm(`⚠️ TELEGRAM RASMIY OGOHLANTIRISH:\n\n${msgIntro}`)) {
+    return;
+  }
+
+  showToast(`Ogohlantirish yuborilmoqda: ${fullname}...`, 'info');
+  try {
+    const res = await fetch('/api/dashboard/warn-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tg_id: tgId,
+        tests_count: countNum
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || `Ogohlantirish ${fullname} ga yetkazildi!`, 'success');
+    } else if (data.blocked) {
+      showToast(data.message, 'warning');
+      loadData(false);
+    } else {
+      showToast(data.error || 'Xatolik yuz berdi', 'error');
+    }
+  } catch (err) {
+    console.error('Warn user direct error:', err);
+    showToast('Tarmoq xatosi: xabar yuborilmadi', 'error');
+  }
+}
+window.warnUserDirect = warnUserDirect;
+
+async function sendWarningToAllFilteredUsers() {
+  if (State.userTestsFilter === null || State.userTestsFilter === undefined) return;
+  const targetTc = parseInt(State.userTestsFilter, 10);
+  
+  // Find all users matching current active filter
+  const targetUsers = State.users.filter(u => {
+    const tc = parseInt(u.tests_count || 0, 10);
+    if (tc !== targetTc) return false;
+    const st = (u.status || 'pending').toLowerCase();
+    if (State.usersFilter === 'approved' && st !== 'approved') return false;
+    if (State.usersFilter === 'pending' && st !== 'pending') return false;
+    if (State.usersFilter === 'blocked' && st !== 'blocked') return false;
+    return true;
+  });
+
+  if (targetUsers.length === 0) {
+    showToast('Ogohlantirish yuborish uchun foydalanuvchilar yo\'q', 'warning');
+    return;
+  }
+
+  const promptMsg = `⚠️ DIQQAT!\n\nFiltrlangan barcha ${targetUsers.length} nafar foydalanuvchiga Telegram orqali rasmiy ogohlantirish xabari yuborilsinmi?\n\n(Bu foydalanuvchilar hozirgacha ${targetTc} ta test ishlagan)`;
+  if (!confirm(promptMsg)) {
+    return;
+  }
+
+  showToast(`${targetUsers.length} nafar foydalanuvchiga yuborilmoqda...`, 'info');
+
+  const warnBtn = document.getElementById('btn-warn-all-users');
+  if (warnBtn) {
+    warnBtn.disabled = true;
+    warnBtn.innerHTML = `<span class="spinner-border spinner-border-sm" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:4px;"></span> Yuborilmoqda...`;
+  }
+
+  try {
+    const payload = targetUsers.map(u => ({
+      tg_id: u.tg_id,
+      tests_count: u.tests_count || 0,
+      fullname: u.fullname || 'Foydalanuvchi'
+    }));
+
+    const res = await fetch('/api/dashboard/warn-users-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: payload })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message || `Xabarlar yuborildi!`, 'success');
+      loadData(false);
+    } else {
+      showToast(data.error || 'Xatolik yuz berdi', 'error');
+    }
+  } catch (err) {
+    console.error('Batch warn error:', err);
+    showToast('Tarmoq xatosi: xabarlar to\'liq yuborilmadi', 'error');
+  } finally {
+    if (warnBtn) {
+      warnBtn.disabled = false;
+      renderUsers();
+    }
+  }
+}
+window.sendWarningToAllFilteredUsers = sendWarningToAllFilteredUsers;
 
 // ----------------------------------------------------
 // COPY TO CLIPBOARD HELPER
