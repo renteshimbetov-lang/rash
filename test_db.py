@@ -2785,6 +2785,39 @@ def get_all_submissions_for_admin(limit: int = 1000) -> List[Dict[str, Any]]:
         _close_conn(conn)
 
 
+def get_user_submissions_for_admin(user_tg_id: int) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT s.id, s.test_id, s.test_code, s.user_tg_id, s.fullname, s.phone,
+               s.score, s.max_score, s.correct_count, s.total_count,
+               s.submitted_at, s.is_late, s.status, s.reject_reason,
+               u.username, u.status as user_status,
+               t.title as test_title, t.subject as test_subject,
+               t.results_published, t.is_active as test_is_active
+        FROM submissions s
+        LEFT JOIN users u ON s.user_tg_id = u.tg_id
+        LEFT JOIN tests t ON s.test_id = t.id
+        WHERE s.user_tg_id = {_ph()}
+        ORDER BY s.submitted_at DESC
+        """, (user_tg_id,))
+        rows = cur.fetchall()
+        results = []
+        for r in rows:
+            d = _row_to_dict(r)
+            if not d:
+                continue
+            d["grade"] = calculate_grade(d.get("score", 0), correct_count=d.get("correct_count", 0))
+            results.append(d)
+        return results
+    finally:
+        _close_conn(conn)
+
+
+get_user_results = get_user_submissions_for_admin
+
+
 def get_submission_details_for_admin(sub_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     try:
