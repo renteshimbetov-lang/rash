@@ -3032,7 +3032,7 @@ def recalculate_all_submissions_globally() -> int:
         conn.commit()
         return total_recalculated
     except Exception as e:
-        log.error(f"Global recalculate submissions xatolik: {e}")
+        print(f"Global recalculate submissions xatolik: {e}")
         return total_recalculated
     finally:
         _close_conn(conn)

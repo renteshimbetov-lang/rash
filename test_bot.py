@@ -7050,22 +7050,8 @@ async def schedule_checker():
 # ── ASOSIY ISHGA TUSHIRISH (MAIN) ─────────────────────
 async def main():
     global WEBAPP_URL
-    test_db.init_db()
-    try:
-        cleaned = test_db.delete_all_blocked_users()
-        if cleaned:
-            log.info(f"🧹 Bot ishga tushganda {len(cleaned)} ta oldindan bloklangan foydalanuvchi bazadan o'chirildi")
-    except Exception as ex:
-        log.warning(f"Startup clean blocked xatolik: {ex}")
 
-    try:
-        recalc_cnt = test_db.recalculate_all_submissions_globally()
-        if recalc_cnt:
-            log.info(f"🔄 {recalc_cnt} ta topshirilgan javob yangi 30% ball qoidalari bo'yicha qayta hisoblandi")
-    except Exception as ex:
-        log.warning(f"Startup recalculate xatolik: {ex}")
-
-    # 1. aiohttp serverini ishga tushirish (bo'sh portni avtomatik topish)
+    # 1. aiohttp serverini DARHOL ishga tushirish (Render /healthz tekshiruvidan darhol o'tishi uchun)
     app = await create_web_app()
     runner = web.AppRunner(app)
     await runner.setup()
@@ -7083,6 +7069,18 @@ async def main():
                 current_port += 1
             else:
                 raise e
+
+    # 2. Orqa fonda bazani tozalash (Server javob berishini to'xtatib qo'ymaslik uchun)
+    async def run_startup_db_tasks():
+        try:
+            await asyncio.to_thread(test_db.init_db)
+            cleaned = await asyncio.to_thread(test_db.delete_all_blocked_users)
+            if cleaned:
+                log.info(f"🧹 Bot ishga tushganda {len(cleaned)} ta oldindan bloklangan foydalanuvchi bazadan o'chirildi")
+        except Exception as ex:
+            log.warning(f"Startup clean blocked xatolik: {ex}")
+
+    asyncio.create_task(run_startup_db_tasks())
 
     # 2. Fon rejimida HTTPS Tunnelni boshlash
     asyncio.create_task(maintain_tunnel(current_port))
