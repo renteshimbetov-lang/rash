@@ -1740,46 +1740,75 @@ def eval_numeric_val(expr: str) -> Optional[float]:
         return None
 
 
-def is_answer_matching(user_ans: Any, correct_ans: Any) -> bool:
+def count_binary_plus_minus(s: str) -> int:
     """
-    Foydalanuvchi javobini to'g'ri kalitga solishtirish:
-    1. Barcha klaviatura chiziqchalari (Unicode minus, en-dash, em-dash), amallari va belgilarini tozalash
-    2. Kalitdagi muqobil javoblar (';', '|', 'yoki') bo'yicha tekshirish
-    3. To'g'ridan-to'g'ri matn tengligi
-    4. Yig'indi o'rin almashtirish qonuni (masalan, 120 + 36π == 36π + 120)
-    5. Matematik sonli qiymat tengligi (masalan, -3π/2 == -(3/2)π == -1.5π, 8*√58 == 8√58, π²/2 == 0.5π²)
+    Ifodadagi binar qo'shish va ayirish amallarini sanash.
+    Masalan:
+      '133+5/13' -> 1 ('+')
+      '140-5/13' -> 1 ('-')
+      '-133-5/13' -> 1 (birinchi '-' unar, ikkinchi '-' binar)
+      '1734/13'  -> 0
+      '-1734/13' -> 0
+      '85/√13'   -> 0
+      '(85√13)/13' -> 0
+    """
+    if not s:
+        return 0
+    cnt = 0
+    for i, ch in enumerate(s):
+        if ch == "+":
+            cnt += 1
+        elif ch == "-":
+            if i > 0 and s[i - 1] not in ("(", "*", "/", "^", "±", "[", "{"):
+                cnt += 1
+    return cnt
+
+
+def check_answer_match(user_ans: Any, correct_ans: Any) -> Tuple[bool, float, str]:
+    """
+    Foydalanuvchi javobini to'g'ri kalitga solishtirish va moslik koeffitsientini hisoblash:
+    Returns:
+        (is_matched, ratio, status)
+        - is_matched: bool (True agar qabul qilinsa)
+        - ratio: float (1.0 = 100% to'liq to'g'ri, 0.3 = 30% oxirgacha hisoblanmagan, 0.0 = noto'g'ri)
+        - status: str ("correct", "partial", "incorrect")
     """
     if user_ans is None or correct_ans is None:
-        return False
+        return (False, 0.0, "incorrect")
     u_str = str(user_ans).strip()
     c_str = str(correct_ans).strip()
     if not u_str or not c_str:
-        return False
+        return (False, 0.0, "incorrect")
 
     # Kalitda bir nechta to'g'ri variant berilgan bo'lsa (masalan: "2; 5" yoki "-3π/2 | 3π/2")
     if any(sep in c_str for sep in [";", "|", "yoki", "or"]):
         parts = [p.strip() for p in re.split(r";|\||\byoki\b|\bor\b", c_str) if p.strip()]
+        best_res = (False, 0.0, "incorrect")
         for p in parts:
-            if is_answer_matching(user_ans, p):
-                return True
+            res = check_answer_match(user_ans, p)
+            if res[1] > best_res[1]:
+                best_res = res
+            if best_res[1] >= 1.0:
+                return best_res
+        return best_res
 
     u = normalize_answer(u_str)
     c = normalize_answer(c_str)
 
-    # 1. Aniq matnli moslik
+    # 1. Aniq matnli moslik -> 100% to'g'ri
     if u == c:
-        return True
+        return (True, 1.0, "correct")
 
-    # 2. Yulduzcha ko'paytirish belgisi farqi: 8*√58 == 8√58, 36*π == 36π
+    # 2. Yulduzcha ko'paytirish belgisi farqi: 8*√58 == 8√58, 36*π == 36π -> 100% to'g'ri
     if u.replace("*", "") == c.replace("*", ""):
-        return True
+        return (True, 1.0, "correct")
 
-    # 3. Yig'indi hadlarining o'rin almashuvi: 120 + 36π == 36π + 120, 6 + 2√2 == 2√2 + 6
+    # 3. Yig'indi hadlarining o'rin almashuvi: 120 + 36π == 36π + 120, 6 + 2√2 == 2√2 + 6 -> 100% to'g'ri
     if "+" in u and "+" in c:
         u_terms = sorted([t.strip().replace("*", "") for t in u.split("+") if t.strip()])
         c_terms = sorted([t.strip().replace("*", "") for t in c.split("+") if t.strip()])
         if u_terms == c_terms:
-            return True
+            return (True, 1.0, "correct")
 
     # 4. Matematik ifoda sonli qiymatlarini solishtirish
     num_u = eval_numeric_val(u)
@@ -1787,11 +1816,21 @@ def is_answer_matching(user_ans: Any, correct_ans: Any) -> bool:
     if num_u is not None and num_c is not None:
         # Ishoralari qat'iy bir xil bo'lishi shart (-3π/2 musbat 3π/2 ga teng bo'lolmaydi)
         if (num_u > 1e-6 and num_c < -1e-6) or (num_u < -1e-6 and num_c > 1e-6):
-            return False
+            return (False, 0.0, "incorrect")
         if abs(num_u - num_c) < 1e-4:
-            return True
+            # Agar foydalanuvchi javobida hisoblanmay qolib ketgan + yoki - bo'lsa (masalan: 133+5/13 vs 1734/13):
+            # User talabi: "oxirgacha qisqartirilmagan... +,- bilan hisoblanib qolib ketgan misollarga 100% ball berilmasin, 30% berilsin"
+            if count_binary_plus_minus(u) > count_binary_plus_minus(c):
+                return (True, 0.3, "partial")
+            return (True, 1.0, "correct")
 
-    return False
+    return (False, 0.0, "incorrect")
+
+
+def is_answer_matching(user_ans: Any, correct_ans: Any) -> bool:
+    """Oldingi kodlar bilan to'liq moslik uchun yordamchi funksiya."""
+    matched, _, _ = check_answer_match(user_ans, correct_ans)
+    return matched
 
 
 def get_user_submission_for_test(test_id: int, user_tg_id: int) -> Optional[Dict[str, Any]]:
@@ -2001,24 +2040,33 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
             correct_ans, q_score = get_key_and_score(q_raw, default_score=1.5)
             total_possible_score += q_score
             user_val = user_answers.get(key, "")
-            is_corr = False
+            is_matched, ratio, match_status = check_answer_match(user_val, correct_ans)
             if not user_val or not str(user_val).strip():
                 status = "unanswered"
                 unanswered_count += 1
-            elif is_answer_matching(user_val, correct_ans):
-                is_corr = True
-                status = "correct"
-                correct_count += 1
-                earned_score += q_score
+                item_score = 0.0
+            elif is_matched:
+                if ratio >= 1.0:
+                    status = "correct"
+                    correct_count += 1
+                    item_score = q_score
+                    earned_score += q_score
+                else:
+                    status = "partial"
+                    item_score = round(q_score * 0.3, 2)
+                    earned_score += item_score
             else:
                 status = "incorrect"
                 incorrect_count += 1
+                item_score = 0.0
+
             details[key] = {
                 "num": f"{key}-savol", "type": "open",
                 "user": user_val, "correct": correct_ans,
                 "status": status,
-                "score": q_score if is_corr else 0.0,
-                "max_score": q_score
+                "score": item_score,
+                "max_score": q_score,
+                "ratio": ratio
             }
 
     earned_score = round(earned_score, 1)
@@ -2563,24 +2611,33 @@ def update_test_keys(test_id: int, new_answers: Dict[str, Any],
                     correct_ans, q_score = get_key_and_score(q_raw, default_score=1.5)
                     total_possible_score += q_score
                     user_val = user_answers.get(key, "")
-                    is_corr = False
+                    is_matched, ratio, match_status = check_answer_match(user_val, correct_ans)
                     if not user_val or not str(user_val).strip():
                         status = "unanswered"
                         unanswered_count += 1
-                    elif is_answer_matching(user_val, correct_ans):
-                        is_corr = True
-                        status = "correct"
-                        correct_count += 1
-                        earned_score += q_score
+                        item_score = 0.0
+                    elif is_matched:
+                        if ratio >= 1.0:
+                            status = "correct"
+                            correct_count += 1
+                            item_score = q_score
+                            earned_score += q_score
+                        else:
+                            status = "partial"
+                            item_score = round(q_score * 0.3, 2)
+                            earned_score += item_score
                     else:
                         status = "incorrect"
                         incorrect_count += 1
+                        item_score = 0.0
+
                     details[key] = {
                         "num": f"{key}-savol", "type": "open",
                         "user": user_val, "correct": correct_ans,
                         "status": status,
-                        "score": q_score if is_corr else 0.0,
-                        "max_score": q_score
+                        "score": item_score,
+                        "max_score": q_score,
+                        "ratio": ratio
                     }
 
             earned_score = round(earned_score, 1)
@@ -2829,6 +2886,135 @@ def execute_admin_safe_query(query: str, limit: int = 100) -> Dict[str, Any]:
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
+    finally:
+        _close_conn(conn)
+
+
+def recalculate_all_submissions_globally() -> int:
+    """Barcha testlarning topshirilgan javoblarini yangi qoidalar (masalan, uncomputed +/- ga 30% ball) bo'yicha qayta hisoblash."""
+    conn = get_connection()
+    total_recalculated = 0
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, answers_json FROM tests")
+        tests = [_row_to_dict(r) for r in cur.fetchall()]
+        for t in tests:
+            test_id = t["id"]
+            raw_answers = t.get("answers_json")
+            if not raw_answers:
+                continue
+            try:
+                answers_dict = json.loads(raw_answers)
+            except Exception:
+                continue
+            cur.execute(f"SELECT id, answers_json FROM submissions WHERE test_id = {_ph()}", (test_id,))
+            subs = [_row_to_dict(r) for r in cur.fetchall()]
+            for sub in subs:
+                sub_id = sub["id"]
+                sub_ans_raw = sub.get("answers_json")
+                if not sub_ans_raw:
+                    continue
+                try:
+                    user_answers = json.loads(sub_ans_raw)
+                except Exception:
+                    continue
+
+                correct_count = 0
+                incorrect_count = 0
+                unanswered_count = 0
+                details = {}
+                earned_score = 0.0
+
+                for q in range(1, 33):
+                    key = str(q)
+                    correct_ans, q_score = get_key_and_score(answers_dict.get(key, "A"), default_score=2.0)
+                    user_val = user_answers.get(key, "")
+                    is_matched, ratio, _ = check_answer_match(user_val, correct_ans)
+                    if not user_val or not str(user_val).strip():
+                        status = "unanswered"
+                        unanswered_count += 1
+                        score = 0.0
+                    elif is_matched and ratio >= 1.0:
+                        status = "correct"
+                        correct_count += 1
+                        score = q_score
+                        earned_score += q_score
+                    else:
+                        status = "incorrect"
+                        incorrect_count += 1
+                        score = 0.0
+                    details[key] = {
+                        "num": f"{q}-savol", "type": "choice_4",
+                        "user": user_val, "correct": correct_ans,
+                        "status": status, "score": score, "max_score": q_score
+                    }
+
+                for q in [33, 34, 35]:
+                    key = str(q)
+                    correct_ans, q_score = get_key_and_score(answers_dict.get(key, "A"), default_score=2.0)
+                    user_val = user_answers.get(key, "")
+                    is_matched, ratio, _ = check_answer_match(user_val, correct_ans)
+                    if not user_val or not str(user_val).strip():
+                        status = "unanswered"
+                        unanswered_count += 1
+                        score = 0.0
+                    elif is_matched and ratio >= 1.0:
+                        status = "correct"
+                        correct_count += 1
+                        score = q_score
+                        earned_score += q_score
+                    else:
+                        status = "incorrect"
+                        incorrect_count += 1
+                        score = 0.0
+                    details[key] = {
+                        "num": f"{q}-savol", "type": "choice_6",
+                        "user": user_val, "correct": correct_ans,
+                        "status": status, "score": score, "max_score": q_score
+                    }
+
+                for q in range(36, 46):
+                    for sub_part in ["a", "b"]:
+                        key = f"{q}{sub_part}"
+                        correct_ans, q_score = get_key_and_score(answers_dict.get(key, "1"), default_score=1.5)
+                        user_val = user_answers.get(key, "")
+                        is_matched, ratio, _ = check_answer_match(user_val, correct_ans)
+                        if not user_val or not str(user_val).strip():
+                            status = "unanswered"
+                            unanswered_count += 1
+                            score = 0.0
+                        elif is_matched:
+                            if ratio >= 1.0:
+                                status = "correct"
+                                correct_count += 1
+                                score = q_score
+                                earned_score += q_score
+                            else:
+                                status = "partial"
+                                score = round(q_score * 0.3, 2)
+                                earned_score += score
+                        else:
+                            status = "incorrect"
+                            incorrect_count += 1
+                            score = 0.0
+                        details[key] = {
+                            "num": f"{key}-savol", "type": "open",
+                            "user": user_val, "correct": correct_ans,
+                            "status": status, "score": score, "max_score": q_score, "ratio": ratio
+                        }
+
+                earned_score = round(earned_score, 1)
+                cur.execute(f"""
+                    UPDATE submissions
+                    SET score = {_ph()}, correct_count = {_ph()}, details_json = {_ph()}
+                    WHERE id = {_ph()}
+                """, (earned_score, correct_count, json.dumps(details, ensure_ascii=False), sub_id))
+                total_recalculated += 1
+        conn.commit()
+        return total_recalculated
+    except Exception as e:
+        log.error(f"Global recalculate submissions xatolik: {e}")
+        return total_recalculated
     finally:
         _close_conn(conn)
 

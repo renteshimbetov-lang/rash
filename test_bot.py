@@ -3929,6 +3929,7 @@ def build_detailed_tahlil_text(sub: dict, test: dict) -> str:
         return (999, str(k))
 
     correct_keys = []
+    partial_keys = []
     incorrect_keys = []
     unanswered_keys = []
     for k in sorted(details.keys(), key=sort_key):
@@ -3936,12 +3937,15 @@ def build_detailed_tahlil_text(sub: dict, test: dict) -> str:
         st = item.get("status")
         if st == "correct":
             correct_keys.append(str(k))
+        elif st == "partial":
+            partial_keys.append(str(k))
         elif st == "unanswered":
             unanswered_keys.append(str(k))
         else:
             incorrect_keys.append(str(k))
 
     corr_str = ", ".join(correct_keys) if correct_keys else "Mavjud emas"
+    partial_str = ", ".join(partial_keys) if partial_keys else ""
     incorr_str = ", ".join(incorrect_keys) if incorrect_keys else "Yo'q"
 
     text = (
@@ -3949,11 +3953,22 @@ def build_detailed_tahlil_text(sub: dict, test: dict) -> str:
         f"👤 <b>O'quvchi:</b> {name}\n"
         f"🎖 <b>Milliy Sertifikat darajasi:</b> <b>{grade}</b> ({score} ball)\n"
         f"✅ <b>To'g'ri ishlangan:</b> {corr} / {total} ta band\n"
+    )
+    if partial_keys:
+        text += f"⚠️ <b>Qisman to'g'ri (30% ball):</b> {len(partial_keys)} ta band\n"
+    text += (
         f"❌ <b>Noto'g'ri / qoldirilgan:</b> {incorr} ta\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"✅ <b>TO'G'RI ISHLANGAN SAVOLLAR ({len(correct_keys)} ta):</b>\n"
-        f"<code>{corr_str}</code>\n\n"
-        f"❌ <b>NOTO'G'RI ISHLANGAN SAVOLLAR ({len(incorrect_keys)} ta):</b>\n"
+        f"<code>{corr_str}</code>\n"
+    )
+    if partial_keys:
+        text += (
+            f"\n⚠️ <b>QISMAN TO'G'RI (30% ball berilgan, oxirgacha hisoblanmagan) ({len(partial_keys)} ta):</b>\n"
+            f"<code>{partial_str}</code>\n"
+        )
+    text += (
+        f"\n❌ <b>NOTO'G'RI ISHLANGAN SAVOLLAR ({len(incorrect_keys)} ta):</b>\n"
         f"<code>{incorr_str}</code>"
     )
     if unanswered_keys:
@@ -6986,6 +7001,13 @@ async def main():
             log.info(f"🧹 Bot ishga tushganda {len(cleaned)} ta oldindan bloklangan foydalanuvchi bazadan o'chirildi")
     except Exception as ex:
         log.warning(f"Startup clean blocked xatolik: {ex}")
+
+    try:
+        recalc_cnt = test_db.recalculate_all_submissions_globally()
+        if recalc_cnt:
+            log.info(f"🔄 {recalc_cnt} ta topshirilgan javob yangi 30% ball qoidalari bo'yicha qayta hisoblandi")
+    except Exception as ex:
+        log.warning(f"Startup recalculate xatolik: {ex}")
 
     # 1. aiohttp serverini ishga tushirish (bo'sh portni avtomatik topish)
     app = await create_web_app()

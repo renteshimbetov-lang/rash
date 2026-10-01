@@ -3623,50 +3623,83 @@ function renderKeyComparison(correct, user, container) {
     }
   }
 
-  function isAnswerMatching(cVal, uVal) {
-    if (cVal === undefined || cVal === null || uVal === undefined || uVal === null) return false;
+  function countBinaryPlusMinus(s) {
+    if (!s) return 0;
+    var cnt = 0;
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (ch === '+') {
+        cnt++;
+      } else if (ch === '-') {
+        if (i > 0 && ['(', '*', '/', '^', '±', '[', '{'].indexOf(s[i - 1]) === -1) {
+          cnt++;
+        }
+      }
+    }
+    return cnt;
+  }
+
+  function checkAnswerMatch(cVal, uVal) {
+    if (cVal === undefined || cVal === null || uVal === undefined || uVal === null) {
+      return { isOk: false, ratio: 0, status: 'incorrect' };
+    }
     var cStr = String(cVal).trim();
     var uStr = String(uVal).trim();
-    if (!cStr || !uStr) return false;
+    if (!cStr || !uStr) {
+      return { isOk: false, ratio: 0, status: 'incorrect' };
+    }
 
-    // Kalitda bir nechta muqobil variant bo'lsa (';', '|', 'yoki')
     if (/[;\|]|\byoki\b|\bor\b/.test(cStr)) {
       var parts = cStr.split(/[;\|]|\byoki\b|\bor\b/);
+      var best = { isOk: false, ratio: 0, status: 'incorrect' };
       for (var pi = 0; pi < parts.length; pi++) {
         var part = parts[pi].trim();
-        if (part && isAnswerMatching(part, uVal)) return true;
+        if (part) {
+          var res = checkAnswerMatch(part, uVal);
+          if (res.ratio > best.ratio) best = res;
+          if (best.ratio >= 1.0) return best;
+        }
       }
+      return best;
     }
 
     var nC = normalizeAnswer(cStr);
     var nU = normalizeAnswer(uStr);
-    if (!nC || !nU) return false;
+    if (!nC || !nU) return { isOk: false, ratio: 0, status: 'incorrect' };
 
     // 1. To'g'ridan-to'g'ri tenglik
-    if (nC === nU) return true;
+    if (nC === nU) return { isOk: true, ratio: 1.0, status: 'correct' };
 
-    // 2. Yulduzcha ko'paytirish belgisisiz: 8*√58 == 8√58
-    if (nC.replace(/\*/g, '') === nU.replace(/\*/g, '')) return true;
+    // 2. Yulduzcha ko'paytirish belgisisiz
+    if (nC.replace(/\*/g, '') === nU.replace(/\*/g, '')) return { isOk: true, ratio: 1.0, status: 'correct' };
 
-    // 3. Yig'indi hadlarining o'rin almashuvi: 120 + 36π == 36π + 120
+    // 3. Yig'indi hadlarining o'rin almashuvi
     if (nC.indexOf('+') !== -1 && nU.indexOf('+') !== -1) {
       var cTerms = nC.split('+').map(function(t) { return t.trim().replace(/\*/g, ''); }).sort().join('+');
       var uTerms = nU.split('+').map(function(t) { return t.trim().replace(/\*/g, ''); }).sort().join('+');
-      if (cTerms === uTerms) return true;
+      if (cTerms === uTerms) return { isOk: true, ratio: 1.0, status: 'correct' };
     }
 
     // 4. Matematik ifodaning sonli qiymati tengligi
     var numC = evalNumericVal(nC);
     var numU = evalNumericVal(nU);
     if (numC !== null && numU !== null) {
-      // Ishoralari bir xil bo'lishi shart!
       if ((numU > 1e-6 && numC < -1e-6) || (numU < -1e-6 && numC > 1e-6)) {
-        return false;
+        return { isOk: false, ratio: 0, status: 'incorrect' };
       }
-      return Math.abs(numC - numU) < 1e-4;
+      if (Math.abs(numC - numU) < 1e-4) {
+        if (countBinaryPlusMinus(nU) > countBinaryPlusMinus(nC)) {
+          return { isOk: true, ratio: 0.3, status: 'partial' };
+        }
+        return { isOk: true, ratio: 1.0, status: 'correct' };
+      }
     }
 
-    return false;
+    return { isOk: false, ratio: 0, status: 'incorrect' };
+  }
+
+  function isAnswerMatching(cVal, uVal) {
+    return checkAnswerMatch(cVal, uVal).isOk;
   }
 
   var closedItems = [];
@@ -3699,13 +3732,15 @@ function renderKeyComparison(correct, user, container) {
       var key = q + sub;
       var cVal = getAnswerVal(correct ? correct[key] : null);
       var uVal = getAnswerVal(user ? user[key] : null);
-      var isOk = isAnswerMatching(cVal, uVal);
-      if (isOk) totalCorrectOpen++;
+      var matchRes = checkAnswerMatch(cVal, uVal);
+      if (matchRes.isOk && matchRes.ratio >= 1.0) totalCorrectOpen++;
       openItems.push({
         key: key,
         cVal: cVal,
         uVal: uVal,
-        isOk: isOk
+        isOk: matchRes.isOk,
+        ratio: matchRes.ratio,
+        status: matchRes.status
       });
     });
   }
@@ -3747,9 +3782,9 @@ function renderKeyComparison(correct, user, container) {
   html += '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(78px, 1fr));gap:6px;">';
   openItems.forEach(function(item) {
-    var bg = item.isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
-    var col = item.isOk ? '#10B981' : '#EF4444';
-    var icon = item.isOk ? '✓' : '✗';
+    var bg = item.isOk ? (item.ratio < 1.0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)') : 'rgba(239, 68, 68, 0.15)';
+    var col = item.isOk ? (item.ratio < 1.0 ? '#F59E0B' : '#10B981') : '#EF4444';
+    var icon = item.isOk ? (item.ratio < 1.0 ? '⚠️ 30%' : '✓') : '✗';
     html += '<div style="background:' + bg + ';color:' + col + ';border:1px solid ' + col + ';border-radius:8px;padding:6px 2px;text-align:center;font-size:11px;line-height:1.2;overflow:hidden;">';
     html += '<div style="font-weight:700;font-size:11px;margin-bottom:2px;">#' + item.key + ' ' + icon + '</div>';
     html += '<div style="font-size:10px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="' + item.uVal + '">' + t('compare_keys_you') + ' <b>' + item.uVal + '</b></div>';

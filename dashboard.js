@@ -1245,10 +1245,18 @@ function renderSubmissionAnswersGrid(s) {
     if (status === 'correct') {
       statusClass = 'correct';
       statusLabel = '✓ To\'g\'ri';
+    } else if (status === 'partial') {
+      statusClass = 'partial';
+      statusLabel = '⚠️ Qisman (30%)';
     } else if (status === 'incorrect') {
       statusClass = 'incorrect';
       statusLabel = '✗ Noto\'g\'ri';
     }
+
+    const scoreBadge = (status === 'partial') ? `
+      <div style="font-size:10px;color:#f59e0b;font-weight:700;margin-top:2px;">
+        Ball: ${qInfo.score !== undefined ? qInfo.score : '0.45'} / ${qInfo.max_score || '1.5'} (Oxirgacha hisoblanmagan)
+      </div>` : '';
 
     html += `
       <div class="answer-card ${statusClass}">
@@ -1262,6 +1270,7 @@ function renderSubmissionAnswersGrid(s) {
         <div style="font-size:10.5px;color:var(--text-muted);">
           Kalit: <span style="color:var(--primary);font-weight:700;">${esc(cVal || '—')}</span>
         </div>
+        ${scoreBadge}
       </div>
     `;
   });
