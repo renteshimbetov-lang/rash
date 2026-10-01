@@ -1225,11 +1225,11 @@ async def user_blocked_bot_handler(event: ChatMemberUpdated):
             f"🗑 <i>Foydalanuvchi botni to'xtatgani/bloklagani sababli uning barcha ma'lumotlari bazadan to'liq o'chirildi.</i>"
         )
         
-        for adm_id in get_all_admin_ids():
-            try:
-                await bot.send_message(chat_id=adm_id, text=alert_text)
-            except Exception as ex:
-                log.warning(f"Admin {adm_id} ga blok bildirishnomasi yuborishda xatolik: {ex}")
+        # Faqat Bosh adminga (ADMIN_ID) yuboriladi, tayinlangan yordamchi adminlarga yuborilmaydi
+        try:
+            await bot.send_message(chat_id=ADMIN_ID, text=alert_text)
+        except Exception as ex:
+            log.warning(f"Bosh adminga ({ADMIN_ID}) blok bildirishnomasi yuborishda xatolik: {ex}")
     except Exception as e:
         log.error(f"user_blocked_bot_handler error: {e}", exc_info=True)
 
@@ -1265,11 +1265,11 @@ async def user_unblocked_bot_handler(event: ChatMemberUpdated):
             f"ℹ️ {note}"
         )
         
-        for adm_id in get_all_admin_ids():
-            try:
-                await bot.send_message(chat_id=adm_id, text=alert_text)
-            except Exception as ex:
-                log.warning(f"Admin {adm_id} ga unblock bildirishnomasi yuborishda xatolik: {ex}")
+        # Faqat Bosh adminga (ADMIN_ID) yuboriladi, tayinlangan yordamchi adminlarga yuborilmaydi
+        try:
+            await bot.send_message(chat_id=ADMIN_ID, text=alert_text)
+        except Exception as ex:
+            log.warning(f"Bosh adminga ({ADMIN_ID}) unblock bildirishnomasi yuborishda xatolik: {ex}")
     except Exception as e:
         log.error(f"user_unblocked_bot_handler error: {e}", exc_info=True)
 
