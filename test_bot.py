@@ -6226,6 +6226,20 @@ async def handle_dashboard_submission_detail(request):
         log.error(f"Dashboard submission detail error: {e}", exc_info=True)
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
+async def handle_dashboard_user_submissions(request):
+    try:
+        user_tg_id = int(request.match_info.get('tg_id', 0))
+        subs = test_db.get_user_results(user_tg_id)
+        for s in subs:
+            s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
+        return web.json_response({
+            "success": True,
+            "submissions": subs
+        })
+    except Exception as e:
+        log.error(f"Dashboard user submissions error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
 async def handle_dashboard_users(request):
     try:
         users = test_db.get_all_users()
@@ -6518,6 +6532,7 @@ async def create_web_app():
     app.router.add_get('/api/dashboard/submissions', handle_dashboard_submissions)
     app.router.add_get('/api/dashboard/submission/{id}', handle_dashboard_submission_detail)
     app.router.add_get('/api/dashboard/users', handle_dashboard_users)
+    app.router.add_get('/api/dashboard/user-submissions/{tg_id}', handle_dashboard_user_submissions)
     app.router.add_get('/api/dashboard/tests', handle_dashboard_tests)
     app.router.add_get('/api/dashboard/logs', handle_dashboard_logs)
     app.router.add_post('/api/dashboard/user-action', handle_dashboard_user_action)

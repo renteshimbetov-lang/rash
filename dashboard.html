@@ -6,7 +6,7 @@
   <title>Shohruh Matematika — Admin Dashboard (MacBook)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/dashboard.css?v=20261001_clean">
+  <link rel="stylesheet" href="/dashboard.css?v=20261001_v2">
   <link rel="icon" href="/favicon.ico" type="image/x-icon">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,11 +26,11 @@
         <span class="boot-logo-emoji" style="display:none">📐</span>
       </div>
 
-      <!-- Bouncing letters -->
+      <!-- Bouncing letters (Speed tuned for 1.5s intro) -->
       <div class="boot-brand-text">
-        <span class="boot-char" style="--bd:0.10s">S</span><span class="boot-char" style="--bd:0.17s">H</span><span class="boot-char" style="--bd:0.24s">O</span><span class="boot-char" style="--bd:0.31s">H</span><span class="boot-char" style="--bd:0.38s">R</span><span class="boot-char" style="--bd:0.45s">U</span><span class="boot-char" style="--bd:0.52s">H</span>
+        <span class="boot-char" style="--bd:0.04s">S</span><span class="boot-char" style="--bd:0.08s">H</span><span class="boot-char" style="--bd:0.12s">O</span><span class="boot-char" style="--bd:0.16s">H</span><span class="boot-char" style="--bd:0.20s">R</span><span class="boot-char" style="--bd:0.24s">U</span><span class="boot-char" style="--bd:0.28s">H</span>
         <span class="boot-char-space">&nbsp;</span>
-        <span class="boot-char teal" style="--bd:0.63s">M</span><span class="boot-char teal" style="--bd:0.70s">A</span><span class="boot-char teal" style="--bd:0.77s">T</span><span class="boot-char teal" style="--bd:0.84s">E</span><span class="boot-char teal" style="--bd:0.91s">M</span><span class="boot-char teal" style="--bd:0.98s">A</span><span class="boot-char teal" style="--bd:1.05s">T</span><span class="boot-char teal" style="--bd:1.12s">I</span><span class="boot-char teal" style="--bd:1.19s">K</span><span class="boot-char teal" style="--bd:1.26s">A</span>
+        <span class="boot-char teal" style="--bd:0.34s">M</span><span class="boot-char teal" style="--bd:0.38s">A</span><span class="boot-char teal" style="--bd:0.42s">T</span><span class="boot-char teal" style="--bd:0.46s">E</span><span class="boot-char teal" style="--bd:0.50s">M</span><span class="boot-char teal" style="--bd:0.54s">A</span><span class="boot-char teal" style="--bd:0.58s">T</span><span class="boot-char teal" style="--bd:0.62s">I</span><span class="boot-char teal" style="--bd:0.66s">K</span><span class="boot-char teal" style="--bd:0.70s">A</span>
       </div>
 
       <!-- Subtitle -->
@@ -244,7 +244,7 @@
             </div>
 
             <!-- Two-Column Layout: Recent Submissions + Recent Activities -->
-            <div style="display:grid;grid-template-columns: 1.6fr 1fr;gap:20px;align-items:start;">
+            <div class="overview-split-grid">
               <!-- Recent Submissions Table -->
               <div class="table-card">
                 <div class="table-card-header">
@@ -376,12 +376,11 @@
                       <th>Holati</th>
                       <th>Qo'shilgan vaqti</th>
                       <th>Ishlagan testlari</th>
-                      <th>Oxirgi testi</th>
                       <th style="text-align:right;">Amallar</th>
                     </tr>
                   </thead>
                   <tbody id="users-table-body">
-                    <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">Yuklanmoqda...</td></tr>
+                    <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Yuklanmoqda...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -499,6 +498,67 @@
 
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- MODAL: User Tests History (Nechta test ishlagani jadvali) -->
+  <div class="modal-overlay" id="user-tests-modal">
+    <div class="mac-modal" style="max-width:920px;">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:22px;">📚</span>
+          <div>
+            <div style="font-size:16px;font-weight:800;" id="user-tests-modal-title">Foydalanuvchi Testlari</div>
+            <div style="font-size:12px;color:var(--text-muted);" id="user-tests-modal-subtitle">Topshirilgan testlar ro'yxati va tahlili</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeUserTestsModal()">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding:16px 20px;">
+        <!-- User Info Strip -->
+        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-card);padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:38px;height:38px;border-radius:10px;background:rgba(37,99,235,0.12);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;" id="user-tests-modal-avatar">👤</div>
+            <div>
+              <div style="font-weight:800;font-size:14.5px;color:var(--text-main);" id="user-tests-modal-name">--</div>
+              <div style="font-size:11.5px;color:var(--text-muted);display:flex;gap:8px;">
+                <span id="user-tests-modal-id">ID: --</span>
+                <span>•</span>
+                <span id="user-tests-modal-username">@--</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge badge-info" id="user-tests-modal-count" style="font-size:13px;padding:5px 12px;">0 ta test</span>
+          </div>
+        </div>
+
+        <!-- Table of tests -->
+        <div class="table-responsive" style="max-height:420px;overflow-y:auto;border-radius:var(--radius-sm);border:1px solid var(--border);">
+          <table class="mac-table">
+            <thead>
+              <tr>
+                <th style="width:40px;">#</th>
+                <th>Test Kodi / Nomi</th>
+                <th>Topshirilgan Vaqt</th>
+                <th>Natija</th>
+                <th>Ball</th>
+                <th>Daraja</th>
+                <th>Holat</th>
+                <th style="text-align:right;">Amal</th>
+              </tr>
+            </thead>
+            <tbody id="user-tests-modal-tbody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;">
+        <button class="btn btn-secondary btn-sm" onclick="closeUserTestsModal()">Yopish</button>
+      </div>
     </div>
   </div>
 
@@ -740,6 +800,6 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="/dashboard.js?v=20261001_partial"></script>
+  <script src="/dashboard.js?v=20261001_v2"></script>
 </body>
 </html>

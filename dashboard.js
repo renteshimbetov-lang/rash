@@ -228,32 +228,20 @@ function runBootAnimation() {
   // Start floating math particles
   _bootCanvasStop = startBootCanvas();
 
-  if (!bar) { setTimeout(skipBootSplash, 3200); return; }
+  if (!bar) { setTimeout(skipBootSplash, 1500); return; }
 
-  // Progress animation: 4 natural steps
-  var pct = 0;
-  var steps = [
-    { target: 28, delay: 200,  speed: 20 },
-    { target: 62, delay: 500,  speed: 18 },
-    { target: 87, delay: 600,  speed: 30 },
-    { target: 100, delay: 350, speed: 16 }
-  ];
-  var stepIdx = 0;
-  function runStep() {
-    if (stepIdx >= steps.length) {
-      setTimeout(skipBootSplash, 220);
-      return;
+  // Progress animation: smoothly reaches 100% in 1250ms, then splash closes at exactly 1500ms (1.5s)
+  var startTime = Date.now();
+  var duration = 1250;
+  var iv = setInterval(function() {
+    var elapsed = Date.now() - startTime;
+    var pct = Math.min(100, Math.round((elapsed / duration) * 100));
+    bar.style.width = pct + '%';
+    if (pct >= 100) {
+      clearInterval(iv);
+      setTimeout(skipBootSplash, 250); // 1250 + 250 = 1500ms (1.5 soniya)
     }
-    var s = steps[stepIdx++];
-    setTimeout(() => {
-      var iv = setInterval(() => {
-        if (pct >= s.target) { clearInterval(iv); runStep(); return; }
-        pct = Math.min(pct + 1, s.target);
-        bar.style.width = pct + '%';
-      }, s.speed);
-    }, s.delay);
-  }
-  runStep();
+  }, 20);
 }
 
 // ----------------------------------------------------
@@ -782,12 +770,13 @@ function renderUsers() {
   if (countBadge) countBadge.textContent = `${filtered.length} nafar`;
 
   if (filtered.length === 0) {
-    body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text-muted);">Foydalanuvchilar topilmadi</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted);">Foydalanuvchilar topilmadi</td></tr>';
     return;
   }
 
   body.innerHTML = filtered.map(u => {
-    const usernameTag = u.username ? `<span style="color:var(--primary);font-size:12px;font-weight:700;">@${esc(u.username.replace(/^@/, ''))}</span>` : '<span style="color:var(--text-dim);">—</span>';
+    const rawUsername = u.username ? u.username.replace(/^@/, '') : '';
+    const usernameTag = rawUsername ? `<span style="color:var(--primary);font-size:12px;font-weight:700;">@${esc(rawUsername)}</span>` : '<span style="color:var(--text-dim);">—</span>';
     
     // Status Badge
     let stBadge = '';
@@ -797,14 +786,22 @@ function renderUsers() {
     else if (st === 'blocked') stBadge = '<span class="badge badge-danger">⛔️ Bloklangan</span>';
 
     const regDt = formatUzbSmartDateTime(u.registered_at || u.registered_at_fmt);
-    const lastDt = u.last_test_at ? formatUzbSmartDateTime(u.last_test_at || u.last_test_at_fmt) : null;
 
     return `
       <tr>
-        <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);font-weight:700;">${u.tg_id}</td>
-        <td><div style="font-weight:700;font-size:14px;color:var(--text-main);">${esc(u.fullname || 'Foydalanuvchi')}</div></td>
-        <td>${usernameTag}</td>
-        <td style="font-size:12.5px;color:var(--text-muted);font-weight:600;">${esc(u.phone || '—')}</td>
+        <td class="copyable-cell" onclick="copyToClipboard('${u.tg_id}', 'ID')" title="Nusxalash uchun bosing">
+          <span class="copy-val" style="font-family:var(--font-mono);font-size:12px;color:var(--text-dim);font-weight:700;">${u.tg_id}</span>
+          <span class="copy-icon">📋</span>
+        </td>
+        <td class="copyable-cell" onclick="copyToClipboard('${esc(u.fullname || '')}', 'Ism')" title="Nusxalash uchun bosing">
+          <div class="copy-val" style="font-weight:700;font-size:13.5px;color:var(--text-main);display:inline-block;">${esc(u.fullname || 'Foydalanuvchi')}</div>
+          <span class="copy-icon">📋</span>
+        </td>
+        <td class="copyable-cell" onclick="${rawUsername ? `copyToClipboard('@${rawUsername}', 'Username')` : ''}" title="${rawUsername ? 'Nusxalash uchun bosing' : ''}">
+          <span class="copy-val">${usernameTag}</span>
+          ${rawUsername ? '<span class="copy-icon">📋</span>' : ''}
+        </td>
+        <td style="font-size:12px;color:var(--text-muted);font-weight:600;">${esc(u.phone || '—')}</td>
         <td>${stBadge}</td>
         <td>
           <div class="time-cell-wrap">
@@ -812,14 +809,10 @@ function renderUsers() {
             <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);font-weight:600;">${regDt.fullDate}</span>
           </div>
         </td>
-        <td><b style="color:var(--primary);font-size:13.5px;">${u.tests_count || 0} ta</b></td>
         <td>
-          ${lastDt ? `
-            <div class="time-cell-wrap">
-              <span class="day-chip ${lastDt.dayBadgeClass}">${lastDt.dayBadgeText}</span>
-              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);font-weight:600;">${lastDt.fullDate}</span>
-            </div>
-          ` : '<span style="color:var(--text-dim);">—</span>'}
+          <button type="button" class="user-tests-badge-btn" onclick="openUserTestsModal(${u.tg_id}, '${esc(u.fullname || 'Foydalanuvchi')}', '${rawUsername ? '@' + rawUsername : ''}')" title="Topshirgan barcha testlarini ko'rish">
+            ${u.tests_count || 0} ta ➔
+          </button>
         </td>
         <td style="text-align:right;">
           <div style="display:inline-flex;gap:6px;">
@@ -832,6 +825,152 @@ function renderUsers() {
     `;
   }).join('');
 }
+
+// ----------------------------------------------------
+// COPY TO CLIPBOARD HELPER
+// ----------------------------------------------------
+function copyToClipboard(text, label = '') {
+  if (!text || text === '—') return;
+  const str = String(text).trim();
+  if (!str) return;
+
+  const onSuccess = () => {
+    showToast(`Nusxalandi: ${label ? label + ' ' : ''}"${str}"`, 'success');
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(str).then(onSuccess).catch(() => fallbackCopy(str, onSuccess));
+  } else {
+    fallbackCopy(str, onSuccess);
+  }
+}
+
+function fallbackCopy(text, cb) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (cb) cb();
+  } catch(e) {
+    showToast('Nusxa olish imkoni bo\'lmadi', 'error');
+  }
+}
+window.copyToClipboard = copyToClipboard;
+
+// ----------------------------------------------------
+// USER TESTS MODAL (Topshirgan testlar ro'yxati)
+// ----------------------------------------------------
+function openUserTestsModal(userId, userName, userHandle) {
+  const modal = document.getElementById('user-tests-modal');
+  if (!modal) return;
+
+  const nameEl = document.getElementById('user-tests-modal-name');
+  const idEl = document.getElementById('user-tests-modal-id');
+  const uNameEl = document.getElementById('user-tests-modal-username');
+  const countEl = document.getElementById('user-tests-modal-count');
+  const tbody = document.getElementById('user-tests-modal-tbody');
+
+  if (nameEl) nameEl.textContent = userName || 'Foydalanuvchi';
+  if (idEl) idEl.textContent = `ID: ${userId}`;
+  if (uNameEl) uNameEl.textContent = userHandle || '—';
+  
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text-muted);">Yuklanmoqda...</td></tr>';
+  }
+
+  modal.classList.add('open');
+
+  function renderUserSubsList(list) {
+    if (countEl) countEl.textContent = `${list.length} ta topshirilgan test`;
+    tbody.innerHTML = list.map((s, idx) => {
+      let stBadge = '';
+      if (s.status === 'rejected') {
+        stBadge = '<span class="badge badge-danger">⛔️ Bekor</span>';
+      } else if (s.is_late == 1) {
+        stBadge = '<span class="badge badge-warning">⏰ Kechikkan</span>';
+      } else {
+        stBadge = '<span class="badge badge-success">✅ O\'z vaqtida</span>';
+      }
+
+      const gr = s.grade || '—';
+      let grBadge = `<span class="badge badge-purple">${gr}</span>`;
+      if (gr === 'A+' || gr === 'A') grBadge = `<span class="badge badge-success">${gr}</span>`;
+      else if (gr === 'B+' || gr === 'B') grBadge = `<span class="badge badge-info">${gr}</span>`;
+      else if (gr === 'C+' || gr === 'C') grBadge = `<span class="badge badge-warning">${gr}</span>`;
+
+      const dt = formatUzbSmartDateTime(s.submitted_at || s.submitted_at_fmt);
+
+      return `
+        <tr>
+          <td style="color:var(--text-dim);font-weight:700;font-family:var(--font-mono);">${idx + 1}</td>
+          <td>
+            <div style="font-weight:700;font-size:13.5px;color:var(--text-main);">#${esc(s.test_code || '')} — ${esc(s.test_title || 'Test')}</div>
+          </td>
+          <td>
+            <div class="time-cell-wrap">
+              <span class="day-chip ${dt.dayBadgeClass}">${dt.dayBadgeText}</span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim);font-weight:600;">${dt.fullDate}</span>
+            </div>
+          </td>
+          <td><b style="color:var(--text-main);">${s.correct_count != null ? s.correct_count : 0}</b> <span style="color:var(--text-muted);font-size:11px;">/ ${s.total_count || 55} ta</span></td>
+          <td><b style="color:var(--primary);font-size:14px;">${s.score != null ? s.score : '0.0'}</b> <span style="font-size:11px;color:var(--text-muted);">ball</span></td>
+          <td>${grBadge}</td>
+          <td>${stBadge}</td>
+          <td style="text-align:right;">
+            <button class="btn btn-secondary btn-sm" onclick="closeUserTestsModal(); openSubmissionModal(${s.id})" title="Javoblarni ko'rish">
+              Batafsil ➔
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function showEmptyUserSubs() {
+    if (countEl) countEl.textContent = '0 ta test';
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center;padding:40px 16px;color:var(--text-muted);">
+          <div style="font-size:32px;margin-bottom:8px;">📭</div>
+          <div style="font-weight:700;font-size:14px;color:var(--text-main);margin-bottom:4px;">Testlar topilmadi</div>
+          <div style="font-size:12px;">Ushbu foydalanuvchi hozircha birorta ham test topshirmagan.</div>
+        </td>
+      </tr>
+    `;
+  }
+
+  // Filter from State.submissions
+  const userSubs = (State.submissions || []).filter(s => Number(s.user_tg_id) === Number(userId));
+  
+  if (userSubs.length > 0) {
+    renderUserSubsList(userSubs);
+  } else {
+    // Fallback to API
+    fetch(`/api/dashboard/user-submissions/${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.submissions && data.submissions.length > 0) {
+          renderUserSubsList(data.submissions);
+        } else {
+          showEmptyUserSubs();
+        }
+      })
+      .catch(() => showEmptyUserSubs());
+  }
+}
+
+function closeUserTestsModal() {
+  const modal = document.getElementById('user-tests-modal');
+  if (modal) modal.classList.remove('open');
+}
+window.openUserTestsModal = openUserTestsModal;
+window.closeUserTestsModal = closeUserTestsModal;
 
 // ----------------------------------------------------
 // TESTS RENDERING & ACTIONS
