@@ -102,6 +102,18 @@ def get_connection():
         if pool:
             try:
                 conn = pool.getconn()
+                # O'lik / uzilgan ulanishni aniqlab yangilash (Neon idle timeout)
+                if hasattr(conn, "closed") and conn.closed:
+                    conn = pool.getconn()
+                try:
+                    with conn.cursor() as cur_check:
+                        cur_check.execute("SELECT 1")
+                except Exception:
+                    try:
+                        pool.putconn(conn, close=True)
+                    except Exception:
+                        pass
+                    conn = pool.getconn()
                 conn.cursor_factory = RealDictCursor
                 conn.autocommit = False
                 _pool_connections.add(id(conn))
@@ -2689,66 +2701,40 @@ def get_dashboard_summary() -> Dict[str, Any]:
     conn = get_connection()
     try:
         cur = conn.cursor()
-        
-        # Foydalanuvchilar
-        cur.execute("SELECT COUNT(*) as cnt FROM users")
-        total_users = _fetch_scalar(cur.fetchone())
-        
-        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE status = 'approved'")
-        approved_users = _fetch_scalar(cur.fetchone())
-        
-        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE status = 'pending'")
-        pending_users = _fetch_scalar(cur.fetchone())
-        
-        cur.execute("SELECT COUNT(*) as cnt FROM users WHERE status = 'blocked'")
-        blocked_users = _fetch_scalar(cur.fetchone())
-        
-        # Testlar
-        cur.execute("SELECT COUNT(*) as cnt FROM tests")
-        total_tests = _fetch_scalar(cur.fetchone())
-        
-        cur.execute("SELECT COUNT(*) as cnt FROM tests WHERE is_active = 1")
-        active_tests = _fetch_scalar(cur.fetchone())
-        
-        # Topshirilgan ishlar
-        cur.execute("SELECT COUNT(*) as cnt FROM submissions")
-        total_submissions = _fetch_scalar(cur.fetchone())
-        
-        cur.execute("SELECT COUNT(*) as cnt FROM submissions WHERE is_late = 1")
-        late_submissions = _fetch_scalar(cur.fetchone())
-        
-        # Bugungi topshirilganlar (Toshkent vaqti bilan bugun)
         now_ts = int(time.time())
         today_midnight = now_ts - (now_ts % 86400) - (5 * 3600)
         if today_midnight > now_ts:
             today_midnight -= 86400
-        cur.execute(f"SELECT COUNT(*) as cnt FROM submissions WHERE submitted_at >= {_ph()}", (today_midnight,))
-        today_submissions = _fetch_scalar(cur.fetchone())
-        
-        # O'rtacha ball
-        cur.execute("SELECT AVG(score) as cnt FROM submissions WHERE score IS NOT NULL")
-        avg_row = cur.fetchone()
-        avg_score_raw = _fetch_scalar(avg_row)
-        avg_score = round(float(avg_score_raw), 1) if avg_score_raw is not None else 0.0
-        
-        # O'rtacha to'g'ri javoblar
-        cur.execute("SELECT AVG(correct_count) as cnt FROM submissions WHERE correct_count IS NOT NULL")
-        avg_corr_row = cur.fetchone()
-        avg_corr_raw = _fetch_scalar(avg_corr_row)
-        avg_correct = round(float(avg_corr_raw), 1) if avg_corr_raw is not None else 0.0
+
+        cur.execute(f"""
+        SELECT 
+            (SELECT COUNT(*) FROM users) as total_users,
+            (SELECT COUNT(*) FROM users WHERE status = 'approved') as approved_users,
+            (SELECT COUNT(*) FROM users WHERE status = 'pending') as pending_users,
+            (SELECT COUNT(*) FROM users WHERE status = 'blocked') as blocked_users,
+            (SELECT COUNT(*) FROM tests) as total_tests,
+            (SELECT COUNT(*) FROM tests WHERE is_active = 1) as active_tests,
+            (SELECT COUNT(*) FROM submissions) as total_submissions,
+            (SELECT COUNT(*) FROM submissions WHERE is_late = 1) as late_submissions,
+            (SELECT COUNT(*) FROM submissions WHERE submitted_at >= {_ph()}) as today_submissions,
+            (SELECT COALESCE(AVG(score), 0) FROM submissions WHERE score IS NOT NULL) as avg_score,
+            (SELECT COALESCE(AVG(correct_count), 0) FROM submissions WHERE correct_count IS NOT NULL) as avg_correct
+        """, (today_midnight,))
+        row = cur.fetchone()
+        d = _row_to_dict(row) or {}
 
         return {
-            "total_users": total_users,
-            "approved_users": approved_users,
-            "pending_users": pending_users,
-            "blocked_users": blocked_users,
-            "total_tests": total_tests,
-            "active_tests": active_tests,
-            "total_submissions": total_submissions,
-            "today_submissions": today_submissions,
-            "late_submissions": late_submissions,
-            "avg_score": avg_score,
-            "avg_correct": avg_correct,
+            "total_users": int(d.get("total_users") or 0),
+            "approved_users": int(d.get("approved_users") or 0),
+            "pending_users": int(d.get("pending_users") or 0),
+            "blocked_users": int(d.get("blocked_users") or 0),
+            "total_tests": int(d.get("total_tests") or 0),
+            "active_tests": int(d.get("active_tests") or 0),
+            "total_submissions": int(d.get("total_submissions") or 0),
+            "today_submissions": int(d.get("today_submissions") or 0),
+            "late_submissions": int(d.get("late_submissions") or 0),
+            "avg_score": round(float(d.get("avg_score") or 0.0), 1),
+            "avg_correct": round(float(d.get("avg_correct") or 0.0), 1),
             "db_type": "PostgreSQL (Neon Cloud)" if USE_POSTGRES else "SQLite (Local)"
         }
     finally:

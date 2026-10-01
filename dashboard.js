@@ -321,7 +321,17 @@ function renderCurrentView() {
 // ----------------------------------------------------
 // DATA FETCHING (REAL-TIME)
 // ----------------------------------------------------
+let _isFetchingDashboard = false;
+let _lastOverviewFetchTime = 0;
+
 async function fetchDashboardData(manual = false) {
+  if (_isFetchingDashboard && !manual) return;
+  const now = Date.now();
+  if (!manual && (now - _lastOverviewFetchTime < 3000)) return;
+
+  _isFetchingDashboard = true;
+  _lastOverviewFetchTime = now;
+
   try {
     // 1. Overview & Stats
     const resOverview = await fetch('/api/dashboard/overview');
@@ -354,6 +364,8 @@ async function fetchDashboardData(manual = false) {
   } catch (err) {
     console.error('Fetch error:', err);
     if (manual) showToast('Bog\'lanishda xatolik yuz berdi', 'danger');
+  } finally {
+    _isFetchingDashboard = false;
   }
 }
 
@@ -441,7 +453,11 @@ function updateHeaderAndBadges(summary) {
 // OVERVIEW RENDERING
 // ----------------------------------------------------
 function renderOverview() {
-  fetchDashboardData();
+  if (State.overview) {
+    updateHeaderAndBadges(State.overview);
+  } else {
+    fetchDashboardData();
+  }
 }
 
 function renderOverviewData(data) {

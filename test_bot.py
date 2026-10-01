@@ -5458,16 +5458,20 @@ async def handle_static_file(request):
     # Fallback to embedded in-memory asset
     try:
         import web_assets_fallback
-        data, mime = web_assets_fallback.get_asset_bytes(path_name)
-        if data:
-            resp = web.Response(body=data, content_type=mime or 'application/octet-stream')
-            if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
-                resp.headers['Cache-Control'] = 'public, max-age=86400'
-            else:
-                set_no_cache_headers(resp)
-            return resp
-    except Exception as e:
-        log.error(f"Statik faylni xotiradan yuklashda xatolik ({path_name}): {e}")
+        if hasattr(web_assets_fallback, 'get_asset_bytes'):
+            data, mime = web_assets_fallback.get_asset_bytes(path_name)
+            if data:
+                resp = web.Response(body=data, content_type=mime or 'application/octet-stream')
+                if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
+                    resp.headers['Cache-Control'] = 'public, max-age=86400'
+                else:
+                    set_no_cache_headers(resp)
+                return resp
+    except Exception:
+        pass
+
+    if 'apple-touch-icon' in path_name or path_name.endswith('.ico'):
+        return web.Response(status=204)
 
     return web.Response(status=404, text="Fayl topilmadi")
 
@@ -6153,36 +6157,52 @@ async def handle_dashboard(request):
         log.error(f"dashboard.html yuklashda xatolik: {e}")
     return web.Response(status=404, text="dashboard.html topilmadi")
 
+_dashboard_overview_cache = {"data": None, "ts": 0}
+_dashboard_users_cache = {"data": None, "ts": 0}
+_dashboard_tests_cache = {"data": None, "ts": 0}
+
 async def handle_dashboard_overview(request):
+    global _dashboard_overview_cache
+    now = time.time()
+    if _dashboard_overview_cache["data"] and (now - _dashboard_overview_cache["ts"] < 15.0):
+        return web.json_response(_dashboard_overview_cache["data"])
+
     try:
-        summary = test_db.get_dashboard_summary()
-        recent_subs = test_db.get_all_submissions_for_admin(limit=15)
+        summary, recent_subs, logs, tests = await asyncio.gather(
+            asyncio.to_thread(test_db.get_dashboard_summary),
+            asyncio.to_thread(test_db.get_all_submissions_for_admin, 15),
+            asyncio.to_thread(test_db.get_activity_logs, 80),
+            asyncio.to_thread(test_db.get_tests_with_stats)
+        )
         for s in recent_subs:
             s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
-        logs = test_db.get_activity_logs(limit=80)
         for l in logs:
             l['time_fmt'] = format_uzb_time(l.get('time'), fmt="%d.%m.%Y %H:%M:%S")
             
-        tests = test_db.get_tests_with_stats()
         for t in tests:
             if t.get('created_at'):
                 t['created_at_fmt'] = format_uzb_time(t.get('created_at'), fmt="%d.%m.%Y %H:%M")
-        return web.json_response({
+        resp_data = {
             "success": True,
             "summary": summary,
             "recent_submissions": recent_subs,
             "activity_logs": logs,
             "tests": tests,
             "server_time": format_uzb_time(fmt="%d.%m.%Y %H:%M:%S")
-        })
+        }
+        _dashboard_overview_cache["data"] = resp_data
+        _dashboard_overview_cache["ts"] = now
+        return web.json_response(resp_data)
     except Exception as e:
         log.error(f"Dashboard overview error: {e}", exc_info=True)
+        if _dashboard_overview_cache["data"]:
+            return web.json_response(_dashboard_overview_cache["data"])
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 async def handle_dashboard_submissions(request):
     try:
         limit = int(request.rel_url.query.get('limit', 1000))
-        subs = test_db.get_all_submissions_for_admin(limit=limit)
+        subs = await asyncio.to_thread(test_db.get_all_submissions_for_admin, limit)
         for s in subs:
             s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
         return web.json_response({
@@ -6197,7 +6217,7 @@ async def handle_dashboard_submissions(request):
 async def handle_dashboard_submission_detail(request):
     try:
         sub_id = int(request.match_info.get('id', 0))
-        detail = test_db.get_submission_details_for_admin(sub_id)
+        detail = await asyncio.to_thread(test_db.get_submission_details_for_admin, sub_id)
         if not detail:
             return web.json_response({"success": False, "error": "Natija topilmadi"}, status=404)
         
@@ -6229,7 +6249,7 @@ async def handle_dashboard_submission_detail(request):
 async def handle_dashboard_user_submissions(request):
     try:
         user_tg_id = int(request.match_info.get('tg_id', 0))
-        subs = test_db.get_user_results(user_tg_id)
+        subs = await asyncio.to_thread(test_db.get_user_results, user_tg_id)
         for s in subs:
             s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
         return web.json_response({
@@ -6241,39 +6261,59 @@ async def handle_dashboard_user_submissions(request):
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 async def handle_dashboard_users(request):
+    global _dashboard_users_cache
+    now = time.time()
+    if _dashboard_users_cache["data"] and (now - _dashboard_users_cache["ts"] < 15.0):
+        return web.json_response(_dashboard_users_cache["data"])
     try:
-        users = test_db.get_all_users()
+        users, counts = await asyncio.gather(
+            asyncio.to_thread(test_db.get_all_users),
+            asyncio.to_thread(test_db.get_users_count)
+        )
         for u in users:
             u['registered_at_fmt'] = format_uzb_time(u.get('registered_at'), fmt="%d.%m.%Y %H:%M") if u.get('registered_at') else "—"
             u['last_test_at_fmt'] = format_uzb_time(u.get('last_test_at'), fmt="%d.%m.%Y %H:%M") if u.get('last_test_at') else "—"
-        counts = test_db.get_users_count()
-        return web.json_response({
+        resp_data = {
             "success": True,
             "users": users,
             "stats": counts
-        })
+        }
+        _dashboard_users_cache["data"] = resp_data
+        _dashboard_users_cache["ts"] = now
+        return web.json_response(resp_data)
     except Exception as e:
         log.error(f"Dashboard users error: {e}", exc_info=True)
+        if _dashboard_users_cache["data"]:
+            return web.json_response(_dashboard_users_cache["data"])
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 async def handle_dashboard_tests(request):
+    global _dashboard_tests_cache
+    now = time.time()
+    if _dashboard_tests_cache["data"] and (now - _dashboard_tests_cache["ts"] < 15.0):
+        return web.json_response(_dashboard_tests_cache["data"])
     try:
-        tests = test_db.get_tests_with_stats()
+        tests = await asyncio.to_thread(test_db.get_tests_with_stats)
         for t in tests:
             if t.get('created_at'):
                 t['created_at_fmt'] = format_uzb_time(t.get('created_at'), fmt="%d.%m.%Y %H:%M")
-        return web.json_response({
+        resp_data = {
             "success": True,
             "tests": tests
-        })
+        }
+        _dashboard_tests_cache["data"] = resp_data
+        _dashboard_tests_cache["ts"] = now
+        return web.json_response(resp_data)
     except Exception as e:
         log.error(f"Dashboard tests error: {e}", exc_info=True)
+        if _dashboard_tests_cache["data"]:
+            return web.json_response(_dashboard_tests_cache["data"])
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 async def handle_dashboard_logs(request):
     try:
         limit = int(request.rel_url.query.get('limit', 100))
-        logs = test_db.get_activity_logs(limit=limit)
+        logs = await asyncio.to_thread(test_db.get_activity_logs, limit)
         for l in logs:
             l['time_fmt'] = format_uzb_time(l.get('time'), fmt="%d.%m.%Y %H:%M:%S")
         return web.json_response({
