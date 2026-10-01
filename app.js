@@ -1437,7 +1437,7 @@ function renderTestDetailCard(test, type) {
       var correctPart = (isPub && test.user_correct != null) ? (' (' + test.user_correct + ' ' + t('tests_stat_correct') + ')') : '';
       userStatusBannerHtml =
         '<div class="test-user-status-banner status-participated">' +
-          '<span style="font-size:20px;">' + (isPub ? '✅' : '⏳') + '</span>' +
+          '<span class="status-icon">' + (isPub ? '✅' : '⏳') + '</span>' +
           '<div class="status-content">' +
             '<div class="status-title">' + (isPub ? t('user_status_participated') : 'Javoblaringiz qabul qilindi (Jarayonda)') + '</div>' +
             '<div class="status-desc">' + (scoreText ? (t('stat_score') + ': <b>' + scoreText + '</b>' + correctPart) : (isPub ? t('test_ended_user_took') : '⏳ Test davom etmoqda. Admin Rasch tahlili o\'tkazgach, ballaringiz e\'lon qilinadi.')) + '</div>' +
@@ -1446,7 +1446,7 @@ function renderTestDetailCard(test, type) {
     } else {
       userStatusBannerHtml =
         '<div class="test-user-status-banner status-not-participated">' +
-          '<span style="font-size:20px;">❌</span>' +
+          '<span class="status-icon">❌</span>' +
           '<div class="status-content">' +
             '<div class="status-title">' + t('user_status_not_participated') + '</div>' +
             '<div class="status-desc">' + t('test_ended_on_desc') + '</div>' +
@@ -1742,8 +1742,8 @@ function renderHomeTab(tests) {
     '<div class="section-sub">' + t('home_sub') + '</div></div>';
 
   // ── SUBTABS (2 ta bo'lim: Faol va Oldingi) ──
-  var boltIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor"/></svg>';
-  var archiveIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
+  var boltIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor"/></svg>';
+  var archiveIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>';
 
   html += '<div class="home-subtabs animate-in">' +
     '<button type="button" class="home-subtab ' + (currentSubtab === 'active' ? 'active' : '') + '" onclick="switchHomeSubtab(\'active\')">' +
@@ -2607,8 +2607,8 @@ function renderAdminTab() {
   var currentSubtab = state.adminSubtab || 'users';
   var usersCount = window.currentAdminUsers ? window.currentAdminUsers.length : 0;
 
-  var usersIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
-  var broadcastIcon = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
+  var usersIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+  var broadcastIcon = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>';
 
   var html =
     '<div class="admin-header-card animate-in">' +
