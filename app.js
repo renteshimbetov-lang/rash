@@ -9,6 +9,9 @@ const LS_USER = 'app_user';
 const LS_LANG = 'app_lang';
 const LS_THEME = 'app_theme';
 
+var LANG_LABELS = { uz: 'UZ', ru: 'RU', en: 'EN' };
+var splashTimer = null;
+
 // ── STATE ────────────────────────────────────────
 var state = {
   tgUser: null,
@@ -160,7 +163,6 @@ function startSplashCanvas() {
   };
 }
 
-let splashTimer = null;
 function dismissSplash() {
   if (splashTimer) clearTimeout(splashTimer);
   var splash = document.getElementById('splashScreen') || document.getElementById('splash-screen');
@@ -3304,19 +3306,12 @@ window.state = state;
 window.switchTab = switchTab;
 window.dismissSplash = dismissSplash;
 window.launchApp = launchApp;
-window.init = init;
-window.apiGet = apiGet;
-window.apiPost = apiPost;
+window.initApp = initApp;
 window.getAuthHeaders = getAuthHeaders;
 window.showToast = showToast;
 window.escHtml = escHtml;
-window.formatDateOnly = formatDateOnly;
-window.getGradeFromScore = getGradeFromScore;
 window.toggleTheme = toggleTheme;
-window.setTheme = setTheme;
 window.syncTelegramTheme = syncTelegramTheme;
-window.cycleLang = cycleLang;
-window.setLang = setLang;
 window.showResultModal = showResultModal;
 window.closeResultModal = closeResultModal;
 window.promptCompareKeys = promptCompareKeys;
@@ -3325,14 +3320,6 @@ window.renderKeyComparison = renderKeyComparison;
 window.openPastTestResult = openPastTestResult;
 window.openEditProfileModal = openEditProfileModal;
 window.closeEditProfileModal = closeEditProfileModal;
-window.saveProfile = saveProfile;
-window.confirmDeleteAccount = confirmDeleteAccount;
 window.openOnboardingModal = openOnboardingModal;
 window.closeOnboardingModal = closeOnboardingModal;
-window.nextOnboardingStep = nextOnboardingStep;
-window.prevOnboardingStep = prevOnboardingStep;
-window.setOnboardingStep = setOnboardingStep;
-window.setAdminSubtab = setAdminSubtab;
-window.copyToClipboard = copyToClipboard;
-window.togglePersonalInfo = togglePersonalInfo;
-window.toggleAdminSimulation = toggleAdminSimulation;
+window.finishOnboarding = finishOnboarding;
