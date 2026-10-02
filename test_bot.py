@@ -357,8 +357,8 @@ class ContactUserState(StatesGroup):
 def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
     is_adm = test_db.is_admin(user_tg_id, ADMIN_ID)
     
-    app_url = f"{WEBAPP_URL}/app.html?tg_id={user_tg_id}"
-    admin_webapp_url = f"{WEBAPP_URL}/admin.html?tg_id={user_tg_id}"
+    app_url = f"{WEBAPP_URL}/app.html?tg_id={user_tg_id}&v=20261002_fresh"
+    admin_webapp_url = f"{WEBAPP_URL}/admin.html?tg_id={user_tg_id}&v=20261002_fresh"
 
     # Agar HTTPS bo'lsa to'g'ridan-to'g'ri Telegram WebApp ochadi
     if app_url.startswith("https://"):
@@ -394,15 +394,16 @@ def main_menu_kb(user_tg_id: int) -> ReplyKeyboardMarkup:
 
 def profile_webapp_kb(user_tg_id: int) -> InlineKeyboardMarkup:
     """Shaxsiy profil mini ilovasini ochish tugmasi."""
-    app_url = f"{WEBAPP_URL}/app.html"
+    app_url = f"{WEBAPP_URL}/app.html?tg_id={user_tg_id}&v=20261002_fresh"
     buttons = [
         [make_webapp_button("📱 Shaxsiy profilni ochish", app_url, fallback_cb="open_app_info")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-def results_webapp_kb() -> InlineKeyboardMarkup:
+def results_webapp_kb(user_tg_id: int = 0) -> InlineKeyboardMarkup:
     """Natijalarni ko'rish mini ilovasi tugmasi."""
-    app_url = f"{WEBAPP_URL}/app.html"
+    qs = f"?tg_id={user_tg_id}&v=20261002_fresh" if user_tg_id else "?v=20261002_fresh"
+    app_url = f"{WEBAPP_URL}/app.html{qs}"
     buttons = [
         [make_webapp_button("📊 Asosiy ilovani ochish", app_url, fallback_cb="open_app_info")]
     ]
@@ -1870,7 +1871,7 @@ async def open_app_command(message: Message):
     await message.answer(
         "📱 <b>RASH TEST Mini App tizimiga kirish:</b>\n\n"
         "Quyidagi tugmani bosing 👇",
-        reply_markup=results_webapp_kb()
+        reply_markup=results_webapp_kb(message.from_user.id)
     )
 
 # ── ADMIN PANEL HANDLERLARI ───────────────────────────

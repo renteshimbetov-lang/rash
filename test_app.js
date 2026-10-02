@@ -146,30 +146,33 @@ const TestApp = {
     }
   },
 
+  finishSplashImmediately() {
+    const splash = document.getElementById('intro-splash') || document.getElementById('splashScreen');
+    if (!splash) return;
+    if (this._splashDismissed) return;
+    this._splashDismissed = true;
+
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
+    }
+
+    splash.classList.add('dismissed');
+    setTimeout(() => {
+      splash.style.display = 'none';
+    }, 600);
+  },
+
   runIntroAnimation() {
     const splash = document.getElementById('intro-splash') || document.getElementById('splashScreen');
     if (!splash) return;
 
-    let isFinished = false;
-    this.finishSplashImmediately = () => {
-      if (isFinished) return;
-      isFinished = true;
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-        try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
-      }
-
-      splash.classList.add('dismissed');
-      setTimeout(() => {
-        splash.style.display = 'none';
-      }, 700);
-    };
-
     window.dismissSplash = () => this.finishSplashImmediately();
+    window.finishSplashImmediately = () => this.finishSplashImmediately();
 
-    // 3400ms dan so'ng avtomatik o'tish
+    // 3200ms dan so'ng avtomatik o'tish
     setTimeout(() => {
-      if (!isFinished) this.finishSplashImmediately();
-    }, 3400);
+      this.finishSplashImmediately();
+    }, 3200);
   },
 
   toggleTheme() {
@@ -970,7 +973,13 @@ const TestApp = {
 };
 
 window.TestApp = TestApp;
+window.dismissSplash = () => TestApp.finishSplashImmediately();
+window.finishSplashImmediately = () => TestApp.finishSplashImmediately();
 
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    TestApp.init();
+  });
+} else {
   TestApp.init();
-});
+}

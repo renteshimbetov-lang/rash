@@ -87,7 +87,7 @@
     <!-- 3. Ostki Tagline/Izoh -->
     <div class="splash-subtitle">MILLIY SERTIFIKAT VA RASCH TIZIMI</div>
     <!-- 4. O'tkazib yuborish (Skip) tugmasi -->
-    <div class="splash-skip-hint" onclick="TestApp.finishSplashImmediately()">
+    <div class="splash-skip-hint" onclick="if(window.TestApp && typeof TestApp.finishSplashImmediately==='function'){TestApp.finishSplashImmediately();}else{var s=document.getElementById('intro-splash')||document.getElementById('splashScreen');if(s)s.style.display='none';}">
       <span>Davom etish ➔</span>
     </div>
   </div>
@@ -583,6 +583,6 @@
   <!-- Skriptlar -->
   <script src="/logo_data.js?v=20260926_shohruh3"></script>
   <script src="/math_keyboard.js?v=20261002_compacttop"></script>
-  <script src="/test_app.js?v=20261002_compacttop"></script>
+  <script src="/test_app.js?v=20261002_safesubmit2"></script>
 </body>
 </html>

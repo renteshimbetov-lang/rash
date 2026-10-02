@@ -739,6 +739,10 @@ const AdminApp = {
 
 window.AdminApp = AdminApp;
 
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    AdminApp.init();
+  });
+} else {
   AdminApp.init();
-});
+}
