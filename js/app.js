@@ -1181,11 +1181,16 @@ function renderHomeTab(tests) {
   var tab = document.getElementById('tab-home');
   if (!tab) return;
   window.availableActiveTests = tests || [];
-  var currentSubtab = state.homeSubtab || 'active';
 
   var upcoming = tests.filter(function(t) { return isTestUpcoming(t); });
   var active = tests.filter(function(t) { return t.is_active && !isTestUpcoming(t); });
   var inactive = tests.filter(function(t) { return !t.is_active && !isTestUpcoming(t); });
+
+  // Agar faol/kutilayotgan test yo'q bo'lsa, avtomatik "Oldingi testlar" tabiga o'tish
+  if (active.length === 0 && upcoming.length === 0 && inactive.length > 0) {
+    state.homeSubtab = 'past';
+  }
+  var currentSubtab = state.homeSubtab || 'active';
 
   var activeTotalCount = active.length + upcoming.length;
   var pastTotalCount = inactive.length;
@@ -1239,10 +1244,14 @@ function renderHomeTab(tests) {
 
     // Bo'sh holat
     if (activeTotalCount === 0) {
+      var pastBtnHtml = inactive.length > 0
+        ? '<button type="button" onclick="switchHomeSubtab(\'past\')" style="margin-top:18px;padding:10px 24px;background:var(--primary);color:#fff;border:none;border-radius:24px;font-size:14px;font-weight:700;cursor:pointer;">📁 ' + t('subtab_past') + ' (' + inactive.length + ')</button>'
+        : '';
       html += '<div class="empty-state animate-in" style="padding:44px 16px;">' +
         '<div class="empty-icon" style="font-size:42px;margin-bottom:12px;">📫</div>' +
         '<div style="font-weight:800;font-size:16px;margin-bottom:6px;color:var(--text)">' + t('empty_active') + '</div>' +
         '<p style="font-size:13px;color:var(--text-muted);margin:0;max-width:280px;line-height:1.5;">' + t('empty_active_sub') + '</p>' +
+        pastBtnHtml +
       '</div>';
     }
   } else {
