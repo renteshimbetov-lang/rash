@@ -4158,6 +4158,74 @@ async def process_tahlil_code(message: Message, state: FSMContext):
         disable_web_page_preview=False
     )
 
+async def notify_admins_test_results_published(test_id: int, publisher_tg_id: int, eval_type: str = "rasch"):
+    """
+    Test natijalari e'lon qilinganda:
+    - Barcha adminlarga (agar Bosh Admin e'lon qilsa tayinlangan adminga, agar tayinlangan admin e'lon qilsa Bosh Adminga va boshqa adminlarga)
+      '«Test nomi» natijalari [Admin ismi] tomonidan e'lon qilindi' deb xabar va tayyor natijalar PDF fayli biriktirib yuboriladi.
+    """
+    try:
+        test = await asyncio.to_thread(test_db.get_test_by_id, test_id)
+        if not test:
+            return
+
+        publisher_tg_id = int(publisher_tg_id or 0)
+        if publisher_tg_id == ADMIN_ID:
+            publisher_name = "Shaxriyor (Bosh Admin)"
+        else:
+            u = await asyncio.to_thread(test_db.get_user, publisher_tg_id)
+            publisher_name = u.get("fullname", "Admin") if u else f"Admin (ID: {publisher_tg_id})"
+
+        subs = await asyncio.to_thread(test_db.get_test_results_leaderboard, test_id)
+        subs_count = len(subs)
+
+        eval_title = "Rasch modeli (JMLE)" if eval_type == "rasch" else "Standart ballar"
+        caption = (
+            f"📢 <b>«{test['title']}»</b> (<code>#{test.get('test_code', '')}</code>) test natijalari "
+            f"<b>{publisher_name}</b> tomonidan e'lon qilindi!\n\n"
+            f"🧮 <b>Baholash usuli:</b> {eval_title}\n"
+            f"👥 <b>Ishtirokchilar soni:</b> {subs_count} nafar\n"
+            f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
+            f"📑 <i>To'liq natijalar reyting jadvali (PDF) quyida ilova qilindi:</i>"
+        )
+
+        # PDF natijalar faylini generatsiya qilish
+        pdf_path = await asyncio.to_thread(test_db.generate_test_results_pdf, test_id)
+
+        # Adminlar ro'yxatini yig'ish (Bosh Admin + barcha tayinlangan adminlar)
+        all_admins = await asyncio.to_thread(test_db.get_all_admins)
+        admin_ids = set()
+        admin_ids.add(ADMIN_ID)
+        for a in (all_admins or []):
+            if a.get("tg_id"):
+                admin_ids.add(int(a["tg_id"]))
+
+        for aid in admin_ids:
+            try:
+                if pdf_path and os.path.exists(pdf_path):
+                    await bot.send_document(
+                        chat_id=aid,
+                        document=FSInputFile(pdf_path),
+                        caption=caption
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=aid,
+                        text=caption
+                    )
+            except Exception as e_send:
+                log.warning(f"Adminga ({aid}) test natijalari va PDF yuborishda xatolik: {e_send}")
+
+        # PDF faylni o'chirish
+        if pdf_path and os.path.exists(pdf_path):
+            try:
+                os.remove(pdf_path)
+            except Exception:
+                pass
+    except Exception as e:
+        log.error(f"notify_admins_test_results_published error: {e}", exc_info=True)
+
+
 # 1. Rasch modeli bo'yicha e'lon qilish
 @router.callback_query(F.data.startswith("adm_broadcast_rasch_"))
 async def admin_broadcast_rasch_cb(call: CallbackQuery):
@@ -4246,6 +4314,8 @@ async def admin_broadcast_rasch_cb(call: CallbackQuery):
             f"📌 <i>O'quvchilar botda va mini ilovada o'z ballari va to'liq tahlilni ko'ra oladilar.</i>",
             reply_markup=back_kb
         )
+        # Barcha adminlarga e'lon xabari va rasmiy natijalar PDF ini yuborish
+        asyncio.create_task(notify_admins_test_results_published(test_id, call.from_user.id, eval_type="rasch"))
     except Exception as e:
         log.error(f"Xatolik broadcastda: {e}", exc_info=True)
         await status_msg.edit_text(f"❌ <b>Natijalarni e'lon qilishda xatolik yuz berdi:</b>\n<code>{e}</code>")
@@ -4312,6 +4382,8 @@ async def admin_broadcast_std_cb(call: CallbackQuery):
             f"📌 <i>Endi barcha o'quvchilar botda va mini ilovada o'z ballari va to'liq tahlilni ko'ra oladilar.</i>",
             reply_markup=back_kb
         )
+        # Barcha adminlarga e'lon xabari va rasmiy natijalar PDF ini yuborish
+        asyncio.create_task(notify_admins_test_results_published(test_id, call.from_user.id, eval_type="std"))
     except Exception as e:
         log.error(f"Xatolik broadcastda: {e}", exc_info=True)
         await status_msg.edit_text(f"❌ <b>Natijalarni e'lon qilishda xatolik yuz berdi:</b>\n<code>{e}</code>")
@@ -4953,11 +5025,12 @@ async def handle_create_test_api(request):
 
                 target_chat_id = creator_id if (creator_id and test_db.is_admin(creator_id, ADMIN_ID)) else ADMIN_ID
 
+                # Testni yaratgan adminga (bosh admin yoki tayinlangan admin) PDF so'rovini yuborish
                 await bot.send_message(
                     chat_id=target_chat_id,
                     text=(
                         f"✅ <b>Yangi test yaratildi va saqlandi!</b>\n\n"
-                        f"📖 <b>Nomi:</b> {title}\n"
+                        f"📖 <b>Nomi:</b> {title} (<code>#{test_code}</code>)\n"
                         f"📌 <b>Fani:</b> {subject}\n"
                         f"{sched_info}"
                         f"{time_info}"
@@ -4967,7 +5040,7 @@ async def handle_create_test_api(request):
                     reply_markup=kb
                 )
 
-                # Agar testni tayinlangan admin yaratgan bo'lsa, Bosh Adminga ham bildirishnoma yuborish:
+                # Agar testni tayinlangan admin yaratgan bo'lsa -> Bosh Adminga PDF so'rovsiz, faqat 1 ta toza bildirishnoma:
                 if target_chat_id != ADMIN_ID:
                     try:
                         creator_u = test_db.get_user(target_chat_id)
@@ -4975,18 +5048,36 @@ async def handle_create_test_api(request):
                         await bot.send_message(
                             chat_id=ADMIN_ID,
                             text=(
-                                f"📢 <b>Tayinlangan admin ({creator_name}) tomonidan yangi test yaratildi!</b>\n\n"
-                                f"📖 <b>Nomi:</b> {title}\n"
+                                f"📢 <b>Yangi test yaratildi!</b>\n\n"
+                                f"📖 <b>Nomi:</b> {title} (<code>#{test_code}</code>)\n"
                                 f"📌 <b>Fani:</b> {subject}\n"
                                 f"{sched_info}"
                                 f"{time_info}"
-                                f"🎯 <i>Kalitlar saqlandi.</i>\n\n"
-                                f"Ushbu test uchun siz ham PDF yuklashingiz mumkin:"
-                            ),
-                            reply_markup=kb
+                                f"👤 <b>Yaratuvchi:</b> <b>{creator_name}</b> tomonidan yaratildi."
+                            )
                         )
                     except Exception as e_adm:
                         log.warning(f"Bosh adminga xabar yuborishda xatolik: {e_adm}")
+                else:
+                    # Agar Bosh Admin yaratgan bo'lsa -> tayinlangan adminlarga ham PDF so'rovsiz 1 ta toza bildirishnoma:
+                    try:
+                        all_adms = test_db.get_all_admins()
+                        for adm in (all_adms or []):
+                            aid = adm.get("tg_id")
+                            if aid and aid != ADMIN_ID:
+                                await bot.send_message(
+                                    chat_id=aid,
+                                    text=(
+                                        f"📢 <b>Yangi test yaratildi!</b>\n\n"
+                                        f"📖 <b>Nomi:</b> {title} (<code>#{test_code}</code>)\n"
+                                        f"📌 <b>Fani:</b> {subject}\n"
+                                        f"{sched_info}"
+                                        f"{time_info}"
+                                        f"👤 <b>Yaratuvchi:</b> <b>Shaxriyor (Bosh Admin)</b> tomonidan yaratildi."
+                                    )
+                                )
+                    except Exception as e_adm2:
+                        log.warning(f"Tayinlangan adminga xabar yuborishda xatolik: {e_adm2}")
             except Exception as ex:
                 log.warning(f"Adminga xabar yuborishda xatolik: {ex}")
 
@@ -6500,6 +6591,9 @@ async def handle_dashboard_test_publish(request):
         cur_pub = t.get('results_published', 0)
         new_pub = 0 if cur_pub == 1 else 1
         test_db.set_test_results_published(test_id, new_pub)
+        if new_pub == 1:
+            pub_id = int(data.get("admin_id") or data.get("tg_id") or ADMIN_ID)
+            asyncio.create_task(notify_admins_test_results_published(test_id, pub_id, eval_type="rasch"))
         return web.json_response({
             "success": True,
             "results_published": new_pub,
