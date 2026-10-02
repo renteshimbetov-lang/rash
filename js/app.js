@@ -219,11 +219,20 @@ async function initPinScreen() {
   }
 
   // Telegram CloudStorage tekshirish
+  // CloudStorage'dan olingan qiymat base64 yoki ochiq bo'lishi mumkin —
+  // localStorage ga yozishdan oldin base64 ekanligini tekshiramiz.
   if (!hasPin && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.CloudStorage) {
     try {
       window.Telegram.WebApp.CloudStorage.getItem(LS_PIN, function(err, val) {
         if (!err && val) {
-          localStorage.setItem(LS_PIN, val);
+          // Agar qiymat allaqachon base64 bo'lmasa, encode qilib saqlaymiz
+          var safeVal = val;
+          try {
+            atob(val); // base64 ekanligini sinab ko'ramiz
+          } catch(e) {
+            safeVal = btoa(val); // ochiq matn bo'lsa base64 ga o'giramiz
+          }
+          localStorage.setItem(LS_PIN, safeVal);
           state.pinMode = 'enter';
           updatePinUI(true);
         }
@@ -319,9 +328,15 @@ async function processPin() {
       }, 1000);
     }
   } else {
+    // localStorage da base64 yoki ochiq qiymat bo'lishi mumkin — ikkalasini sinab ko'ramiz
     var stored = '';
-    try { stored = atob(localStorage.getItem(LS_PIN) || ''); } catch(e) {}
-    
+    var rawStored = localStorage.getItem(LS_PIN) || '';
+    try {
+      stored = atob(rawStored); // base64 decode
+    } catch(e) {
+      stored = rawStored; // decode bo'lmasa ochiq qiymat sifatida qabul qilamiz
+    }
+
     var isValid = (stored && pin === stored);
 
     if (!isValid && tgId) {
@@ -1008,14 +1023,25 @@ function handlePastTestCardClick(testId) {
 }
 
 function openPastTestResult(testId) {
+  var numId = Number(testId);
   var matching = null;
+
+  // Backend r.test_id, r.id yoki r.test_code orqali yuborishi mumkin — barchasini tekshiramiz
   if (window._myResults && window._myResults.length > 0) {
     matching = window._myResults.find(function(r) {
-      return (r.test_id && Number(r.test_id) === Number(testId));
+      return (
+        (r.test_id !== undefined && Number(r.test_id) === numId) ||
+        (r.id !== undefined && Number(r.id) === numId) ||
+        (r.test_code !== undefined && Number(r.test_code) === numId)
+      );
     });
   }
+
+  // _myResults da topilmasa availableActiveTests dan fallback
   if (!matching) {
-    var tObj = (window.availableActiveTests || []).find(function(t) { return t.id === testId; });
+    var tObj = (window.availableActiveTests || []).find(function(t) {
+      return Number(t.id) === numId || Number(t.test_code) === numId;
+    });
     if (tObj && tObj.already_submitted) {
       matching = {
         test_id: tObj.id,
@@ -1023,7 +1049,7 @@ function openPastTestResult(testId) {
         score: tObj.user_score,
         correct_count: tObj.user_correct,
         total_count: tObj.user_total || 45,
-        grade: tObj.user_grade || "Kutilmoqda",
+        grade: tObj.user_grade || 'Kutilmoqda',
         submitted_at: tObj.submitted_at,
         results_published: Boolean(tObj.results_published)
       };
@@ -1033,7 +1059,9 @@ function openPastTestResult(testId) {
   if (matching) {
     showResultModal(matching);
   } else {
+    // Natija topilmasa — testlar tabiga o'tib, yangi yuklaymiz
     switchTab('tests');
+    loadMyResults();
   }
 }
 
@@ -2694,21 +2722,40 @@ function checkRegistrationStatus() {
   var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
   var tgId = (state.tgUser && state.tgUser.id) || (tgU && tgU.id) || 0;
 
-  // 1. Agar admin simulyatsiya rejimida bo'lsa (User mode), modal chiqmaydi
+  // 1. Admin simulyatsiya yoki bypass — modal ko'rsatilmaydi
   if (state.isSimulatedUser || window._unregBypassed) {
     if (modal) modal.style.display = 'none';
     return false;
   }
 
-  // 2. Agar profil hali serverdan yuklanayotgan bo'lsa (state.userInfo null bo'lsa), modalni ko'rsatmay kutamiz
+  // 2. Profil hali serverdan yuklanmagan — kutamiz, bloklamaymiz
   if (!state.userInfo) {
     if (modal) modal.style.display = 'none';
     return false;
   }
 
-  // 3. Botda ro'yxatdan o'tganligini tekshirish
   var u = state.userInfo;
-  var isUnreg = (!tgId || tgId === 0 || u.status === 'not_registered' || u.is_registered === false);
+
+  // 3. 'pending' statusi — ro'yxatdan o'tgan lekin tasdiqlash kutilmoqda;
+  //    bloklamaymiz, u testlarni ko'ra olishi kerak
+  if (u.status === 'pending') {
+    if (modal) modal.style.display = 'none';
+    return false;
+  }
+
+  // 4. is_registered undefined bo'lsa (noaniq holat) — is_registered ni
+  //    status maydoni orqali aniqlaymiz, foydalanuvchini noto'g'ri bloklashdan saqlaymiz
+  var isRegistered;
+  if (u.is_registered !== undefined) {
+    isRegistered = Boolean(u.is_registered);
+  } else {
+    // is_registered maydoni yo'q bo'lsa status orqali baholaymiz
+    isRegistered = (u.status === 'approved' || u.status === 'active' || u.status === 'pending');
+  }
+
+  // 5. Asosiy tekshiruv: tgId noma'lum YOKI ro'yxatdan o'tmagan
+  var isUnreg = (!tgId || u.status === 'not_registered' || !isRegistered);
+
   if (modal) {
     modal.style.display = isUnreg ? 'flex' : 'none';
   }
