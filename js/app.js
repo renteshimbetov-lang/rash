@@ -544,24 +544,34 @@ function openTestSolving(testId) {
 
 function openPastTestResult(testId) {
   var numId    = Number(testId);
+  var strId    = String(testId).trim().toLowerCase();
   var matching = null;
 
+  // _myResults ichidan 3 xil maydon bo'yicha qidiramiz: test_id, id, test_code (raqam va matn)
   if (window._myResults && window._myResults.length > 0) {
     matching = window._myResults.find(function(r) {
-      return (r.test_id !== undefined && Number(r.test_id) === numId) ||
-             (r.id      !== undefined && Number(r.id)      === numId) ||
-             (r.test_code !== undefined && Number(r.test_code) === numId);
+      return (r.test_id  !== undefined && Number(r.test_id)  === numId) ||
+             (r.id       !== undefined && Number(r.id)       === numId) ||
+             (r.test_code !== undefined && (
+               Number(r.test_code) === numId ||
+               String(r.test_code).trim().toLowerCase() === strId
+             ));
     });
   }
 
+  // _myResults da topilmasa availableActiveTests dan fallback
   if (!matching) {
-    var tObj = (window._availableTests || []).find(function(t) {
-      return Number(t.id) === numId || Number(t.test_code) === numId;
+    var tObj = (window._availableTests || window.availableActiveTests || []).find(function(t) {
+      return Number(t.id) === numId ||
+             Number(t.test_code) === numId ||
+             String(t.test_code).trim().toLowerCase() === strId;
     });
     if (tObj && tObj.already_submitted) {
       matching = {
-        test_id: tObj.id, test_title: tObj.title,
-        score: tObj.user_score, correct_count: tObj.user_correct,
+        test_id: tObj.id,
+        test_title: tObj.title,
+        score: tObj.user_score,
+        correct_count: tObj.user_correct,
         total_count: tObj.user_total || 45,
         grade: tObj.user_grade || 'Kutilmoqda',
         submitted_at: tObj.submitted_at,
@@ -570,8 +580,16 @@ function openPastTestResult(testId) {
     }
   }
 
-  if (matching) { showResultModal(matching); }
-  else { switchTab('tests'); loadMyResults(); }
+  if (matching) {
+    showResultModal(matching);
+  } else {
+    // Natija topilmasa — yangi yuklab, testlar tabiga o'tamiz
+    loadMyResults().then(function() {
+      switchTab('tests');
+    }).catch(function() {
+      switchTab('tests');
+    });
+  }
 }
 
 function showPastTestEndedModal(testId) {

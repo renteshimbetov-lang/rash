@@ -30,7 +30,14 @@
       try {
         window.Telegram.WebApp.CloudStorage.getItem(LS_PIN, function(err, val) {
           if (!err && val) {
-            localStorage.setItem(LS_PIN, val);
+            // CloudStorage'dan kelgan qiymat base64 yoki ochiq matn bo'lishi mumkin
+            var safeVal = val;
+            try {
+              atob(val); // base64 ekanligini sinab ko'ramiz — xato bo'lsa catch ga o'tamiz
+            } catch (e) {
+              safeVal = btoa(val); // ochiq matn — base64 ga o'giramiz
+            }
+            localStorage.setItem(LS_PIN, safeVal);
             pinState.mode = 'enter';
             if (window.state) window.state.pinMode = 'enter';
             updatePinUI(true);
@@ -38,6 +45,7 @@
         });
       } catch (e) {}
     }
+
 
     updatePinUI(hasPin);
     renderPinDots(0);
