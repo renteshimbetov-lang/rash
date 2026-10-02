@@ -47,6 +47,8 @@ function initApp() {
   var queryTgId = parseInt(urlParams.get('tg_id') || '0', 10);
   var isPreview  = urlParams.get('preview') === 'user' || urlParams.get('demo') === '1';
 
+  var hasTgContext = !!(window.Telegram && window.Telegram.WebApp);
+
   if (isPreview) {
     state.tgUser  = { id: 7080517395, first_name: "O'quvchi", last_name: '', username: 'demo' };
     state.userInfo = { tg_id: 7080517395, fullname: "O'quvchi (Demo)", phone: '', status: 'approved', is_registered: true };
@@ -61,7 +63,8 @@ function initApp() {
     if (cached && cached.tg_id) {
       state.tgUser  = { id: cached.tg_id, first_name: cached.fullname || 'Foydalanuvchi', last_name: '', username: '' };
       state.userInfo = cached;
-    } else if (tg) {
+    } else if (hasTgContext) {
+      // Telegram WebApp mavjud lekin user ma'lumotlari hali yuklanmagan (ba'zi platformalarda kechikishi mumkin)
       state.tgUser = { id: 0, first_name: 'Foydalanuvchi', last_name: '', username: '' };
     } else {
       var wb = document.getElementById('web-block-screen');
@@ -71,6 +74,7 @@ function initApp() {
       return;
     }
   }
+
 
   if (window.BM_LOGO_B64) {
     document.querySelectorAll('.header-logo-img, .header-bm-logo').forEach(function(img) {
