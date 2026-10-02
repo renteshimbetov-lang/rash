@@ -28,7 +28,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup,
     KeyboardButton, Message, ReplyKeyboardMarkup, ReplyKeyboardRemove,
-    WebAppInfo, FSInputFile, MenuButtonWebApp, BotCommand, ChatMemberUpdated
+    WebAppInfo, FSInputFile, MenuButtonWebApp, MenuButtonDefault, BotCommand, ChatMemberUpdated
 )
 from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError, TelegramBadRequest, TelegramAPIError
 from aiohttp import web
@@ -7069,9 +7069,8 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
-            await bot.set_chat_menu_button(menu_button=menu_btn)
-            log.info("✅ Bot menyu tugmasi Render.com doimiy URL ga ulandi!")
+            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (Render.com)")
         except Exception as e:
             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
         return
@@ -7083,9 +7082,8 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
-            await bot.set_chat_menu_button(menu_button=menu_btn)
-            log.info("✅ Bot menyu tugmasi Railway doimiy URL ga ulandi!")
+            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (Railway)")
         except Exception as e:
             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
         return
@@ -7097,9 +7095,8 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
-            await bot.set_chat_menu_button(menu_button=menu_btn)
-            log.info("✅ Bot menyu tugmasi doimiy URL ga ulandi!")
+            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (env URL)")
         except Exception as e:
             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
         return
@@ -7132,9 +7129,8 @@ async def maintain_tunnel(local_port: int):
                             with open("tunnel_url.txt", "w") as f:
                                 f.write(WEBAPP_URL)
                             # Update Bot Menu Button automatically
-                            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
-                            await bot.set_chat_menu_button(menu_button=menu_btn)
-                            log.info("✅ Bot menyu tugmasi Mini App URL ga ulandi!")
+                            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+                            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (tunnel)")
                         except Exception as e:
                             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
                 await proc.wait()
@@ -7534,9 +7530,8 @@ async def main():
 
             # Telegram pastki chat menyu tugmasini doimiy ravishda "Profil 👤" qilib o'rnatish
             try:
-                menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
-                await bot.set_chat_menu_button(menu_button=menu_btn)
-                log.info("✅ Telegram Bot pastki menyu tugmasi 'Profil 👤' qilib sozlandi!")
+                await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+                log.info("✅ Telegram Bot pastki menyu tugmasi standart menyuga o'zgartirildi")
             except Exception as me:
                 log.warning(f"Bot chat menyu tugmasini o'rnatishda ogohlantirish: {me}")
         except Exception as ce:
