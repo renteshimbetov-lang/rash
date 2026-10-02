@@ -4691,6 +4691,20 @@ async def handle_submit_test_api(request):
                 "message": "Test topilmadi!"
             }, status=404)
 
+        # Bo'sh (0 ta belgilangan) testni topshirishni bloklash (tasodifiy bosilib ketishdan himoya)
+        has_any_answer = False
+        if isinstance(user_answers, dict):
+            for k, v in user_answers.items():
+                if v is not None and str(v).strip():
+                    has_any_answer = True
+                    break
+
+        if not has_any_answer and not test_db.is_admin(user_tg_id, ADMIN_ID):
+            return web.json_response({
+                "success": False,
+                "message": "⚠️ Testda birorta ham savolga javob belgilanmagan! Bo'sh testni topshirib bo'lmaydi. Iltimos, kamida bitta javobni belgilang."
+            }, status=400)
+
         sched_stat = get_test_schedule_status(test_obj)
         if sched_stat["is_upcoming"] and not test_db.is_admin(user_tg_id, ADMIN_ID):
             sdate = test_obj.get('scheduled_date') or 'Bugun'

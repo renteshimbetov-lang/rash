@@ -99,6 +99,9 @@ const TestApp = {
     this.renderMapGrid();
     this.updateProgress();
 
+    // 3.1. Agar telefon o'chib yongan yoki sahifa yangilangan bo'lsa, javoblarni xotiradan tiklash
+    this.restoreAnswersFromStorage();
+
     // 4. Mavzuga mos kirish animatsiyasini ishga tushirish
     this.runIntroAnimation();
 
@@ -250,6 +253,85 @@ const TestApp = {
   },
 
   // ----------------------------------------------------
+  // LOCALSTORAGE AUTOSAVE & RESTORE (Javoblar o'chib ketmasligi uchun)
+  // ----------------------------------------------------
+  getStorageKey() {
+    const tid = this.testId || '1';
+    const uid = this.userTgId || '0';
+    return `bm_answers_test_${tid}_user_${uid}`;
+  },
+
+  saveAnswersToStorage() {
+    try {
+      if (!this.testId) return;
+      // 36a-45b ochiq savollar qiymatini DOM dan olish
+      for (let q = 36; q <= 45; q++) {
+        for (let sub of ['a', 'b']) {
+          const key = `${q}${sub}`;
+          const input = document.getElementById(`input-${key}`);
+          if (input && input.value !== undefined) {
+            this.answers[key] = input.value.trim();
+          }
+        }
+      }
+      const key = this.getStorageKey();
+      localStorage.setItem(key, JSON.stringify(this.answers));
+    } catch (e) {
+      console.warn('Storage save error:', e);
+    }
+  },
+
+  restoreAnswersFromStorage() {
+    try {
+      const key = this.getStorageKey();
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (!saved || typeof saved !== 'object') return;
+
+      this.answers = Object.assign({}, saved);
+
+      // 1-35 variantli savollarni tiklash
+      for (let q = 1; q <= 35; q++) {
+        const opt = this.answers[String(q)];
+        if (opt) {
+          const btn = document.getElementById(`opt-${q}-${opt}`);
+          if (btn) btn.classList.add('selected');
+          const card = document.getElementById(`qcard-${q}`);
+          if (card) card.classList.add('answered');
+          this.updateMapItem(String(q), true);
+        }
+      }
+
+      // 36a-45b ochiq savollarni tiklash
+      for (let q = 36; q <= 45; q++) {
+        for (let sub of ['a', 'b']) {
+          const fieldKey = `${q}${sub}`;
+          const val = this.answers[fieldKey];
+          if (val !== undefined && val !== null && String(val).trim().length > 0) {
+            const input = document.getElementById(`input-${fieldKey}`);
+            if (input) input.value = val;
+            const box = document.getElementById(`box-${fieldKey}`);
+            if (box) box.classList.add('filled');
+            this.updateMapItem(fieldKey, true);
+          }
+        }
+      }
+
+      this.updateProgress();
+    } catch (e) {
+      console.warn('Storage restore error:', e);
+    }
+  },
+
+  clearAnswersFromStorage() {
+    try {
+      const key = this.getStorageKey();
+      localStorage.removeItem(key);
+    } catch (e) {}
+  },
+
+  // ----------------------------------------------------
   // JAVOBNI TANLASH VA O'RNATISH
   // ----------------------------------------------------
   selectOption(qNum, option) {
@@ -274,6 +356,7 @@ const TestApp = {
 
     this.updateProgress();
     this.updateMapItem(String(qNum), true);
+    this.saveAnswersToStorage();
   },
 
   setOpenAnswer(fieldKey, val) {
@@ -287,6 +370,7 @@ const TestApp = {
     const isFilled = (val || '').trim().length > 0;
     this.updateMapItem(fieldKey, isFilled);
     this.updateProgress();
+    this.saveAnswersToStorage();
   },
 
   // ----------------------------------------------------
@@ -380,7 +464,7 @@ const TestApp = {
   },
 
   // ----------------------------------------------------
-  // TESTNI TOPSHIRISH (SUBMIT)
+  // TESTNI TOPSHIRISH (SUBMIT) — 2 BOSQICHLI XAVFSIZ TIZIM
   // ----------------------------------------------------
   openConfirmSubmitModal() {
     if (typeof MathKeyboard !== 'undefined' && MathKeyboard.close) {
@@ -392,8 +476,24 @@ const TestApp = {
       this.openMinSubmitModal();
       return;
     }
-    
-    // Barcha ochiq savol inputlarini sinxronlashtirish
+
+    // 1-bosqichga o'tkazish ("Testni yakunlaysizmi? Ha / Yo'q")
+    const step1 = document.getElementById('confirm-step-1');
+    const step2 = document.getElementById('confirm-step-2');
+    if (step1) step1.style.display = 'block';
+    if (step2) step2.style.display = 'none';
+
+    const modal = document.getElementById('confirm-modal');
+    if (modal) modal.classList.add('open');
+  },
+
+  closeConfirmSubmitModal() {
+    const modal = document.getElementById('confirm-modal');
+    if (modal) modal.classList.remove('open');
+  },
+
+  proceedToSubmitStep2() {
+    // 2-bosqichga o'tish: avval ochiq savollar inputlarini sinxronlashtirish va saqlash
     for (let q = 36; q <= 45; q++) {
       for (let sub of ['a', 'b']) {
         const key = `${q}${sub}`;
@@ -403,6 +503,7 @@ const TestApp = {
         }
       }
     }
+    this.saveAnswersToStorage();
 
     let answered = 0;
     for (let q = 1; q <= 35; q++) {
@@ -422,17 +523,57 @@ const TestApp = {
 
     const mAnswered = document.getElementById('m-stat-answered');
     const mEmpty = document.getElementById('m-stat-empty');
-
     if (mAnswered) mAnswered.textContent = answered;
     if (mEmpty) mEmpty.textContent = empty;
 
-    const modal = document.getElementById('confirm-modal');
-    if (modal) modal.classList.add('open');
+    const step1 = document.getElementById('confirm-step-1');
+    const step2 = document.getElementById('confirm-step-2');
+    const zeroWarn = document.getElementById('zero-answers-warning');
+    const partialWarn = document.getElementById('partial-answers-warning');
+    const finalBtn = document.getElementById('btn-final-submit');
+    const iconEl = document.getElementById('confirm-step-2-icon');
+    const titleEl = document.getElementById('confirm-step-2-title');
+    const descEl = document.getElementById('confirm-step-2-desc');
+
+    if (answered === 0) {
+      // 0 ta belgilangan bo'lsa: QAT'IY TO'SIQ!
+      if (zeroWarn) zeroWarn.style.display = 'block';
+      if (partialWarn) partialWarn.style.display = 'none';
+      if (iconEl) iconEl.textContent = '⚠️';
+      if (titleEl) titleEl.textContent = 'Javoblar belgilanmagan!';
+      if (descEl) descEl.textContent = 'Testda birorta ham savolga javob belgilanmagan.';
+      if (finalBtn) {
+        finalBtn.disabled = true;
+        finalBtn.style.opacity = '0.35';
+        finalBtn.style.cursor = 'not-allowed';
+        finalBtn.style.pointerEvents = 'none';
+        finalBtn.textContent = 'Topshirish bloklangan ⛔️';
+      }
+    } else {
+      // Kamida 1 ta belgilangan bo'lsa: Yakunlash imkoni
+      if (zeroWarn) zeroWarn.style.display = 'none';
+      if (partialWarn) partialWarn.style.display = empty > 0 ? 'block' : 'none';
+      if (iconEl) iconEl.textContent = '📊';
+      if (titleEl) titleEl.textContent = 'Javoblaringiz holati';
+      if (descEl) descEl.textContent = `Siz 55 ta savoldan ${answered} tasini belgiladingiz, ${empty} tasini belgilanmagan qoldirdingiz.`;
+      if (finalBtn) {
+        finalBtn.disabled = false;
+        finalBtn.style.opacity = '1';
+        finalBtn.style.cursor = 'pointer';
+        finalBtn.style.pointerEvents = 'auto';
+        finalBtn.textContent = 'Oxirgi yakunlash 🚀';
+      }
+    }
+
+    if (step1) step1.style.display = 'none';
+    if (step2) step2.style.display = 'block';
   },
 
-  closeConfirmSubmitModal() {
-    const modal = document.getElementById('confirm-modal');
-    if (modal) modal.classList.remove('open');
+  backToSubmitStep1() {
+    const step1 = document.getElementById('confirm-step-1');
+    const step2 = document.getElementById('confirm-step-2');
+    if (step1) step1.style.display = 'block';
+    if (step2) step2.style.display = 'none';
   },
 
   openMinSubmitModal() {
@@ -549,12 +690,6 @@ const TestApp = {
       return;
     }
 
-    const submitBtn = document.getElementById('btn-final-submit');
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Tekshirilmoqda... ⏳';
-    }
-
     // 36a-45b savollar qiymatlarini to'g'ridan-to'g'ri DOM dan olib yakuniy tekshirish
     for (let q = 36; q <= 45; q++) {
       for (let sub of ['a', 'b']) {
@@ -564,6 +699,30 @@ const TestApp = {
           this.answers[key] = input.value.trim();
         }
       }
+    }
+
+    // Xavfsizlik: 0 ta belgilangan bo'lsa topshirishga mutlaqo ruxsat bermaslik
+    let answered = 0;
+    for (let q = 1; q <= 35; q++) {
+      if (this.answers[String(q)]) answered++;
+    }
+    for (let q = 36; q <= 45; q++) {
+      for (let sub of ['a', 'b']) {
+        const key = `${q}${sub}`;
+        if ((this.answers[key] || '').trim().length > 0) answered++;
+      }
+    }
+
+    if (answered === 0 && !this.isAdmin) {
+      alert("⚠️ Siz birorta ham savolga javob belgilamadingiz (0/55)!\n\nBo'sh testni topshirib bo'lmaydi. Iltimos, savollarni ishlab, javoblarni belgilang!");
+      this.closeConfirmSubmitModal();
+      return;
+    }
+
+    const submitBtn = document.getElementById('btn-final-submit');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Tekshirilmoqda... ⏳';
     }
 
     const payload = {
@@ -589,11 +748,12 @@ const TestApp = {
       this.closeConfirmSubmitModal();
 
       if (result.success && result.data) {
+        this.clearAnswersFromStorage();
         this.showResultModal(result.data);
       } else {
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.textContent = 'Testni yakunlash';
+          submitBtn.textContent = 'Oxirgi yakunlash 🚀';
         }
         if (result.error_code === 'EARLY_SUBMISSION_BLOCKED') {
           if (!this.minSubmitInfo) this.minSubmitInfo = {};
@@ -619,13 +779,22 @@ const TestApp = {
       this.closeConfirmSubmitModal();
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Testni yakunlash';
+        submitBtn.textContent = 'Oxirgi yakunlash 🚀';
       }
       alert('Tarmoq xatoligi yoki serverga ulanishda muammo yuz berdi. Iltimos, qayta urinib ko\'ring.');
     }
   },
 
   showResultModal(data) {
+    this.clearAnswersFromStorage();
+    const mainSubmitBtn = document.getElementById('btn-submit-test');
+    if (mainSubmitBtn) {
+      mainSubmitBtn.disabled = true;
+      mainSubmitBtn.textContent = 'Topshirilgan ✅';
+      mainSubmitBtn.style.background = '#10b981';
+      mainSubmitBtn.style.cursor = 'not-allowed';
+    }
+
     const modal = document.getElementById('result-modal');
     if (!modal) return;
 
