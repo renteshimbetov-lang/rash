@@ -5828,10 +5828,49 @@ async def handle_app_compare_keys(request):
         correct_answers = test_db.parse_answers_json(test.get('answers_json', '{}'))
         user_answers = test_db.parse_answers_json(sub.get('answers_json', '{}'))
 
+        results = {}
+        total_correct_closed = 0
+        total_correct_open = 0
+
+        # 1-bosqich: 1-35 yopiq savollar
+        for i in range(1, 36):
+            k = str(i)
+            c_val = correct_answers.get(k)
+            u_val = user_answers.get(k)
+            is_matched, ratio, status = test_db.check_answer_match(u_val, c_val)
+            if status == "correct":
+                total_correct_closed += 1
+            results[k] = {
+                "status": status,
+                "user": str(u_val or "").strip(),
+                "ratio": ratio
+            }
+
+        # 2-bosqich: 36-45 ochiq savollar (36a–45b, jami 20 ta band)
+        for q in range(36, 46):
+            for sub_letter in ('a', 'b'):
+                k = f"{q}{sub_letter}"
+                c_val = correct_answers.get(k)
+                u_val = user_answers.get(k)
+                is_matched, ratio, status = test_db.check_answer_match(u_val, c_val)
+                if status == "correct":
+                    total_correct_open += 1
+                results[k] = {
+                    "status": status,
+                    "user": str(u_val or "").strip(),
+                    "ratio": ratio
+                }
+
+        total_correct = total_correct_closed + total_correct_open
+
+        # Xavfsizlik: To'g'ri kalitlar klientga yuborilmaydi, faqat tekshiruv natijasi qaytariladi
         return web.json_response({
             "success": True,
-            "correct_answers": correct_answers,
-            "user_answers": user_answers
+            "total_correct": total_correct,
+            "total_correct_closed": total_correct_closed,
+            "total_correct_open": total_correct_open,
+            "total_questions": 55,
+            "results": results
         })
     except Exception as e:
         log.error(f"App Compare Keys API Error: {e}", exc_info=True)
