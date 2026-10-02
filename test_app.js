@@ -89,7 +89,9 @@ const TestApp = {
     const subjectEl = document.getElementById('test-subject-badge');
     const userEl = document.getElementById('user-welcome-text');
 
-    if (titleEl) titleEl.textContent = this.testTitle;
+    if (titleEl) {
+      titleEl.textContent = this.testCode ? `#${this.testCode} test` : this.testTitle;
+    }
     if (codeEl) codeEl.textContent = `KOD: #${this.testCode}`;
     if (subjectEl) subjectEl.textContent = `📐 ${this.subject}`;
     if (userEl) userEl.textContent = `Ishtirokchi: ${this.userFullname}`;
@@ -335,6 +337,9 @@ const TestApp = {
   // JAVOBNI TANLASH VA O'RNATISH
   // ----------------------------------------------------
   selectOption(qNum, option) {
+    if (typeof MathKeyboard !== 'undefined' && MathKeyboard.close) {
+      MathKeyboard.close();
+    }
     const key = String(qNum);
     const prev = this.answers[key];
 

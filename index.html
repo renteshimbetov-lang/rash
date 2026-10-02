@@ -10,7 +10,7 @@
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="/logo_data.js?v=20260926_shohruh3"></script>
-  <link rel="stylesheet" href="/test_style.css?v=20261002_safesubmit">
+  <link rel="stylesheet" href="/test_style.css?v=20261002_compacttop">
   <script>
     (function() {
       var saved = localStorage.getItem('app_theme') || 'light';
@@ -104,43 +104,32 @@
        ========================================= -->
   <div class="test-container" id="test-app">
 
-    <!-- 1. YUQORI HEADER -->
+    <!-- 1. YUQORI HEADER (KOMPAKT) -->
     <header class="test-header">
       <div class="header-top-row">
         <div class="header-brand-wrap">
           <img src="/img/bm_logo.png?v=20260926_shohruh3" class="header-bm-logo" alt="Shohruh Matematika Logo">
-          <div class="header-badge" id="test-subject-badge">📐 Matematika</div>
+          <h1 class="header-test-title" id="test-title-display">#122 test</h1>
         </div>
         <div class="header-actions">
           <button class="theme-toggle-btn" onclick="TestApp.toggleTheme()" title="Mavzu">🌓</button>
         </div>
       </div>
 
-      <h1 class="test-title" id="test-title-display">Test yuklanmoqda...</h1>
-      <p class="test-subtitle" id="user-welcome-text">Ishtirokchi: yuklanmoqda...</p>
-
-      <!-- Progress bar & Tracker -->
-      <div class="progress-section">
-        <div class="progress-info-row">
-          <span class="progress-label">To'ldirilgan javoblar:</span>
-          <span class="progress-count" id="answered-counter">0 / 55</span>
-        </div>
+      <!-- Kichik o'lchamdagi to'ldirilgan javoblar shkalasi -->
+      <div class="progress-section-compact">
         <div class="progress-bar-track">
           <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
         </div>
+        <span class="progress-count-mini" id="answered-counter">0 / 55</span>
       </div>
 
-      <!-- Savollar xaritasi ochish tugmasi -->
-      <button class="btn-toggle-map" onclick="TestApp.toggleNavMap()">
-        <span>🧭 Savollar xaritasi (55 ta savol)</span>
-        <span id="map-arrow-icon">▼</span>
-      </button>
-
-      <!-- Tezkor Savollar Xaritasi (Grid) -->
+      <!-- Yashirin yordamchi elementlar (JS bilan to'liq moslik uchun) -->
+      <span id="test-code-display" style="display: none;"></span>
+      <span id="test-subject-badge" style="display: none;"></span>
+      <span id="user-welcome-text" style="display: none;"></span>
       <div class="questions-nav-map" id="questions-nav-map" style="display: none;">
-        <div class="map-grid" id="map-grid">
-          <!-- JS orqali to'ldiriladi: 1-55 -->
-        </div>
+        <div class="map-grid" id="map-grid"></div>
       </div>
     </header>
 
@@ -593,7 +582,7 @@
 
   <!-- Skriptlar -->
   <script src="/logo_data.js?v=20260926_shohruh3"></script>
-  <script src="/math_keyboard.js?v=20260926"></script>
-  <script src="/test_app.js?v=20261002_safesubmit"></script>
+  <script src="/math_keyboard.js?v=20261002_compacttop"></script>
+  <script src="/test_app.js?v=20261002_compacttop"></script>
 </body>
 </html>

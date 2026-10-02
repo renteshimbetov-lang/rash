@@ -66,6 +66,9 @@ const MathKeyboard = {
     const inputEl = document.getElementById(`input-${fieldKey}`) || document.getElementById(`adm-input-${fieldKey}`);
     this.activeInputElement = inputEl;
 
+    // Tepadagi bo'limlarni yashirish va joy ochish uchun
+    document.body.classList.add('keyboard-open');
+
     const panel = document.getElementById('math-keyboard-panel');
     const targetName = document.getElementById('keyboard-target-name');
     const liveInput = document.getElementById('keyboard-live-input');
@@ -90,7 +93,9 @@ const MathKeyboard = {
     const boxEl = document.getElementById(`box-${fieldKey}`);
     if (boxEl) {
       boxEl.classList.add('focused');
-      boxEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        boxEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 60);
     }
 
     const curLen = (inputEl && inputEl.value ? inputEl.value.length : 0);
@@ -102,6 +107,9 @@ const MathKeyboard = {
   },
 
   close() {
+    // Tepadagi bo'limlarni qayta ko'rsatish
+    document.body.classList.remove('keyboard-open');
+
     const panel = document.getElementById('math-keyboard-panel');
     if (panel) panel.classList.remove('open');
     document.querySelectorAll('.savol-input-box').forEach(b => b.classList.remove('focused'));
