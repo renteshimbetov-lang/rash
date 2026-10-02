@@ -228,13 +228,17 @@ function updateSearchChipUI(activeFilter) {
   if (activeBtn) activeBtn.classList.add('active');
 }
 
+var searchDebounceTimer = null;
 function handleGlobalSearch(query) {
   state.searchQuery = (query || '').trim();
   var clearBtn = document.getElementById('search-clear-btn');
   if (clearBtn) {
     clearBtn.style.display = state.searchQuery ? 'flex' : 'none';
   }
-  renderSearchResults();
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(function() {
+    renderSearchResults();
+  }, 250);
 }
 
 function renderSearchResults() {

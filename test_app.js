@@ -724,10 +724,17 @@ const TestApp = {
       return;
     }
 
+    if (this._isSubmitting) return;
+    this._isSubmitting = true;
+
     const submitBtn = document.getElementById('btn-final-submit');
+    const backBtn = document.getElementById('btn-confirm-back');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Tekshirilmoqda... ⏳';
+      submitBtn.textContent = 'Amalga oshirilmoqda... ⏳';
+    }
+    if (backBtn) {
+      backBtn.disabled = true;
     }
 
     const payload = {
@@ -750,6 +757,17 @@ const TestApp = {
       });
 
       const result = await response.json();
+
+      if (response.status === 429) {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Oxirgi yakunlash 🚀';
+        }
+        if (backBtn) backBtn.disabled = false;
+        alert(result.message || "Iltimos, biroz kuting! So'rovingiz navbatda qayta ishlanmoqda...");
+        return;
+      }
+
       this.closeConfirmSubmitModal();
 
       if (result.success && result.data) {
@@ -760,6 +778,8 @@ const TestApp = {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Oxirgi yakunlash 🚀';
         }
+        if (backBtn) backBtn.disabled = false;
+
         if (result.error_code === 'EARLY_SUBMISSION_BLOCKED') {
           if (!this.minSubmitInfo) this.minSubmitInfo = {};
           this.minSubmitInfo.can_submit = false;
@@ -786,7 +806,13 @@ const TestApp = {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Oxirgi yakunlash 🚀';
       }
+      if (backBtn) backBtn.disabled = false;
       alert('Tarmoq xatoligi yoki serverga ulanishda muammo yuz berdi. Iltimos, qayta urinib ko\'ring.');
+    } finally {
+      setTimeout(() => {
+        this._isSubmitting = false;
+        if (backBtn) backBtn.disabled = false;
+      }, 1500);
     }
   },
 

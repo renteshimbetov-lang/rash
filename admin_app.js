@@ -496,6 +496,9 @@ const AdminApp = {
       answers: this.answers
     };
 
+    if (this._isSaving) return;
+    this._isSaving = true;
+
     const saveBtn = document.querySelector('.btn-submit-test');
     if (saveBtn) {
       saveBtn.disabled = true;
@@ -546,6 +549,7 @@ const AdminApp = {
             window.location.reload();
           }
         } else {
+          this._isSaving = false;
           if (saveBtn) {
             saveBtn.disabled = false;
             saveBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
@@ -553,6 +557,7 @@ const AdminApp = {
           alert(res.message || 'Kalitlarni yangilashda xatolik yuz berdi!');
         }
       } catch (e) {
+        this._isSaving = false;
         if (saveBtn) {
           saveBtn.disabled = false;
           saveBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
@@ -585,6 +590,7 @@ const AdminApp = {
           window.location.reload();
         }
       } else {
+        this._isSaving = false;
         if (saveBtn) {
           saveBtn.disabled = false;
           saveBtn.textContent = '💾 Testni saqlash';
@@ -592,6 +598,7 @@ const AdminApp = {
         alert(res.message || 'Saqlashda xatolik yuz berdi!');
       }
     } catch (e) {
+      this._isSaving = false;
       if (saveBtn) {
         saveBtn.disabled = false;
         saveBtn.textContent = '💾 Testni saqlash';

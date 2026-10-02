@@ -4813,6 +4813,50 @@ async def handle_direct_text(message: Message, state: FSMContext):
             reply_markup=main_menu_kb(message.from_user.id)
         )
 
+# ── HIGH-LOAD RATE LIMITING & CONCURRENCY CONTROLLER ──────────────────
+class HighLoadRateLimiter:
+    """
+    Foydalanuvchi tg_id yoki IP bo'yicha so'rovlar chastotasini xavfsiz cheklash (Rate Limiting).
+    1-3 soniyalik limit: 1 soniyada 1 tadan, 2 soniyada ko'pi bilan 1 tadan ortiq og'ir so'rov yuborishni bloklaydi.
+    """
+    def __init__(self):
+        self._history: Dict[str, List[float]] = {}
+        self._lock = asyncio.Lock()
+        self._last_clean = time.time()
+
+    async def check(self, key: str, max_requests: int = 1, window_seconds: float = 2.0) -> Tuple[bool, float]:
+        async with self._lock:
+            now = time.time()
+            if now - self._last_clean > 60.0:
+                self._cleanup(now)
+
+            timestamps = self._history.get(key, [])
+            recent = [t for t in timestamps if now - t < window_seconds]
+
+            if len(recent) >= max_requests:
+                earliest = recent[0]
+                retry_after = round(max(0.3, window_seconds - (now - earliest)), 1)
+                return False, retry_after
+
+            recent.append(now)
+            self._history[key] = recent
+            return True, 0.0
+
+    def _cleanup(self, now: float):
+        self._last_clean = now
+        stale = now - 30.0
+        to_del = [k for k, v in self._history.items() if not v or v[-1] < stale]
+        for k in to_del:
+            del self._history[k]
+
+GLOBAL_RATE_LIMITER = HighLoadRateLimiter()
+
+# Neon PostgreSQL Connection Pool (maxconn=20) ga to'liq moslangan Asinxron Navbat (Queue/Semaphore)
+# Bir vaqtda ko'pi bilan 20 ta og'ir DB tranzaksiyasiga ruxsat beriladi.
+# 20 tadan ortiq so'rov kelsa, ular xato bermasdan FIFO navbatida asinxron kutadi.
+SUBMIT_CONCURRENCY_SEMAPHORE = asyncio.Semaphore(20)
+COMPARE_CONCURRENCY_SEMAPHORE = asyncio.Semaphore(15)
+
 # ── AIOHTTP MINI APP VEB SERVERI ──────────────────────
 
 async def handle_submit_test_api(request):
@@ -4846,26 +4890,37 @@ async def handle_submit_test_api(request):
                 "message": "⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin."
             }, status=403)
 
-        test_obj = test_db.get_test_by_id(test_id)
-        if not test_obj:
+        # ── RATE LIMITING (1-3 soniya cheklovi) ─────────────────
+        rate_key = f"submit_{user_tg_id or request.remote or 'unknown'}"
+        is_allowed, retry_sec = await GLOBAL_RATE_LIMITER.check(rate_key, max_requests=1, window_seconds=2.0)
+        if not is_allowed and not test_db.is_admin(user_tg_id or 0, ADMIN_ID):
             return web.json_response({
                 "success": False,
-                "message": "Test topilmadi!"
-            }, status=404)
+                "retry_after": retry_sec,
+                "message": f"Iltimos, {retry_sec} soniya kuting! So'rovingiz navbatda qayta ishlanmoqda..."
+            }, status=429)
 
-        # Bo'sh (0 ta belgilangan) testni topshirishni bloklash (tasodifiy bosilib ketishdan himoya)
-        has_any_answer = False
-        if isinstance(user_answers, dict):
-            for k, v in user_answers.items():
-                if v is not None and str(v).strip():
-                    has_any_answer = True
-                    break
+        async with SUBMIT_CONCURRENCY_SEMAPHORE:
+            test_obj = await asyncio.to_thread(test_db.get_test_by_id, test_id)
+            if not test_obj:
+                return web.json_response({
+                    "success": False,
+                    "message": "Test topilmadi!"
+                }, status=404)
 
-        if not has_any_answer and not test_db.is_admin(user_tg_id, ADMIN_ID):
-            return web.json_response({
-                "success": False,
-                "message": "⚠️ Testda birorta ham savolga javob belgilanmagan! Bo'sh testni topshirib bo'lmaydi. Iltimos, kamida bitta javobni belgilang."
-            }, status=400)
+            # Bo'sh (0 ta belgilangan) testni topshirishni bloklash (tasodifiy bosilib ketishdan himoya)
+            has_any_answer = False
+            if isinstance(user_answers, dict):
+                for k, v in user_answers.items():
+                    if v is not None and str(v).strip():
+                        has_any_answer = True
+                        break
+
+            if not has_any_answer and not test_db.is_admin(user_tg_id, ADMIN_ID):
+                return web.json_response({
+                    "success": False,
+                    "message": "⚠️ Testda birorta ham savolga javob belgilanmagan! Bo'sh testni topshirib bo'lmaydi. Iltimos, kamida bitta javobni belgilang."
+                }, status=400)
 
         sched_stat = get_test_schedule_status(test_obj)
         if sched_stat["is_upcoming"] and not test_db.is_admin(user_tg_id, ADMIN_ID):
@@ -4905,11 +4960,13 @@ async def handle_submit_test_api(request):
             if sched_stat.get("is_closed") or test_obj.get("is_active", 1) == 0 or test_obj.get("results_published", 0) == 1:
                 is_late_submission = True
 
-        # Bazada tekshirish va saqlash (is_late=1 agar kech topshirilgan bo'lsa)
-        result = test_db.check_and_save_submission(
-            test_id, user_tg_id, user_answers,
-            is_late=1 if is_late_submission else 0
-        )
+        # Bazada tekshirish va saqlash (Asinxron navbat / Semaphore bilan)
+        async with SUBMIT_CONCURRENCY_SEMAPHORE:
+            result = await asyncio.to_thread(
+                test_db.check_and_save_submission,
+                test_id, user_tg_id, user_answers,
+                is_late=1 if is_late_submission else 0
+            )
 
         now_uzb = datetime.now(UZB_TZ)
         time_str_sec = now_uzb.strftime("%H:%M:%S")
@@ -5806,72 +5863,83 @@ async def handle_app_compare_keys(request):
         if not tg_id or not test_id:
             return web.json_response({"success": False, "message": "Noto'g'ri so'rov"}, status=400)
 
-        test = await asyncio.to_thread(test_db.get_test_by_id, test_id)
-        if not test:
-            return web.json_response({"success": False, "message": "Test topilmadi"}, status=404)
-
-        is_published = await asyncio.to_thread(test_db.is_test_results_published, test_id)
-        if not is_published:
+        # ── RATE LIMITING (1-3 soniya cheklovi) ─────────────────
+        rate_key = f"compare_{tg_id or request.remote or 'unknown'}"
+        is_allowed, retry_sec = await GLOBAL_RATE_LIMITER.check(rate_key, max_requests=1, window_seconds=2.0)
+        if not is_allowed and not test_db.is_admin(tg_id or 0, ADMIN_ID):
             return web.json_response({
-                "success": False, 
-                "message": "Natijalar va kalitlar admin tomonidan test yakunlanib, rasmiy e'lon qilingach ochiladi."
-            }, status=403)
+                "success": False,
+                "retry_after": retry_sec,
+                "message": f"Iltimos, {retry_sec} soniya kuting! So'rovingiz navbatda qayta ishlanmoqda..."
+            }, status=429)
 
-        expected_code = str(test.get('key_access_code', '')).strip()
-        if expected_code and expected_code != code:
-            return web.json_response({"success": False, "message": "Parol noto'g'ri!"}, status=403)
+        async with COMPARE_CONCURRENCY_SEMAPHORE:
+            test = await asyncio.to_thread(test_db.get_test_by_id, test_id)
+            if not test:
+                return web.json_response({"success": False, "message": "Test topilmadi"}, status=404)
 
-        sub = await asyncio.to_thread(test_db.get_user_submission_for_test, test_id, tg_id)
-        if not sub:
-            return web.json_response({"success": False, "message": "Siz ushbu testni topshirmagansiz"}, status=400)
+            is_published = await asyncio.to_thread(test_db.is_test_results_published, test_id)
+            if not is_published:
+                return web.json_response({
+                    "success": False, 
+                    "message": "Natijalar va kalitlar admin tomonidan test yakunlanib, rasmiy e'lon qilingach ochiladi."
+                }, status=403)
 
-        correct_answers = test_db.parse_answers_json(test.get('answers_json', '{}'))
-        user_answers = test_db.parse_answers_json(sub.get('answers_json', '{}'))
+            expected_code = str(test.get('key_access_code', '')).strip()
+            if expected_code and expected_code != code:
+                return web.json_response({"success": False, "message": "Parol noto'g'ri!"}, status=403)
 
-        results = {}
-        total_correct_closed = 0
-        total_correct_open = 0
+            sub = await asyncio.to_thread(test_db.get_user_submission_for_test, test_id, tg_id)
+            if not sub:
+                return web.json_response({"success": False, "message": "Siz ushbu testni topshirmagansiz"}, status=400)
 
-        # 1-bosqich: 1-35 yopiq savollar
-        for i in range(1, 36):
-            k = str(i)
-            c_val = correct_answers.get(k)
-            u_val = user_answers.get(k)
-            is_matched, ratio, status = test_db.check_answer_match(u_val, c_val)
-            if status == "correct":
-                total_correct_closed += 1
-            results[k] = {
-                "status": status,
-                "user": str(u_val or "").strip(),
-                "ratio": ratio
-            }
+            correct_answers = test_db.parse_answers_json(test.get('answers_json', '{}'))
+            user_answers = test_db.parse_answers_json(sub.get('answers_json', '{}'))
 
-        # 2-bosqich: 36-45 ochiq savollar (36a–45b, jami 20 ta band)
-        for q in range(36, 46):
-            for sub_letter in ('a', 'b'):
-                k = f"{q}{sub_letter}"
+            results = {}
+            total_correct_closed = 0
+            total_correct_open = 0
+
+            # 1-bosqich: 1-35 yopiq savollar
+            for i in range(1, 36):
+                k = str(i)
                 c_val = correct_answers.get(k)
                 u_val = user_answers.get(k)
                 is_matched, ratio, status = test_db.check_answer_match(u_val, c_val)
                 if status == "correct":
-                    total_correct_open += 1
+                    total_correct_closed += 1
                 results[k] = {
                     "status": status,
                     "user": str(u_val or "").strip(),
                     "ratio": ratio
                 }
 
-        total_correct = total_correct_closed + total_correct_open
+            # 2-bosqich: 36-45 ochiq savollar (36a–45b, jami 20 ta band)
+            for q in range(36, 46):
+                for sub_letter in ('a', 'b'):
+                    k = f"{q}{sub_letter}"
+                    c_val = correct_answers.get(k)
+                    u_val = user_answers.get(k)
+                    is_matched, ratio, status = test_db.check_answer_match(u_val, c_val)
+                    if status == "correct":
+                        total_correct_open += 1
+                    results[k] = {
+                        "status": status,
+                        "user": str(u_val or "").strip(),
+                        "ratio": ratio
+                    }
 
-        # Xavfsizlik: To'g'ri kalitlar klientga yuborilmaydi, faqat tekshiruv natijasi qaytariladi
-        return web.json_response({
-            "success": True,
-            "total_correct": total_correct,
-            "total_correct_closed": total_correct_closed,
-            "total_correct_open": total_correct_open,
-            "total_questions": 55,
-            "results": results
-        })
+            total_correct = total_correct_closed + total_correct_open
+
+            # Xavfsizlik: To'g'ri kalitlar klientga yuborilmaydi, faqat tekshiruv natijasi qaytariladi
+            return web.json_response({
+                "success": True,
+                "total_correct": total_correct,
+                "total_correct_closed": total_correct_closed,
+                "total_correct_open": total_correct_open,
+                "total_questions": 55,
+                "results": results
+            })
     except Exception as e:
         log.error(f"App Compare Keys API Error: {e}", exc_info=True)
         return web.json_response({"success": False, "message": str(e)}, status=400)

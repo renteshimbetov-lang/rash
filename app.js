@@ -2883,13 +2883,23 @@ async function submitCompareKeys(testId) {
   var code = document.getElementById('input-key-code').value.trim();
   var errEl = document.getElementById('compare-keys-error');
   var resEl = document.getElementById('compare-keys-result');
+  var btn = document.getElementById('btn-submit-key-code') || (typeof event !== 'undefined' && event && event.target);
   
+  if (state._isComparing) return;
+
   if (!code) {
     errEl.textContent = t('err_enter_code');
     errEl.style.display = 'block';
     return;
   }
-  
+
+  state._isComparing = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Tekshirilmoqda... ⏳';
+  }
+  if (errEl) errEl.style.display = 'none';
+
   try {
     const res = await fetch('/api/app/compare-keys', {
       method: 'POST',
@@ -2902,6 +2912,12 @@ async function submitCompareKeys(testId) {
       })
     });
     const data = await res.json();
+
+    if (res.status === 429) {
+      errEl.textContent = data.message || "Iltimos, biroz kuting! So'rovingiz navbatda qayta ishlanmoqda...";
+      errEl.style.display = 'block';
+      return;
+    }
     
     if (data.success) {
       document.getElementById('compare-keys-auth').style.display = 'none';
@@ -2913,6 +2929,12 @@ async function submitCompareKeys(testId) {
   } catch(e) {
     errEl.textContent = t('err_network');
     errEl.style.display = 'block';
+  } finally {
+    state._isComparing = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = t('btn_confirm');
+    }
   }
 }
 
