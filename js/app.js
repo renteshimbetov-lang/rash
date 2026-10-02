@@ -45,7 +45,7 @@ function initApp() {
       try { tg.ready(); tg.expand(); } catch (e) {}
     }
     var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-    var isTelegramWebApp = !!(tg && (tg.initData || tgU));
+    var hasTgContext = !!(tg && (tg.platform && tg.platform !== 'unknown' || tg.initData || tgU));
 
     if (isPreview) {
       state.tgUser = { id: 7080517395, first_name: "O'quvchi", last_name: '', username: 'demo_user' };
@@ -53,21 +53,33 @@ function initApp() {
       state.isAdmin = false;
     } else if (tgU && tgU.id) {
       state.tgUser = tgU;
-    } else if (queryTgId && parseInt(queryTgId) > 0 && isTelegramWebApp) {
-      state.tgUser = { id: parseInt(queryTgId), first_name: 'Foydalanuvchi', last_name: '', username: '' };
+    } else if (queryTgId && parseInt(queryTgId, 10) > 0) {
+      state.tgUser = { id: parseInt(queryTgId, 10), first_name: (tgU && tgU.first_name) || 'Foydalanuvchi', last_name: (tgU && tgU.last_name) || '', username: (tgU && tgU.username) || '' };
     } else {
-      // ⚠️ WEB ORQALI KIRISHNI CHEKLASH: Oddiy veb brauzerda to'liq to'xtatish!
-      var webBlock = document.getElementById('web-block-screen');
-      if (webBlock) webBlock.style.display = 'flex';
-      var splashScreen = document.getElementById('splashScreen');
-      if (splashScreen) splashScreen.style.display = 'none';
-      var appEl = document.getElementById('app');
-      if (appEl) appEl.style.display = 'none';
-      return;
+      var saved = null;
+      try {
+        var rawSaved = localStorage.getItem(LS_USER);
+        if (rawSaved) saved = JSON.parse(rawSaved);
+      } catch (e) {}
+      if (saved && saved.tg_id) {
+        state.tgUser = { id: saved.tg_id, first_name: saved.fullname || 'Foydalanuvchi', last_name: '', username: '' };
+        state.userInfo = saved;
+      } else if (hasTgContext || window.Telegram) {
+        state.tgUser = { id: 0, first_name: 'Foydalanuvchi', last_name: '', username: '' };
+      } else {
+        // ⚠️ Faqat oddiy tashqi veb brauzerda kirilganda (Telegramsiz) to'xtatish
+        var webBlock = document.getElementById('web-block-screen');
+        if (webBlock) webBlock.style.display = 'flex';
+        var splashScreen = document.getElementById('splashScreen');
+        if (splashScreen) splashScreen.style.display = 'none';
+        var appEl = document.getElementById('app');
+        if (appEl) appEl.style.display = 'none';
+        return;
+      }
     }
     try {
-      var saved = localStorage.getItem(LS_USER);
-      if (saved && !isPreview) state.userInfo = JSON.parse(saved);
+      var savedUser = localStorage.getItem(LS_USER);
+      if (savedUser && !isPreview && !state.userInfo) state.userInfo = JSON.parse(savedUser);
     } catch (e) {}
   } catch (err) {
     console.error('initApp error:', err);
@@ -494,6 +506,12 @@ async function loadUserProfile() {
       if (adminTab) adminTab.style.display = state.isAdmin ? 'flex' : 'none';
       var banner = document.getElementById('admin-simulation-banner');
       if (banner) banner.style.display = state.isSimulatedUser ? 'flex' : 'none';
+      if (data.user && data.user.is_registered) {
+        var unregModal = document.getElementById('unregistered-modal');
+        if (unregModal) unregModal.style.display = 'none';
+      } else {
+        checkRegistrationStatus();
+      }
       var searchNav = document.getElementById('nav-search');
       if (searchNav) searchNav.style.display = 'flex';
       if (state.isAdmin && data.pending_users > 0) {
@@ -2665,27 +2683,23 @@ function checkRegistrationStatus() {
   var modal = document.getElementById('unregistered-modal');
   var tg = window.Telegram && window.Telegram.WebApp;
   var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-  var isTelegramWebApp = !!(tg && (tg.initData || tgU));
   var tgId = (state.tgUser && state.tgUser.id) || (tgU && tgU.id) || 0;
 
-  // 1. Agar web orqali (Telegramsiz) kirilgan bo'lsa -> To'liq bloklash
-  if (!isTelegramWebApp && (!tgId || tgId === 0)) {
-    var webBlock = document.getElementById('web-block-screen');
-    if (webBlock) webBlock.style.display = 'flex';
-    var appEl = document.getElementById('app');
-    if (appEl) appEl.style.display = 'none';
-    return true;
+  // 1. Agar admin simulyatsiya rejimida bo'lsa (User mode), modal chiqmaydi
+  if (state.isSimulatedUser || window._unregBypassed) {
+    if (modal) modal.style.display = 'none';
+    return false;
   }
 
-  // 2. Agar admin simulyatsiya rejimida bo'lsa (User mode), modal chiqmaydi
-  if (state.isSimulatedUser) {
+  // 2. Agar profil hali serverdan yuklanayotgan bo'lsa (state.userInfo null bo'lsa), modalni ko'rsatmay kutamiz
+  if (!state.userInfo) {
     if (modal) modal.style.display = 'none';
     return false;
   }
 
   // 3. Botda ro'yxatdan o'tganligini tekshirish
   var u = state.userInfo;
-  var isUnreg = (!tgId || tgId === 0 || !u || u.status === 'not_registered' || u.is_registered === false);
+  var isUnreg = (!tgId || tgId === 0 || u.status === 'not_registered' || u.is_registered === false);
   if (modal) {
     modal.style.display = isUnreg ? 'flex' : 'none';
   }

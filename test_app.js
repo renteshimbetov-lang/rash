@@ -57,12 +57,20 @@ const TestApp = {
     if (params.has('title')) this.testTitle = params.get('title');
     if (params.has('subject')) this.subject = params.get('subject');
 
-    // Faqat agar Telegram WebApp ichida bo'lsa va tgId topilmagan bo'lsa URL dan fallback olish
-    if (!this.userTgId && params.has('tg_id') && isTelegramWebApp) {
+    // Faqat agar Telegram WebApp ichida bo'lsa yoki URL parametrda tg_id bo'lsa fallback olish
+    if (!this.userTgId && params.has('tg_id')) {
       const parsedId = parseInt(params.get('tg_id'), 10);
       if (parsedId && !isNaN(parsedId)) {
         this.userTgId = parsedId;
       }
+    }
+    if (!this.userTgId) {
+      try {
+        const savedUser = JSON.parse(localStorage.getItem('app_user') || '{}');
+        if (savedUser && savedUser.tg_id) {
+          this.userTgId = parseInt(savedUser.tg_id, 10);
+        }
+      } catch (e) {}
     }
 
     // ⚠️ AGAR WEB ORQALI KIRILGAN BO'LSA (TELEGRAMSIZ) — TO'LIQ BLOKLASH!
