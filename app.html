@@ -8,7 +8,6 @@
   <title>Shohruh Matematika — Test Markazi</title>
   <meta name="description" content="Shohruh Matematika — Shaxsiy test markazi va profil" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/logo_data.js?v=20260926_shohruh3"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
@@ -56,6 +55,38 @@
           <polyline points="12 5 19 12 12 19"></polyline>
         </svg>
       </a>
+    </div>
+  </div>
+
+  <!-- PIN EKRANI (pin-manager.js tomonidan boshqariladi) -->
+  <div id="pin-screen" style="display:none; position:fixed; inset:0; z-index:200000; background:var(--bg-body); flex-direction:column; align-items:center; justify-content:center; padding:24px;">
+    <div style="text-align:center; max-width:340px; width:100%;">
+      <div style="font-size:42px; margin-bottom:8px;">🔐</div>
+      <h2 id="pin-title" style="font-size:21px; font-weight:900; color:var(--text); margin-bottom:4px;">PIN-kodni kiriting</h2>
+      <p id="pin-subtitle" style="font-size:13.5px; color:var(--text-muted); margin-bottom:28px;">Hisobingizga kirish uchun 4 xonali PIN</p>
+      <!-- PIN Dots -->
+      <div style="display:flex; justify-content:center; gap:16px; margin-bottom:32px;">
+        <div class="pin-dot" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--primary);background:transparent;transition:background 0.2s;"></div>
+        <div class="pin-dot" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--primary);background:transparent;transition:background 0.2s;"></div>
+        <div class="pin-dot" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--primary);background:transparent;transition:background 0.2s;"></div>
+        <div class="pin-dot" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--primary);background:transparent;transition:background 0.2s;"></div>
+      </div>
+      <p id="pin-error" style="color:#EF4444; font-size:13px; font-weight:700; min-height:20px; margin-bottom:16px;"></p>
+      <!-- Klaviatura -->
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; max-width:280px; margin:0 auto;">
+        <button onclick="onPinKey('1')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">1</button>
+        <button onclick="onPinKey('2')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">2</button>
+        <button onclick="onPinKey('3')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">3</button>
+        <button onclick="onPinKey('4')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">4</button>
+        <button onclick="onPinKey('5')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">5</button>
+        <button onclick="onPinKey('6')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">6</button>
+        <button onclick="onPinKey('7')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">7</button>
+        <button onclick="onPinKey('8')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">8</button>
+        <button onclick="onPinKey('9')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">9</button>
+        <div></div>
+        <button onclick="onPinKey('0')" style="padding:18px; font-size:22px; font-weight:800; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">0</button>
+        <button onclick="onPinDel()" style="padding:18px; font-size:20px; border:1.5px solid var(--border); border-radius:16px; background:var(--bg-card); color:var(--text); cursor:pointer;">⌫</button>
+      </div>
     </div>
   </div>
 
@@ -138,7 +169,7 @@
           <span id="lang-label">UZ</span>
         </button>
         <!-- Theme toggle -->
-        <button class="header-btn" id="theme-btn" onclick="toggleTheme(event)" title="Tema">
+        <button class="header-btn" id="theme-btn" onclick="toggleTheme()" title="Tema">
           <span id="theme-icon">&#9790;</span>
         </button>
         <div class="header-user-avatar" id="header-avatar">?</div>
@@ -435,12 +466,12 @@
   <!-- TOAST -->
   <div id="toast"></div>
 
-  <script src="/logo_data.js?v=20261002_livefixed"></script>
-  <script src="/js/i18n.js?v=20261002_livefixed"></script>
-  <script src="/js/math-utils.js?v=20261002_livefixed"></script>
-  <script src="/js/pin-manager.js?v=20261002_livefixed"></script>
-  <script src="/js/search-engine.js?v=20261002_livefixed"></script>
-  <script src="/js/app.js?v=20261002_bugfix4"></script>
+  <script src="/logo_data.js?v=20261002_pinfix"></script>
+  <script src="/js/i18n.js?v=20261002_pinfix"></script>
+  <script src="/js/math-utils.js?v=20261002_pinfix"></script>
+  <script src="/js/pin-manager.js?v=20261002_pinfix"></script>
+  <script src="/js/search-engine.js?v=20261002_pinfix"></script>
+  <script src="/js/app.js?v=20261002_pinfix"></script>
 </body>
 
 </html>

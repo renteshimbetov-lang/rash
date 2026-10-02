@@ -45,13 +45,25 @@
     // Agar PIN mavjud bo'lmasa yoki pin-screen HTML da bo'lmasa, ilovani to'g'ridan-to'g'ri ishga tushirish
     var pinScreen = document.getElementById('pin-screen');
     if (!pinScreen) {
-      if (typeof window.launchApp === 'function') {
-        window.launchApp();
-      }
+      // pin-screen element yo'q — splash orqali to'g'ri ishga tushiramiz
+      if (typeof window.runSplash === 'function') window.runSplash();
+      else if (typeof window.launchApp === 'function') window.launchApp();
+      return;
+    }
+
+    if (!hasPin) {
+      // PIN yo'q — to'g'ridan app'ga o'tamiz (setup keyinroq)
+      pinScreen.style.display = 'none';
+      if (typeof window.runSplash === 'function') window.runSplash();
+      else if (typeof window.launchApp === 'function') window.launchApp();
+    } else {
+      // PIN bor — ekranni ko'rsatamiz
+      pinScreen.style.display = 'flex';
     }
   }
 
   function updatePinUI(hasPin) {
+
     var pinTitle = document.getElementById('pin-title');
     var pinSub = document.getElementById('pin-subtitle');
     if (!pinTitle || !pinSub) return;
