@@ -2790,7 +2790,13 @@ MAINT_END_TEXT = (
 
 import uuid
 
-async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", caption: str = "", sender_tg_id: int = 0) -> tuple[int, int, str]:
+async def send_broadcast_to_users(
+    message_text: str = "",
+    photo_id: str = "",
+    caption: str = "",
+    sender_tg_id: int = 0,
+    messages_list: Optional[List[Dict[str, Any]]] = None
+) -> tuple[int, int, str]:
     """Barcha faol (bloklanmagan) o'quvchilarga xabar tarqatish va keyinchalik o'chirish uchun ID larni saqlash."""
     users = test_db.get_broadcast_users()
     sent_count = 0
@@ -2798,10 +2804,17 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
     blocked_users = []  # Botni bloklagan foydalanuvchilar
 
     batch_id = f"BC-{datetime.now(UZB_TZ).strftime('%y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+
+    batch_summary = ""
+    if messages_list:
+        batch_summary = " | ".join([m.get("desc", "Xabar") for m in messages_list])[:1000]
+    else:
+        batch_summary = caption or message_text
+
     test_db.create_broadcast_batch(
         batch_id=batch_id,
         sender_tg_id=sender_tg_id or ADMIN_ID,
-        message_text=caption or message_text,
+        message_text=batch_summary,
         photo_id=photo_id
     )
 
@@ -2810,15 +2823,31 @@ async def send_broadcast_to_users(message_text: str = "", photo_id: str = "", ca
         if not uid:
             continue
         try:
-            if photo_id:
+            user_sent_any = False
+            if messages_list:
+                for m in messages_list:
+                    sent_msg = await bot.copy_message(
+                        chat_id=uid,
+                        from_chat_id=m["chat_id"],
+                        message_id=m["message_id"]
+                    )
+                    if sent_msg and hasattr(sent_msg, "message_id"):
+                        test_db.record_broadcast_message(batch_id, uid, sent_msg.message_id)
+                        user_sent_any = True
+                    await asyncio.sleep(0.02)
+            elif photo_id:
                 sent_msg = await bot.send_photo(chat_id=uid, photo=photo_id, caption=caption or message_text)
+                if sent_msg and hasattr(sent_msg, "message_id"):
+                    test_db.record_broadcast_message(batch_id, uid, sent_msg.message_id)
+                    user_sent_any = True
             else:
                 sent_msg = await bot.send_message(chat_id=uid, text=message_text)
+                if sent_msg and hasattr(sent_msg, "message_id"):
+                    test_db.record_broadcast_message(batch_id, uid, sent_msg.message_id)
+                    user_sent_any = True
 
-            if sent_msg and hasattr(sent_msg, "message_id"):
-                test_db.record_broadcast_message(batch_id, uid, sent_msg.message_id)
-
-            sent_count += 1
+            if user_sent_any:
+                sent_count += 1
             await asyncio.sleep(0.04)
         except Exception as e:
             fail_count += 1
@@ -3300,19 +3329,64 @@ async def adm_bc_send_end_cb(call: CallbackQuery):
         ])
     )
 
+def get_broadcast_item_summary(message: Message) -> str:
+    if message.document:
+        fname = message.document.file_name or "Hujjat"
+        return f"📄 PDF/Fayl: {fname}"
+    elif message.photo:
+        cap = (message.caption or "").strip()
+        cap_prev = f" ('{cap[:30]}...')" if cap else ""
+        return f"🖼 Rasm{cap_prev}"
+    elif message.video:
+        cap = (message.caption or "").strip()
+        cap_prev = f" ('{cap[:30]}...')" if cap else ""
+        return f"🎬 Video{cap_prev}"
+    elif message.sticker:
+        emoji = message.sticker.emoji or "🎭"
+        return f"🎭 Stiker ({emoji})"
+    elif message.voice:
+        return f"🎙 Ovozli xabar ({message.voice.duration}s)"
+    elif message.audio:
+        title = message.audio.title or "Audio fayl"
+        return f"🎵 Audio: {title}"
+    elif message.video_note:
+        return f"📹 Dumaloq video ({message.video_note.duration}s)"
+    elif message.animation:
+        return "👾 GIF animatsiya"
+    elif message.text:
+        txt = message.text.strip().replace("\n", " ")
+        if len(txt) > 40:
+            txt = txt[:37] + "..."
+        return f"📝 Matn: '{txt}'"
+    else:
+        return "📬 Telegram xabari"
+
 @router.callback_query(F.data == "adm_bc_custom_input")
 async def adm_bc_custom_input_cb(call: CallbackQuery, state: FSMContext):
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
         return
+    await state.clear()
     await state.set_state(BroadcastState.waiting_for_message)
+    await state.update_data(messages_list=[])
+
+    text = (
+        "✍️ <b>O'QUVCHILARGA XABAR YUBORISH (HAMMA FORMATLAR)</b>\n\n"
+        "Siz istalgan turdagi xabarlarni yuborishingiz mumkin:\n"
+        "• 📄 <b>PDF yoki har qanday fayl / hujjat</b>\n"
+        "• 🎭 <b>Stiker (Sticker) yoki 👾 GIF animatsiya</b>\n"
+        "• 🖼 <b>Rasm / Foto (matnli yoki matnsiz)</b>\n"
+        "• 🎬 <b>Video yoki 📹 Dumaloq video (video-note)</b>\n"
+        "• 🎙 <b>Ovozli xabar (Voice) yoki 🎵 Audio</b>\n"
+        "• 📝 <b>Oddiy yoki formatlangan matn</b>\n"
+        "• 🔄 <b>Kanallardan to'g'ridan-to'g'ri forward xabarlar</b>\n\n"
+        "💡 <b>Bittada bir nechta xabar yuborish:</b>\n"
+        "Ketma-ket 1 ta yoki bir nechta xabarlarni botga yuboring (masalan: avval yo'riqnoma matni, keyin PDF fayl, keyin stiker). "
+        "Barchasi to'plamga yig'iladi va bitta tugma bilan barcha o'quvchilarga ketma-ket yetkaziladi!\n\n"
+        "<i>Xabarlaringizni yuboring (yoki bekor qilish uchun /cancel yozing):</i>"
+    )
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_broadcast_menu")]
     ])
-    text = (
-        "✍️ <b>O'quvchilarga yubormoqchi bo'lgan xabaringizni kiriting:</b>\n\n"
-        "Oddiy matn yoki rasmli post yuborishingiz mumkin. Barcha HTML formatlar (qalin, kursiv, ssilka) qo'llab-quvvatlanadi.\n\n"
-        "<i>Bekor qilish uchun pastdagi tugmani bosing yoki /cancel deb yozing.</i>"
-    )
     try:
         await call.message.edit_text(text, reply_markup=kb)
     except Exception:
@@ -3326,67 +3400,83 @@ async def adm_bc_receive_custom_msg(message: Message, state: FSMContext):
         await message.answer("❌ Xabar yuborish bekor qilindi.", reply_markup=admin_menu_kb())
         return
 
-    photo_id = ""
-    caption = ""
-    msg_text = ""
+    data = await state.get_data()
+    messages_list = list(data.get("messages_list", []))
 
-    if message.photo:
-        photo_id = message.photo[-1].file_id
-        caption = message.caption or ""
-    elif message.text:
-        msg_text = message.text
-    else:
-        await message.answer("⚠️ Iltimos, matn yoki rasm yuboring (yoki bekor qilish uchun /cancel yozing):")
-        return
+    summary = get_broadcast_item_summary(message)
+    messages_list.append({
+        "chat_id": message.chat.id,
+        "message_id": message.message_id,
+        "desc": summary
+    })
+    await state.update_data(messages_list=messages_list)
 
-    await state.update_data(photo_id=photo_id, caption=caption, msg_text=msg_text)
-    await state.set_state(BroadcastState.confirm_send)
+    count = len(messages_list)
+    list_items = "\n".join([f"<b>{i+1}.</b> {m['desc']}" for i, m in enumerate(messages_list)])
+
+    text = (
+        f"📥 <b>{count}-xabar to'plamga qo'shildi!</b>\n\n"
+        f"📋 <b>Hozirgi xabarlar ro'yxati:</b>\n"
+        f"{list_items}\n\n"
+        f"💡 <i>Yana xabar yuborishingiz mumkin (PDF, stiker, rasm, audio, matn...) yoki barchasini birdaniga o'quvchilarga tarqatish uchun quyidagi tugmani bosing:</i>"
+    )
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Tasdiqlash va Yuborish", callback_data="adm_bc_custom_confirm")],
+        [InlineKeyboardButton(text=f"🚀 Barchaga yuborish ({count} ta xabar)", callback_data="adm_bc_custom_confirm")],
+        [InlineKeyboardButton(text="🗑 Ro'yxatni tozalash", callback_data="adm_bc_custom_clear")],
         [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_broadcast_menu")]
     ])
 
-    if photo_id:
-        cap_preview = f"{caption}\n\n" if caption else ""
-        await message.answer_photo(
-            photo=photo_id,
-            caption=f"📢 <b>Yuboriladigan rasm va matn ko'rinishi:</b>\n\n{cap_preview}<b>Ushbu xabarni barcha o'quvchilarga yuborishni tasdiqlaysizmi?</b>",
-            reply_markup=kb
-        )
-    else:
-        await message.answer(
-            f"📢 <b>Yuboriladigan xabar ko'rinishi:</b>\n\n"
-            f"────────────────────\n"
-            f"{msg_text}\n"
-            f"────────────────────\n\n"
-            f"<b>Ushbu xabarni barcha o'quvchilarga yuborishni tasdiqlaysizmi?</b>",
-            reply_markup=kb
-        )
+    await message.answer(text, reply_markup=kb)
 
-@router.callback_query(F.data == "adm_bc_custom_confirm", BroadcastState.confirm_send)
+@router.callback_query(F.data == "adm_bc_custom_clear", BroadcastState.waiting_for_message)
+async def adm_bc_custom_clear_cb(call: CallbackQuery, state: FSMContext):
+    if not test_db.is_admin(call.from_user.id, ADMIN_ID):
+        return
+    await state.update_data(messages_list=[])
+    text = (
+        "🗑 <b>Barcha tayyorlangan xabarlar ro'yxati tozalandi.</b>\n\n"
+        "Endi yangidan istalgan xabarlaringizni yuborishingiz mumkin (PDF, rasm, stiker, audio, matn...):"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Bekor qilish", callback_data="admin_broadcast_menu")]
+    ])
+    try:
+        await call.message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await call.message.answer(text, reply_markup=kb)
+    await call.answer("Ro'yxat tozalandi!")
+
+@router.callback_query(F.data == "adm_bc_custom_confirm")
 async def adm_bc_custom_confirm_cb(call: CallbackQuery, state: FSMContext):
     if not test_db.is_admin(call.from_user.id, ADMIN_ID):
         return
 
     data = await state.get_data()
+    messages_list = data.get("messages_list", [])
+
+    if not messages_list:
+        await call.answer("Hech qanday xabar kiritilmagan! Avval xabar yuboring.", show_alert=True)
+        return
+
     await state.clear()
+    await call.answer("⏳ Xabarlar tarqatilmoqda...")
 
-    photo_id = data.get("photo_id", "")
-    caption = data.get("caption", "")
-    msg_text = data.get("msg_text", "")
+    count = len(messages_list)
+    status_msg = await call.message.answer(f"⏳ Barcha o'quvchilarga <b>{count} ta xabar</b> yuborilmoqda, iltimos kuting...")
 
-    await call.answer("⏳ Xabar tarqatilmoqda...")
-    status_msg = await call.message.answer("⏳ Barcha o'quvchilarga xabar yuborilmoqda...")
-    sent, fail, batch_id = await send_broadcast_to_users(message_text=msg_text, photo_id=photo_id, caption=caption, sender_tg_id=call.from_user.id)
+    sent, fail, batch_id = await send_broadcast_to_users(
+        messages_list=messages_list,
+        sender_tg_id=call.from_user.id
+    )
 
     await status_msg.edit_text(
-        f"✅ <b>Xabar muvaffaqiyatli tarqatildi!</b>\n\n"
+        f"✅ <b>{count} ta xabar muvaffaqiyatli tarqatildi!</b>\n\n"
         f"📨 <b>Yetkazildi:</b> {sent} nafar o'quvchiga\n"
         f"⚠️ <b>Yetkazilmadi (bloklangan):</b> {fail} ta\n\n"
-        f"<i>Agar xabarni o'chirmoqchi bo'lsangiz, pastdagi tugmani bosing:</i>",
+        f"<i>Agar ushbu xabarlar to'plamini o'chirmoqchi bo'lsangiz, pastdagi tugmani bosing:</i>",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🗑 Ushbu xabarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
+            [InlineKeyboardButton(text="🗑 Ushbu xabarlarni barchadan o'chirish", callback_data=f"adm_bc_del_{batch_id}")],
             [InlineKeyboardButton(text="⬅️ Xabar yuborish bo'limiga", callback_data="admin_broadcast_menu")],
             [InlineKeyboardButton(text="🔙 Admin panelga", callback_data="admin_back_to_menu")]
         ])
