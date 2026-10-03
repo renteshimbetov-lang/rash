@@ -20,7 +20,16 @@ const State = {
   refreshTimer: null,
   currentModalSubmission: null,
   currentModalTest: null,
-  activityDayFilter: 'all'
+  activityDayFilter: 'all',
+  notifications: [],
+  unreadNotifsCount: 0,
+  notifSoundEnabled: true,
+  notifFilter: 'all',
+  lastKnownSubmissionId: 0,
+  lastKnownUsersCount: 0,
+  broadcastHistory: [],
+  broadcastTarget: 'all',
+  broadcastTestId: 0
 };
 
 // ----------------------------------------------------
@@ -339,6 +348,7 @@ function switchDashboardTab(tabId) {
     submissions: { t: 'Natijalar Bazasi', sub: 'O\'quvchilarning ishlagan barcha test javoblari va vaqtlari' },
     users: { t: 'Foydalanuvchilar Bazasi', sub: 'Bot a\'zolari va o\'quvchilar ro\'yxati' },
     tests: { t: 'Testlar Boshqaruvi', sub: 'Yaratilgan barcha milliy sertifikat va blok testlar' },
+    broadcast: { t: 'Xabarnomalar Markazi (Broadcast)', sub: 'Barcha yoki tanlangan o\'quvchilarga Telegram orqali xabar, e\'lon va rasm yuborish' },
     activity: { t: 'Jarayonlar & Audit', sub: 'Tizimda sodir bo\'lgan barcha hodisalar jurnali' },
     database: { t: 'Baza & SQL Konsoli', sub: 'PostgreSQL Cloud ma\'lumotlar bazasi va to\'g\'ridan-to\'g\'ri so\'rovlar' }
   };
@@ -356,6 +366,7 @@ function renderCurrentView() {
   else if (State.activeTab === 'submissions') renderSubmissions();
   else if (State.activeTab === 'users') renderUsers();
   else if (State.activeTab === 'tests') renderTests();
+  else if (State.activeTab === 'broadcast') renderBroadcastTab();
   else if (State.activeTab === 'activity') renderLogs();
   else if (State.activeTab === 'database') renderDatabase();
 }
@@ -385,8 +396,11 @@ async function fetchDashboardData(manual = false) {
         State.overview = data.summary;
         State.tests = data.tests || [];
         updateHeaderAndBadges(data.summary);
+        checkNewLiveEvents(data);
         if (State.activeTab === 'overview') {
           renderOverviewData(data);
+        } else if (State.activeTab === 'broadcast') {
+          renderBroadcastTab();
         }
       }
     }
@@ -398,6 +412,8 @@ async function fetchDashboardData(manual = false) {
       await fetchUsersData();
     } else if (State.activeTab === 'tests') {
       await fetchTestsData();
+    } else if (State.activeTab === 'broadcast') {
+      await fetchBroadcastHistory();
     } else if (State.activeTab === 'activity') {
       await fetchLogsData();
     }
@@ -1875,7 +1891,7 @@ function handleGlobalSearch(val) {
 const NavState = {
   context: 'table', // 'sidebar' | 'table'
   sidebarIndex: 0,
-  sidebarTabs: ['overview', 'submissions', 'users', 'tests', 'activity', 'database'],
+  sidebarTabs: ['overview', 'submissions', 'users', 'tests', 'broadcast', 'activity', 'database'],
   selectedRowIndex: -1,
 };
 
@@ -2534,4 +2550,696 @@ async function executeCancelSubmission() {
   }
 }
 window.executeCancelSubmission = executeCancelSubmission;
+
+/* ============================================================
+   LIVE NOTIFICATION CENTER (Apple macOS Sonoma style)
+   ============================================================ */
+
+function playNotifSound() {
+  if (!State.notifSoundEnabled) return;
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    // Pleasant Apple-like two-tone chime (587.33Hz D5 -> 880Hz A5)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(587.33, now);
+    gain1.gain.setValueAtTime(0.08, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(880.00, now + 0.12);
+    gain2.gain.setValueAtTime(0.12, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.65);
+  } catch(e) {}
+}
+
+function toggleNotifSound() {
+  State.notifSoundEnabled = !State.notifSoundEnabled;
+  const icon = document.getElementById('notif-sound-icon');
+  if (icon) icon.textContent = State.notifSoundEnabled ? '🔔' : '🔕';
+  showToast(State.notifSoundEnabled ? 'Ovozli bildirishnomalar yoqildi' : 'Ovozli bildirishnomalar o\'chirildi', 'info');
+}
+
+function toggleNotificationCenter(forceState) {
+  const panel = document.getElementById('mac-notif-panel');
+  if (!panel) return;
+  const isOpen = forceState !== undefined ? forceState : !panel.classList.contains('active');
+  panel.classList.toggle('active', isOpen);
+  if (isOpen) {
+    renderNotificationList();
+  }
+}
+
+function checkNewLiveEvents(data) {
+  if (!data) return;
+  const recentSubs = data.recent_submissions || [];
+  const currentTotalUsers = (data.summary && data.summary.total_users) || 0;
+
+  // 1. Initial run: setup baseline IDs without spamming notifications
+  if (!State.lastKnownSubmissionId && recentSubs.length > 0) {
+    State.lastKnownSubmissionId = Math.max(...recentSubs.map(s => parseInt(s.id, 10) || 0));
+    State.lastKnownUsersCount = currentTotalUsers;
+    return;
+  }
+
+  let hasNew = false;
+
+  // 2. Check for new submissions
+  if (recentSubs.length > 0 && State.lastKnownSubmissionId) {
+    const newSubs = recentSubs.filter(s => (parseInt(s.id, 10) || 0) > State.lastKnownSubmissionId);
+    if (newSubs.length > 0) {
+      newSubs.sort((a, b) => (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0));
+      newSubs.forEach(s => {
+        const subId = parseInt(s.id, 10);
+        if (subId > State.lastKnownSubmissionId) {
+          State.lastKnownSubmissionId = subId;
+        }
+        const notifItem = {
+          id: 'sub-' + s.id,
+          type: 'submission',
+          title: `Yangi test topshirildi: ${s.fullname}`,
+          desc: `${s.test_title || 'Test #' + s.test_code} — ${s.score || 0} ball (${s.is_late ? '⚠️ Kechikkan' : 'O\'z vaqtida'})`,
+          time: s.submitted_at_fmt || 'Hozir',
+          rawTime: Date.now(),
+          unread: true,
+          dataId: s.id,
+          isLate: s.is_late
+        };
+        State.notifications.unshift(notifItem);
+        State.unreadNotifsCount++;
+        hasNew = true;
+
+        showToast(`🔔 Yangi natija: ${s.fullname} (${s.score || 0} ball)`, s.is_late ? 'warning' : 'success');
+      });
+    }
+  }
+
+  // 3. Check for new registered users
+  if (State.lastKnownUsersCount && currentTotalUsers > State.lastKnownUsersCount) {
+    const diff = currentTotalUsers - State.lastKnownUsersCount;
+    State.lastKnownUsersCount = currentTotalUsers;
+    const notifItem = {
+      id: 'user-' + Date.now(),
+      type: 'user',
+      title: `Yangi o'quvchi qo'shildi`,
+      desc: `${diff} nafar yangi o'quvchi botda muvaffaqiyatli ro'yxatdan o'tdi (Jami: ${currentTotalUsers})`,
+      time: 'Hozir',
+      rawTime: Date.now(),
+      unread: true
+    };
+    State.notifications.unshift(notifItem);
+    State.unreadNotifsCount++;
+    hasNew = true;
+
+    showToast(`👤 Yangi o'quvchi ro'yxatdan o'tdi (${currentTotalUsers} jami)`, 'info');
+  }
+
+  if (hasNew) {
+    playNotifSound();
+    updateNotifBadge();
+    renderNotificationList();
+  }
+}
+
+function updateNotifBadge() {
+  const badge = document.getElementById('notif-badge');
+  const headerBadge = document.getElementById('notif-header-badge');
+  const count = State.unreadNotifsCount;
+
+  if (badge) {
+    if (count > 0) {
+      badge.style.display = 'flex';
+      badge.textContent = count > 99 ? '99+' : count;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+  if (headerBadge) {
+    headerBadge.textContent = `${count} yangi`;
+  }
+}
+
+function filterNotifications(filterType) {
+  State.notifFilter = filterType;
+  document.querySelectorAll('.notif-tab').forEach(t => {
+    t.classList.toggle('active', t.getAttribute('data-notif-filter') === filterType);
+  });
+  renderNotificationList();
+}
+
+function renderNotificationList() {
+  const listBody = document.getElementById('notif-list-body');
+  if (!listBody) return;
+
+  let items = State.notifications;
+  if (State.notifFilter !== 'all') {
+    items = items.filter(n => n.type === State.notifFilter);
+  }
+
+  if (items.length === 0) {
+    listBody.innerHTML = `
+      <div class="notif-empty-state">
+        <div style="font-size:32px;margin-bottom:8px;opacity:0.6;">🔔</div>
+        <div style="font-weight:700;font-size:13px;color:var(--text-main);">Hozircha yangi bildirishnomalar yo'q</div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">Yangi test topshirilganda yoki yangi o'quvchi qo'shilganda bildirishnomalar shu yerda ko'rinadi.</div>
+      </div>
+    `;
+    return;
+  }
+
+  let html = '';
+  items.forEach(n => {
+    let iconClass = 'notif-icon-submission';
+    let iconEmoji = '🏆';
+    if (n.type === 'user') {
+      iconClass = 'notif-icon-user';
+      iconEmoji = '👤';
+    } else if (n.isLate) {
+      iconClass = 'notif-icon-warning';
+      iconEmoji = '⚠️';
+    }
+
+    html += `
+      <div class="notif-card-item ${n.unread ? 'unread' : ''}" onclick="handleNotifItemClick('${n.id}', ${n.dataId || 'null'})">
+        <div class="notif-item-icon ${iconClass}">${iconEmoji}</div>
+        <div class="notif-item-content">
+          <div class="notif-item-title">
+            <span>${esc(n.title)}</span>
+            <span class="notif-item-time">${esc(n.time)}</span>
+          </div>
+          <div class="notif-item-desc">${esc(n.desc)}</div>
+        </div>
+      </div>
+    `;
+  });
+
+  listBody.innerHTML = html;
+}
+
+function handleNotifItemClick(notifId, dataId) {
+  const notif = State.notifications.find(n => n.id === notifId);
+  if (notif && notif.unread) {
+    notif.unread = false;
+    State.unreadNotifsCount = Math.max(0, State.unreadNotifsCount - 1);
+    updateNotifBadge();
+    renderNotificationList();
+  }
+
+  if (dataId) {
+    toggleNotificationCenter(false);
+    openSubmissionDetail(dataId);
+  } else if (notif && notif.type === 'user') {
+    toggleNotificationCenter(false);
+    switchDashboardTab('users');
+  }
+}
+
+function markAllNotificationsRead() {
+  State.notifications.forEach(n => n.unread = false);
+  State.unreadNotifsCount = 0;
+  updateNotifBadge();
+  renderNotificationList();
+  showToast('Barcha bildirishnomalar o\'qilgan deb belgilandi', 'success');
+}
+
+function clearAllNotifications() {
+  State.notifications = [];
+  State.unreadNotifsCount = 0;
+  updateNotifBadge();
+  renderNotificationList();
+  showToast('Bildirishnomalar tozalandi', 'info');
+}
+
+window.toggleNotifSound = toggleNotifSound;
+window.toggleNotificationCenter = toggleNotificationCenter;
+window.filterNotifications = filterNotifications;
+window.markAllNotificationsRead = markAllNotificationsRead;
+window.clearAllNotifications = clearAllNotifications;
+window.handleNotifItemClick = handleNotifItemClick;
+
+
+/* ============================================================
+   XABARNOMALAR (BROADCAST) YUBORISH MANTIQI
+   ============================================================ */
+
+function renderBroadcastTab() {
+  // Update stats chips
+  const totalUsers = (State.users && State.users.length) || (State.overview && State.overview.total_users) || 115;
+  const activeUsers = State.users.filter(u => (u.tests_count || 0) > 0).length || (State.overview && State.overview.approved_users) || 0;
+  const inactiveUsers = State.users.filter(u => (u.tests_count || 0) === 0).length || Math.max(0, totalUsers - activeUsers);
+
+  const elAll = document.getElementById('bc-stat-all-users');
+  const elActive = document.getElementById('bc-stat-active-users');
+  const elInactive = document.getElementById('bc-stat-inactive-users');
+  const chipAll = document.getElementById('chip-cnt-all');
+  const chipActive = document.getElementById('chip-cnt-active');
+  const chipInactive = document.getElementById('chip-cnt-inactive');
+
+  if (elAll) elAll.textContent = totalUsers;
+  if (elActive) elActive.textContent = activeUsers;
+  if (elInactive) elInactive.textContent = inactiveUsers;
+  if (chipAll) chipAll.textContent = totalUsers;
+  if (chipActive) chipActive.textContent = activeUsers;
+  if (chipInactive) chipInactive.textContent = inactiveUsers;
+
+  // Populate tests dropdown
+  populateBroadcastTestsDropdown();
+
+  // Fetch history
+  fetchBroadcastHistory();
+
+  // Initial preview update
+  updateBroadcastPreview();
+}
+
+function populateBroadcastTestsDropdown() {
+  const sel = document.getElementById('bc-target-test-id');
+  if (!sel) return;
+  const tests = State.tests || [];
+  let html = '<option value="">-- Testni tanlang --</option>';
+  tests.forEach(t => {
+    html += `<option value="${t.id}">${esc(t.title || 'Test #' + t.test_code)} (${t.subject || 'Matematika'})</option>`;
+  });
+  sel.innerHTML = html;
+}
+
+function setBroadcastTarget(target) {
+  State.broadcastTarget = target;
+  const radio = document.querySelector(`input[name="bc-target"][value="${target}"]`);
+  if (radio) {
+    radio.checked = true;
+    handleBroadcastTargetChange(target);
+  }
+}
+
+function handleBroadcastTargetChange(val) {
+  State.broadcastTarget = val;
+  document.querySelectorAll('.bc-target-opt').forEach(opt => {
+    opt.classList.remove('active');
+  });
+  const activeOpt = document.getElementById(`opt-target-${val}`);
+  if (activeOpt) activeOpt.classList.add('active');
+
+  const testWrap = document.getElementById('bc-test-select-wrap');
+  if (testWrap) {
+    testWrap.style.display = val === 'test' ? 'block' : 'none';
+  }
+}
+
+function handleBroadcastTestSelected() {
+  const sel = document.getElementById('bc-target-test-id');
+  if (sel) {
+    State.broadcastTestId = parseInt(sel.value, 10) || 0;
+  }
+}
+
+const BROADCAST_TEMPLATES = {
+  new_test: {
+    message: `📢 <b>DIQQAT, YANGI TEST E'LON QILINDI!</b>\n\nHurmatli {fullname}!\n\nShohruh Matematika bo'yicha navbatdagi <b>Milliy Sertifikat Standarti</b> blok testi tizimga yuklandi.\n\n⏰ <b>Vaqt:</b> Bugun 19:30 dan 22:00 gacha\n❓ <b>Savollar:</b> 45 ta (A-B-C-D, Moslik va Yozma ochiq savollar)\n\n<i>O'z bilimingizni sinab ko'rish uchun testni o'z vaqtida topshirishni unutmang!</i>`,
+    btnText: `🚀 Testni Boshlash`,
+    btnUrl: `https://t.me/shohruh_matematika_bot`
+  },
+  results: {
+    message: `🏆 <b>TEST NATIJALARI E'LON QILINDI!</b>\n\nHurmatli {fullname}!\n\nSiz ishlagan testning rasmiy natijalari va ballari e'lon qilindi.\n\n📊 O'z natijangiz, to'plagan balingiz va sertifikat darajangizni bilish uchun quyidagi tugmani bosing:`,
+    btnText: `📊 Natijamni Ko'rish`,
+    btnUrl: `https://t.me/shohruh_matematika_bot`
+  },
+  warning: {
+    message: `⚠️ <b>MUHIM OGOHLANTIRISH</b>\n\nHurmatli {fullname}!\n\nSiz tizimimizda ro'yxatdan o'tgan bo'lsangiz-da, testlarda faol ishtirok etmayapsiz.\n\n📌 <b>Eslatma:</b> Berilgan imkoniyatdan foydalanmasangiz va faoliyatsiz qolsangiz, profilingiz tizimdan o'chirilishi mumkin.\n\n<i>O'z o'rningizni saqlab qolish uchun bugungi testda albatta qatnashing!</i>`,
+    btnText: `✍️ Testga Kirish`,
+    btnUrl: `https://t.me/shohruh_matematika_bot`
+  },
+  motivation: {
+    message: `✨ <b>XAYRLI KUN, {fullname}!</b>\n\nMatematika — fikrlash gimnastikasi! Har bir ishlangan masala sizni orzuingizdagi oliy natijaga yaqinlashtiradi.\n\nBugungi mashg'ulotlaringizda omad va kuch-g'ayrat tilaymiz!\n\n<i>Shohruh Matematika Jamoasi</i>`,
+    btnText: `📱 Botga O'tish`,
+    btnUrl: `https://t.me/shohruh_matematika_bot`
+  }
+};
+
+function applyBroadcastTemplate(key) {
+  const tpl = BROADCAST_TEMPLATES[key];
+  if (!tpl) return;
+
+  const msgInput = document.getElementById('bc-message-text');
+  const btnTxt = document.getElementById('bc-btn-text');
+  const btnUrl = document.getElementById('bc-btn-url');
+
+  if (msgInput) msgInput.value = tpl.message;
+  if (btnTxt) btnTxt.value = tpl.btnText || '';
+  if (btnUrl) btnUrl.value = tpl.btnUrl || '';
+
+  updateBroadcastPreview();
+  showToast('Shablon yuklandi', 'info');
+}
+
+function insertBroadcastTag(tag) {
+  const textarea = document.getElementById('bc-message-text');
+  if (!textarea) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = textarea.value.substring(start, end);
+
+  const openTag = `<${tag}>`;
+  const closeTag = `</${tag}>`;
+  const replacement = openTag + (selected || 'matn') + closeTag;
+
+  textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+  textarea.focus();
+  textarea.setSelectionRange(start + openTag.length, start + openTag.length + (selected ? selected.length : 4));
+  updateBroadcastPreview();
+}
+
+function insertBroadcastLink() {
+  const textarea = document.getElementById('bc-message-text');
+  if (!textarea) return;
+
+  const url = prompt('Havola manzilini kiriting (URL):', 'https://');
+  if (!url) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = textarea.value.substring(start, end) || 'Havola matni';
+
+  const replacement = `<a href="${url}">${selected}</a>`;
+  textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+  textarea.focus();
+  updateBroadcastPreview();
+}
+
+function insertBroadcastPlaceholder(ph) {
+  const textarea = document.getElementById('bc-message-text');
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  textarea.value = textarea.value.substring(0, start) + ph + textarea.value.substring(end);
+  textarea.focus();
+  textarea.setSelectionRange(start + ph.length, start + ph.length);
+  updateBroadcastPreview();
+}
+
+function insertBroadcastEmoji(emoji) {
+  insertBroadcastPlaceholder(emoji + ' ');
+}
+
+function clearBroadcastComposer() {
+  const msgInput = document.getElementById('bc-message-text');
+  const photoInput = document.getElementById('bc-photo-url');
+  const btnTxt = document.getElementById('bc-btn-text');
+  const btnUrl = document.getElementById('bc-btn-url');
+
+  if (msgInput) msgInput.value = '';
+  if (photoInput) photoInput.value = '';
+  if (btnTxt) btnTxt.value = '';
+  if (btnUrl) btnUrl.value = '';
+
+  updateBroadcastPreview();
+}
+
+function updateBroadcastPreview() {
+  const msg = (document.getElementById('bc-message-text') && document.getElementById('bc-message-text').value) || '';
+  const photoUrl = (document.getElementById('bc-photo-url') && document.getElementById('bc-photo-url').value.trim()) || '';
+  const btnText = (document.getElementById('bc-btn-text') && document.getElementById('bc-btn-text').value.trim()) || '';
+
+  // Character counter
+  const counter = document.getElementById('bc-char-counter');
+  if (counter) counter.textContent = `${msg.length} / 4096`;
+
+  // Photo preview
+  const photoWrap = document.getElementById('tg-preview-photo-wrap');
+  const photoImg = document.getElementById('tg-preview-photo');
+  if (photoWrap && photoImg) {
+    if (photoUrl) {
+      photoWrap.style.display = 'block';
+      photoImg.src = photoUrl;
+    } else {
+      photoWrap.style.display = 'none';
+      photoImg.src = '';
+    }
+  }
+
+  // Text preview: Replace {fullname} with simulated name and format line breaks
+  const previewTextEl = document.getElementById('tg-preview-text');
+  if (previewTextEl) {
+    if (!msg) {
+      previewTextEl.innerHTML = 'Hurmatli <b>Foydalanuvchi</b>!<br><br>Xabaringiz matni shu yerda jonli ko\'rinadi...';
+    } else {
+      let formatted = msg
+        .replace(/{fullname}/g, '<b>Rustamov Sardor</b>')
+        .replace(/{ism}/g, '<b>Rustamov Sardor</b>')
+        .replace(/\n/g, '<br>');
+      previewTextEl.innerHTML = formatted;
+    }
+  }
+
+  // Button preview
+  const btnWrap = document.getElementById('tg-preview-btn-wrap');
+  const btnEl = document.getElementById('tg-preview-btn');
+  if (btnWrap && btnEl) {
+    if (btnText) {
+      btnWrap.style.display = 'block';
+      btnEl.textContent = btnText;
+    } else {
+      btnWrap.style.display = 'none';
+    }
+  }
+
+  // Time preview
+  const timeEl = document.getElementById('tg-preview-time');
+  if (timeEl) {
+    const d = new Date();
+    timeEl.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+}
+
+function openBroadcastConfirmModal() {
+  const msg = (document.getElementById('bc-message-text') && document.getElementById('bc-message-text').value.trim()) || '';
+  const photoUrl = (document.getElementById('bc-photo-url') && document.getElementById('bc-photo-url').value.trim()) || '';
+
+  if (!msg && !photoUrl) {
+    showToast('Xabar matni yoki rasm havolasini kiriting!', 'warning');
+    return;
+  }
+
+  const target = State.broadcastTarget || 'all';
+  let totalRecipients = 0;
+  let targetDesc = 'Barcha faol foydalanuvchilar';
+
+  const totalUsers = (State.users && State.users.length) || (State.overview && State.overview.total_users) || 115;
+  const activeUsers = State.users.filter(u => (u.tests_count || 0) > 0).length || (State.overview && State.overview.approved_users) || 0;
+  const inactiveUsers = State.users.filter(u => (u.tests_count || 0) === 0).length || Math.max(0, totalUsers - activeUsers);
+
+  if (target === 'all') {
+    totalRecipients = totalUsers;
+    targetDesc = 'Barcha ro\'yxatdan o\'tgan o\'quvchilar';
+  } else if (target === 'active') {
+    totalRecipients = activeUsers;
+    targetDesc = 'Kamida 1 ta test topshirgan faol o\'quvchilar';
+  } else if (target === 'inactive') {
+    totalRecipients = inactiveUsers;
+    targetDesc = 'Hali test ishlamagan o\'quvchilar';
+  } else if (target === 'test') {
+    targetDesc = 'Tanlangan test qatnashchilari';
+    totalRecipients = 'Tanlangan testdagi';
+  }
+
+  const cntEl = document.getElementById('bc-confirm-recipients-count');
+  const descEl = document.getElementById('bc-confirm-recipients-desc');
+  const snipEl = document.getElementById('bc-confirm-preview-snippet');
+
+  if (cntEl) cntEl.textContent = `${totalRecipients} nafar o'quvchi`;
+  if (descEl) descEl.textContent = targetDesc;
+  if (snipEl) snipEl.textContent = msg || '(Faqat rasm yuborilmoqda)';
+
+  const modal = document.getElementById('broadcast-confirm-modal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeBroadcastConfirmModal() {
+  const modal = document.getElementById('broadcast-confirm-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function executeBroadcastSend() {
+  const btn = document.getElementById('btn-bc-send-confirmed');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Yuborilmoqda...';
+  }
+
+  const message = (document.getElementById('bc-message-text') && document.getElementById('bc-message-text').value.trim()) || '';
+  const photoUrl = (document.getElementById('bc-photo-url') && document.getElementById('bc-photo-url').value.trim()) || '';
+  const buttonText = (document.getElementById('bc-btn-text') && document.getElementById('bc-btn-text').value.trim()) || '';
+  const buttonUrl = (document.getElementById('bc-btn-url') && document.getElementById('bc-btn-url').value.trim()) || '';
+  const target = State.broadcastTarget || 'all';
+  const testId = State.broadcastTestId || 0;
+
+  try {
+    const res = await fetch('/api/dashboard/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target,
+        test_id: testId,
+        message,
+        photo_url: photoUrl,
+        button_text: buttonText,
+        button_url: buttonUrl
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || data.error || 'Xatolik yuz berdi');
+    }
+
+    closeBroadcastConfirmModal();
+    showToast(`✅ ${data.message}`, 'success');
+
+    // Add notification to live notification center
+    const notifItem = {
+      id: 'bc-' + Date.now(),
+      type: 'user',
+      title: `Xabarnoma yuborildi`,
+      desc: `${data.sent_count} nafar o'quvchiga muvaffaqiyatli tarqatildi (Partiya: ${data.batch_id})`,
+      time: 'Hozir',
+      rawTime: Date.now(),
+      unread: true
+    };
+    State.notifications.unshift(notifItem);
+    State.unreadNotifsCount++;
+    updateNotifBadge();
+    playNotifSound();
+
+    // Clear composer and refresh history
+    clearBroadcastComposer();
+    fetchBroadcastHistory(true);
+  } catch(err) {
+    showToast(String(err.message || err), 'danger');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Ha, hoziroq yuborilsin ➔';
+    }
+  }
+}
+
+async function fetchBroadcastHistory(manual = false) {
+  try {
+    const res = await fetch('/api/dashboard/broadcast/history?limit=25');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success) {
+        State.broadcastHistory = data.history || [];
+        renderBroadcastHistoryTable();
+        const totalStat = document.getElementById('bc-stat-total-broadcasts');
+        if (totalStat) totalStat.textContent = State.broadcastHistory.length;
+        if (manual) showToast('Xabarnomalar tarixi yangilandi', 'success');
+      }
+    }
+  } catch(e) {
+    console.error('Broadcast history error:', e);
+  }
+}
+
+function renderBroadcastHistoryTable() {
+  const tbody = document.getElementById('broadcast-history-tbody');
+  if (!tbody) return;
+
+  const history = State.broadcastHistory || [];
+  if (history.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">
+          Hozircha birorta ham xabarnoma yuborilmagan.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  let html = '';
+  history.forEach(h => {
+    const isDeleted = h.is_deleted === 1;
+    const statusBadge = isDeleted
+      ? '<span class="badge badge-danger">O\'chirilgan</span>'
+      : '<span class="badge badge-success">Yetkazilgan</span>';
+
+    const deleteBtn = isDeleted
+      ? '<span style="color:var(--text-dim);font-size:11.5px;">Allaqachon o\'chirilgan</span>'
+      : `<button class="btn btn-secondary btn-sm" style="color:#ef4444;border-color:rgba(239,68,68,0.3);" onclick="deleteBroadcastBatch('${h.batch_id}')">
+           🗑 Chatlardan o'chirish
+         </button>`;
+
+    html += `
+      <tr>
+        <td style="font-family:var(--font-mono);font-size:12px;">${esc(h.created_at_fmt || h.created_at || '-')}</td>
+        <td><code style="font-size:11px;color:var(--primary);">${esc(h.batch_id)}</code></td>
+        <td style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(h.message_text)}">
+          ${esc(h.message_text || '(Rasm xabari)')}
+        </td>
+        <td><b>${h.total_sent || 0}</b> nafar user</td>
+        <td>${statusBadge}</td>
+        <td style="text-align:right;">${deleteBtn}</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+async function deleteBroadcastBatch(batchId) {
+  if (!confirm(`Haqiqatan ham ushbu xabarnomani barcha o'quvchilar chatidan o'chirib tashlamoqchimisiz?`)) {
+    return;
+  }
+
+  try {
+    showToast('Xabarlar o\'chirilmoqda...', 'info');
+    const res = await fetch('/api/dashboard/broadcast/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch_id: batchId })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || data.error || 'O\'chirishda xatolik');
+    }
+    showToast(data.message || 'Muvaffaqiyatli o\'chirildi!', 'success');
+    fetchBroadcastHistory(true);
+  } catch(e) {
+    showToast(String(e.message || e), 'danger');
+  }
+}
+
+window.renderBroadcastTab = renderBroadcastTab;
+window.setBroadcastTarget = setBroadcastTarget;
+window.handleBroadcastTargetChange = handleBroadcastTargetChange;
+window.handleBroadcastTestSelected = handleBroadcastTestSelected;
+window.applyBroadcastTemplate = applyBroadcastTemplate;
+window.insertBroadcastTag = insertBroadcastTag;
+window.insertBroadcastLink = insertBroadcastLink;
+window.insertBroadcastPlaceholder = insertBroadcastPlaceholder;
+window.insertBroadcastEmoji = insertBroadcastEmoji;
+window.updateBroadcastPreview = updateBroadcastPreview;
+window.clearBroadcastComposer = clearBroadcastComposer;
+window.openBroadcastConfirmModal = openBroadcastConfirmModal;
+window.closeBroadcastConfirmModal = closeBroadcastConfirmModal;
+window.executeBroadcastSend = executeBroadcastSend;
+window.fetchBroadcastHistory = fetchBroadcastHistory;
+window.deleteBroadcastBatch = deleteBroadcastBatch;
+
 

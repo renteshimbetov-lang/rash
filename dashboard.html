@@ -90,6 +90,17 @@
           <span>Yangilash</span>
         </button>
 
+        <button class="header-btn notif-bell-btn" onclick="toggleNotificationCenter()" id="btn-notif-center" title="Bildirishnomalar markazi">
+          <span class="bell-icon-wrap" style="position:relative;display:inline-flex;align-items:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+            </svg>
+            <span class="notif-badge" id="notif-badge" style="display:none;">0</span>
+          </span>
+          <span class="notif-btn-label">Bildirishnomalar</span>
+        </button>
+
         <button class="header-btn" onclick="toggleTheme()" id="btn-theme-toggle" title="Yorug'/Qorong'u mavzu">
           <svg id="theme-toggle-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
@@ -179,6 +190,19 @@
                 <span>Testlar Bazasi</span>
               </div>
               <span class="nav-badge" id="badge-tests-count">0</span>
+            </a>
+
+            <a class="nav-item" data-tab="broadcast" onclick="switchDashboardTab('broadcast')">
+              <div class="nav-item-left">
+                <span class="nav-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path d="m3 11 18-5v12L3 14v-3z"/>
+                    <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+                  </svg>
+                </span>
+                <span>Xabarnoma (Broadcast)</span>
+              </div>
+              <span class="nav-badge" id="badge-broadcast-count" style="background:#8b5cf6;color:#fff;">Yuborish</span>
             </a>
 
             <div class="nav-group-title" style="margin-top:10px;">Monitoring & Tizim</div>
@@ -711,8 +735,339 @@
             </div>
           </section>
 
+          <!-- TAB 7: BROADCAST & XABARNOMA YUBORISH -->
+          <section id="view-broadcast" class="page-view">
+            <!-- Top Stats Strip -->
+            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 16px;">
+              <div class="stat-card" style="cursor:pointer;" onclick="setBroadcastTarget('all')" title="Barchaga yuborishni tanlash">
+                <div class="stat-card-title">👥 Barcha O'quvchilar</div>
+                <div class="stat-card-value" id="bc-stat-all-users" style="color:var(--primary);">115</div>
+                <div class="stat-card-sub">Bazadagi barcha foydalanuvchilar</div>
+              </div>
+              <div class="stat-card" style="cursor:pointer;" onclick="setBroadcastTarget('active')" title="Faol o'quvchilarni tanlash">
+                <div class="stat-card-title">🟢 Faol O'quvchilar</div>
+                <div class="stat-card-value" id="bc-stat-active-users" style="color:var(--success);">0</div>
+                <div class="stat-card-sub">Kamida 1 ta test topshirganlar</div>
+              </div>
+              <div class="stat-card" style="cursor:pointer;" onclick="setBroadcastTarget('inactive')" title="Faoliyatsizlarni tanlash">
+                <div class="stat-card-title">🟡 Yangi / Faoliyatsizlar</div>
+                <div class="stat-card-value" id="bc-stat-inactive-users" style="color:var(--warning);">0</div>
+                <div class="stat-card-sub">Hali birorta ham test ishlamaganlar</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card-title">📢 Yuborilgan Partiyalar</div>
+                <div class="stat-card-value" id="bc-stat-total-broadcasts" style="color:var(--purple);">0</div>
+                <div class="stat-card-sub">Jami tarqatilgan xabarnomalar</div>
+              </div>
+            </div>
+
+            <!-- Composer & Live Telegram Mockup Grid -->
+            <div class="broadcast-workspace-grid">
+              
+              <!-- Left: Composer Card -->
+              <div class="table-card broadcast-composer-card">
+                <div class="table-card-header">
+                  <div class="table-title">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m3 11 18-5v12L3 14v-3z"/>
+                      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+                    </svg>
+                    <span>Telegram Xabarnoma Yaratish</span>
+                  </div>
+                  <div style="display:flex;gap:6px;">
+                    <button class="btn btn-secondary btn-sm" onclick="clearBroadcastComposer()" title="Maydonlarni tozalash">
+                      Tozalash
+                    </button>
+                  </div>
+                </div>
+
+                <div style="padding:16px;display:flex;flex-direction:column;gap:14px;">
+                  
+                  <!-- 1. Qabul qiluvchilar auditoriyasi -->
+                  <div>
+                    <label class="bc-label">1. Qabul qiluvchi auditoriya:</label>
+                    <div class="bc-target-selector">
+                      <label class="bc-target-opt active" id="opt-target-all">
+                        <input type="radio" name="bc-target" value="all" checked onchange="handleBroadcastTargetChange(this.value)">
+                        <span class="bc-opt-title">👥 Barchaga (<span id="chip-cnt-all">115</span>)</span>
+                      </label>
+                      <label class="bc-target-opt" id="opt-target-active">
+                        <input type="radio" name="bc-target" value="active" onchange="handleBroadcastTargetChange(this.value)">
+                        <span class="bc-opt-title">🟢 Faollarga (<span id="chip-cnt-active">0</span>)</span>
+                      </label>
+                      <label class="bc-target-opt" id="opt-target-inactive">
+                        <input type="radio" name="bc-target" value="inactive" onchange="handleBroadcastTargetChange(this.value)">
+                        <span class="bc-opt-title">🟡 Yangilarga (<span id="chip-cnt-inactive">0</span>)</span>
+                      </label>
+                      <label class="bc-target-opt" id="opt-target-test">
+                        <input type="radio" name="bc-target" value="test" onchange="handleBroadcastTargetChange(this.value)">
+                        <span class="bc-opt-title">📝 Test bo'yicha</span>
+                      </label>
+                    </div>
+
+                    <!-- Dropdown if test selected -->
+                    <div id="bc-test-select-wrap" style="display:none;margin-top:8px;">
+                      <select id="bc-target-test-id" class="bc-input" onchange="handleBroadcastTestSelected()">
+                        <option value="">-- Testni tanlang --</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- 2. Tezkor Shablonlar -->
+                  <div>
+                    <label class="bc-label">2. Tezkor shablonlar (bir marta bosish bilan to'ldirish):</label>
+                    <div class="bc-templates-strip">
+                      <button type="button" class="btn-template" onclick="applyBroadcastTemplate('new_test')">
+                        <span>📢</span> Yangi Test E'loni
+                      </button>
+                      <button type="button" class="btn-template" onclick="applyBroadcastTemplate('results')">
+                        <span>🏆</span> Natijalar Tayyor
+                      </button>
+                      <button type="button" class="btn-template" onclick="applyBroadcastTemplate('warning')">
+                        <span>⚠️</span> Faoliyatsizlik Ogohlantirishi
+                      </button>
+                      <button type="button" class="btn-template" onclick="applyBroadcastTemplate('motivation')">
+                        <span>💡</span> Motivatsiya & Salom
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 3. Formatting Toolbar & Textarea -->
+                  <div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                      <label class="bc-label" style="margin-bottom:0;">3. Xabar matni (HTML formatida):</label>
+                      <span id="bc-char-counter" style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono);">0 / 4096</span>
+                    </div>
+
+                    <!-- Format buttons -->
+                    <div class="bc-format-bar">
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastTag('b')" title="Qalin matn"><b>B</b></button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastTag('i')" title="Qiya matn"><i>I</i></button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastTag('u')" title="Tagiga chizilgan"><u>U</u></button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastTag('code')" title="Bir qatorli kod"><code>&lt;/&gt;</code></button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastLink()" title="Havola (Link)">🔗 Havola</button>
+                      <button type="button" class="bc-fmt-btn bc-fmt-highlight" onclick="insertBroadcastPlaceholder('{fullname}')" title="O'quvchining to'liq ismi">👤 {fullname}</button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastEmoji('📢')">📢</button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastEmoji('✅')">✅</button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastEmoji('⏰')">⏰</button>
+                      <button type="button" class="bc-fmt-btn" onclick="insertBroadcastEmoji('🚀')">🚀</button>
+                    </div>
+
+                    <textarea id="bc-message-text" class="bc-textarea" rows="7" placeholder="Hurmatli {fullname}!\n\nXabaringiz matnini shu yerga yozing..." oninput="updateBroadcastPreview()"></textarea>
+                  </div>
+
+                  <!-- 4. Ixtiyoriy Rasm va Inline Tugma -->
+                  <div class="bc-optional-grid">
+                    <div>
+                      <label class="bc-label" style="font-size:12px;">📷 Rasm URL (ixtiyoriy):</label>
+                      <input type="url" id="bc-photo-url" class="bc-input" placeholder="https://example.com/rasm.jpg" oninput="updateBroadcastPreview()">
+                    </div>
+                    <div>
+                      <label class="bc-label" style="font-size:12px;">🔗 Tugma matni (ixtiyoriy):</label>
+                      <input type="text" id="bc-btn-text" class="bc-input" placeholder="Masalan: 🚀 Testni boshlash" oninput="updateBroadcastPreview()">
+                    </div>
+                    <div>
+                      <label class="bc-label" style="font-size:12px;">🌐 Tugma havolasi (URL):</label>
+                      <input type="url" id="bc-btn-url" class="bc-input" placeholder="https://t.me/..." oninput="updateBroadcastPreview()">
+                    </div>
+                  </div>
+
+                  <!-- Submit Button -->
+                  <div style="display:flex;justify-content:flex-end;margin-top:6px;">
+                    <button class="btn btn-primary" id="btn-broadcast-submit" style="padding:10px 22px;font-size:13.5px;font-weight:700;" onclick="openBroadcastConfirmModal()">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px;">
+                        <line x1="22" y1="2" x2="11" y2="13"/>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                      </svg>
+                      <span>Xabarnomani barchaga yuborish ➔</span>
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Right: Live Telegram Mockup Card -->
+              <div class="table-card broadcast-preview-card">
+                <div class="table-card-header">
+                  <div class="table-title">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0088cc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"/>
+                      <polygon points="12 8 8 12 12 16 12 8"/>
+                    </svg>
+                    <span>Telegram Jonli Ko'rinishi</span>
+                  </div>
+                  <span class="badge badge-info" style="font-size:11px;">Real-time Preview</span>
+                </div>
+
+                <div class="tg-phone-mockup">
+                  <!-- Telegram Header -->
+                  <div class="tg-mock-header">
+                    <div class="tg-mock-avatar">BM</div>
+                    <div class="tg-mock-info">
+                      <div class="tg-mock-name">Shohruh Matematika</div>
+                      <div class="tg-mock-status">bot</div>
+                    </div>
+                  </div>
+
+                  <!-- Telegram Chat Body -->
+                  <div class="tg-mock-body">
+                    <div class="tg-message-bubble" id="tg-preview-bubble">
+                      <!-- Photo if exists -->
+                      <div id="tg-preview-photo-wrap" style="display:none;margin-bottom:8px;">
+                        <img id="tg-preview-photo" src="" alt="Xabar rasmi" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;">
+                      </div>
+                      <!-- Message Text -->
+                      <div class="tg-message-text" id="tg-preview-text">
+                        Hurmatli <b>Foydalanuvchi</b>!<br><br>
+                        Xabaringiz matni shu yerda jonli ko'rinadi...
+                      </div>
+                      <!-- Timestamp -->
+                      <div class="tg-message-meta">
+                        <span id="tg-preview-time">12:00</span>
+                        <span style="color:#4fa3dd;margin-left:3px;">✓✓</span>
+                      </div>
+                    </div>
+
+                    <!-- Inline Button Preview -->
+                    <div id="tg-preview-btn-wrap" style="display:none;margin-top:6px;">
+                      <a href="#" class="tg-inline-button" id="tg-preview-btn" onclick="return false;">
+                        🚀 Testni boshlash
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- Bottom: Yuborilgan Xabarnomalar Tarixi -->
+            <div class="table-card" style="margin-top:16px;">
+              <div class="table-card-header">
+                <div class="table-title">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  <span>Yuborilgan Xabarnomalar Tarixi</span>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="fetchBroadcastHistory(true)">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                    <path d="M16 21h5v-5"/>
+                  </svg>
+                  <span>Tarixni yangilash</span>
+                </button>
+              </div>
+
+              <div class="table-wrapper">
+                <table class="mac-table">
+                  <thead>
+                    <tr>
+                      <th style="width:140px;">Vaqt (Toshkent)</th>
+                      <th style="width:130px;">Partiya ID</th>
+                      <th>Xabar Matni</th>
+                      <th style="width:130px;">Qabul qiluvchilar</th>
+                      <th style="width:120px;">Holat</th>
+                      <th style="width:140px;text-align:right;">Amallar</th>
+                    </tr>
+                  </thead>
+                  <tbody id="broadcast-history-tbody">
+                    <tr>
+                      <td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted);">
+                        Tarix yuklanmoqda...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
         </div>
       </main>
+    </div>
+  </div>
+
+  <!-- macOS Notification Center Drawer (Slide-out panel) -->
+  <aside class="mac-notif-drawer" id="mac-notif-panel" aria-label="Bildirishnomalar Markazi">
+    <div class="notif-drawer-header">
+      <div class="notif-header-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+        </svg>
+        <span>Bildirishnomalar</span>
+        <span class="badge badge-primary" id="notif-header-badge">0 yangi</span>
+      </div>
+      <div class="notif-header-controls">
+        <button class="btn-notif-tool" id="btn-sound-toggle" onclick="toggleNotifSound()" title="Ovozli bildirishnomani yoqish/o'chirish">
+          <span id="notif-sound-icon">🔔</span>
+        </button>
+        <button class="btn-notif-tool" onclick="markAllNotificationsRead()" title="Barchasini o'qilgan deb belgilash">
+          ✓ O'qildi
+        </button>
+        <button class="btn-notif-tool" onclick="clearAllNotifications()" title="Barcha bildirishnomalarni tozalash">
+          ✕ Tozalash
+        </button>
+        <button class="notif-drawer-close" onclick="toggleNotificationCenter(false)" title="Yopish (Esc)">
+          ✕
+        </button>
+      </div>
+    </div>
+
+    <!-- Notification Filter Tabs -->
+    <div class="notif-tabs-bar">
+      <button class="notif-tab active" data-notif-filter="all" onclick="filterNotifications('all')">Barchasi</button>
+      <button class="notif-tab" data-notif-filter="submission" onclick="filterNotifications('submission')">Topshiriqlar</button>
+      <button class="notif-tab" data-notif-filter="user" onclick="filterNotifications('user')">O'quvchilar</button>
+    </div>
+
+    <!-- Notification Items List -->
+    <div class="notif-list-body" id="notif-list-body">
+      <div class="notif-empty-state">
+        <div style="font-size:32px;margin-bottom:8px;opacity:0.6;">🔔</div>
+        <div style="font-weight:700;font-size:13px;color:var(--text-main);">Hozircha yangi bildirishnomalar yo'q</div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">Yangi test topshirilganda yoki yangi o'quvchi qo'shilganda bildirishnomalar shu yerda ko'rinadi.</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MODAL: Broadcast Confirm Modal -->
+  <div class="modal-overlay" id="broadcast-confirm-modal">
+    <div class="mac-modal" style="max-width:540px;">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="display:inline-flex;align-items:center;color:var(--primary);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m3 11 18-5v12L3 14v-3z"/>
+              <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
+            </svg>
+          </span>
+          <div>
+            <div style="font-size:16px;font-weight:800;">Xabarnomani Tasdiqlash</div>
+            <div style="font-size:12px;color:var(--text-muted);">Xabar Telegram orqali barcha qabul qiluvchilarga yetkaziladi</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeBroadcastConfirmModal()">✕</button>
+      </div>
+      <div class="modal-body" style="padding:16px 20px;">
+        <div style="background:var(--bg-input);padding:14px;border-radius:12px;border:1px solid var(--border);margin-bottom:14px;">
+          <div style="font-size:12px;color:var(--text-muted);">Qabul qiluvchilar soni:</div>
+          <div style="font-size:22px;font-weight:900;color:var(--primary);margin-top:2px;" id="bc-confirm-recipients-count">115 nafar o'quvchi</div>
+          <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;" id="bc-confirm-recipients-desc">Barcha faol foydalanuvchilar</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">Xabar matni ko'rinishi:</div>
+        <div id="bc-confirm-preview-snippet" style="background:var(--bg-card);border:1px solid var(--border);padding:12px;border-radius:10px;font-size:12.5px;max-height:140px;overflow-y:auto;white-space:pre-wrap;color:var(--text-main);"></div>
+      </div>
+      <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:12px 20px;border-top:1px solid var(--border);">
+        <button class="btn btn-secondary" onclick="closeBroadcastConfirmModal()">Bekor qilish</button>
+        <button class="btn btn-primary" id="btn-bc-send-confirmed" onclick="executeBroadcastSend()">
+          <span>Ha, hoziroq yuborilsin ➔</span>
+        </button>
+      </div>
     </div>
   </div>
 

@@ -6975,6 +6975,151 @@ async def handle_dashboard_warn_users_batch(request):
         return web.json_response({"success": False, "error": str(e)}, status=500)
 
 
+async def handle_dashboard_broadcast(request):
+    """Dashboard orqali barcha yoki maqsadli o'quvchilarga Telegram xabarnoma yuborish."""
+    try:
+        data = await request.json()
+        target = str(data.get('target', 'all')).strip().lower()
+        test_id = int(data.get('test_id', 0) or 0)
+        message_text = str(data.get('message', '')).strip()
+        photo_url = str(data.get('photo_url', '')).strip()
+        btn_text = str(data.get('button_text', '')).strip()
+        btn_url = str(data.get('button_url', '')).strip()
+
+        if not message_text and not photo_url:
+            return web.json_response({"success": False, "message": "Xabar matni yoki rasm havolasi kiritilishi shart!"}, status=400)
+
+        # 1. Auditoriyani aniqlash
+        all_users = await asyncio.to_thread(test_db.get_all_users)
+        target_users = []
+        if target == 'all':
+            target_users = all_users
+        elif target == 'active':
+            target_users = [u for u in all_users if int(u.get('tests_count', 0) or 0) > 0]
+        elif target == 'inactive':
+            target_users = [u for u in all_users if int(u.get('tests_count', 0) or 0) == 0]
+        elif target == 'test' and test_id > 0:
+            subs = await asyncio.to_thread(test_db.get_test_submissions_with_users, test_id)
+            test_tg_ids = {s.get('user_tg_id') for s in subs if s.get('user_tg_id')}
+            target_users = [u for u in all_users if u.get('tg_id') in test_tg_ids]
+        else:
+            target_users = all_users
+
+        if not target_users:
+            return web.json_response({"success": False, "message": "Tanlangan filtr bo'yicha hech qanday o'quvchi topilmadi!"}, status=400)
+
+        # 2. Batch yaratish
+        batch_id = f"BC-{datetime.now(UZB_TZ).strftime('%y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
+        summary_text = (f"[{target.upper()}] " + (message_text or "Rasm xabari"))[:400]
+        await asyncio.to_thread(
+            test_db.create_broadcast_batch,
+            batch_id=batch_id,
+            sender_tg_id=ADMIN_ID,
+            message_text=summary_text,
+            photo_id=photo_url[:200]
+        )
+
+        # 3. Inline klaviatura (agar tugma kiritilgan bo'lsa)
+        reply_markup = None
+        if btn_text and btn_url:
+            reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text=btn_text, url=btn_url)
+            ]])
+
+        sent_count = 0
+        fail_count = 0
+        deleted_count = 0
+
+        for u in target_users:
+            uid = u.get('tg_id')
+            if not uid:
+                continue
+            fname = u.get('fullname') or "Foydalanuvchi"
+            # {fullname} shablonini o'quvchi ismi bilan almashtirish
+            user_msg = message_text.replace("{fullname}", fname).replace("{ism}", fname)
+
+            try:
+                sent_msg = None
+                if photo_url:
+                    sent_msg = await bot.send_photo(
+                        chat_id=uid,
+                        photo=photo_url,
+                        caption=user_msg,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=reply_markup
+                    )
+                else:
+                    sent_msg = await bot.send_message(
+                        chat_id=uid,
+                        text=user_msg,
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=reply_markup,
+                        disable_web_page_preview=False
+                    )
+
+                if sent_msg and hasattr(sent_msg, 'message_id'):
+                    await asyncio.to_thread(test_db.record_broadcast_message, batch_id, uid, sent_msg.message_id)
+                sent_count += 1
+                await asyncio.sleep(0.04)
+            except Exception as e:
+                err_text = str(e).lower()
+                if "blocked" in err_text or "forbidden" in err_text or "deactivated" in err_text:
+                    await asyncio.to_thread(test_db.delete_user, uid)
+                    deleted_count += 1
+                else:
+                    fail_count += 1
+
+        await asyncio.to_thread(test_db.update_broadcast_sent_count, batch_id, sent_count)
+
+        del_note = f" ({deleted_count} ta botni bloklagan akkaunt tozalandi)" if deleted_count else ""
+        return web.json_response({
+            "success": True,
+            "batch_id": batch_id,
+            "sent_count": sent_count,
+            "fail_count": fail_count,
+            "deleted_count": deleted_count,
+            "target": target,
+            "message": f"Xabarnoma {sent_count} nafar o'quvchiga muvaffaqiyatli yetkazildi!{del_note}"
+        })
+    except Exception as e:
+        log.error(f"Dashboard broadcast error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def handle_dashboard_broadcast_history(request):
+    """Dashboard uchun so'nggi xabarnomalar tarixi."""
+    try:
+        limit = int(request.rel_url.query.get('limit', 25))
+        history = await asyncio.to_thread(test_db.get_recent_broadcasts, limit)
+        for h in history:
+            h['created_at_fmt'] = format_uzb_time(h.get('created_at'), fmt="%d.%m.%Y %H:%M")
+        return web.json_response({"success": True, "history": history})
+    except Exception as e:
+        log.error(f"Dashboard broadcast history error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+async def handle_dashboard_broadcast_delete(request):
+    """Yuborilgan xabarnomani barcha o'quvchilar chatidan o'chirish."""
+    try:
+        data = await request.json()
+        batch_id = str(data.get('batch_id', '')).strip()
+        if not batch_id:
+            return web.json_response({"success": False, "error": "batch_id ko'rsatilmadi"}, status=400)
+
+        deleted, fail = await delete_broadcast_batch_from_users(batch_id)
+        await asyncio.to_thread(test_db.mark_broadcast_deleted, batch_id)
+        return web.json_response({
+            "success": True,
+            "deleted": deleted,
+            "fail": fail,
+            "message": f"Xabarnoma {deleted} nafar o'quvchi chatidan o'chirildi!"
+        })
+    except Exception as e:
+        log.error(f"Dashboard broadcast delete error: {e}", exc_info=True)
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
 async def handle_notify_inactive_users(request):
     try:
         data = {}
@@ -7053,6 +7198,9 @@ async def create_web_app():
     app.router.add_post('/api/dashboard/query', handle_dashboard_query)
     app.router.add_post('/api/dashboard/warn-user', handle_dashboard_warn_user)
     app.router.add_post('/api/dashboard/warn-users-batch', handle_dashboard_warn_users_batch)
+    app.router.add_post('/api/dashboard/broadcast', handle_dashboard_broadcast)
+    app.router.add_get('/api/dashboard/broadcast/history', handle_dashboard_broadcast_history)
+    app.router.add_post('/api/dashboard/broadcast/delete', handle_dashboard_broadcast_delete)
 
     app.router.add_get('/api/rasch/{test_id}', handle_rasch_evaluate_api)
     app.router.add_post('/api/submit-test', handle_submit_test_api)
