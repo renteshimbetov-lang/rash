@@ -27,6 +27,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 # Bu 'Max connections' (ulanuvchilar soni chegarasi) xatoligini to'liq bartaraf qiladi.
 if DATABASE_URL and "neon.tech" in DATABASE_URL and "-pooler" not in DATABASE_URL:
     DATABASE_URL = re.sub(r'(@[a-zA-Z0-9_\-]+)(?<!\-pooler)(\.[a-zA-Z0-9_\.\-]*neon\.tech)', r'\1-pooler\2', DATABASE_URL)
+    os.environ["DATABASE_URL"] = DATABASE_URL
     print("ℹ️ DATABASE_URL avtomatik Neon PgBouncer (-pooler) rejimiga ulandi.")
 
 # PostgreSQL yoki SQLite ni avtomatik aniqlash
@@ -1611,15 +1612,24 @@ def delete_test(test_id: int) -> bool:
 # ADMINS
 # ──────────────────────────────────────────────────────────
 
+_admin_cache = {}
+
 def is_admin(tg_id: int, super_admin_id: int = 8039427064) -> bool:
     if tg_id == super_admin_id:
         return True
+    now = time.time()
+    cached = _admin_cache.get(tg_id)
+    if cached and now < cached[1]:
+        return cached[0]
+
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute(f"SELECT tg_id FROM admins WHERE tg_id = {_ph()}", (tg_id,))
         row = cur.fetchone()
-        return bool(row)
+        is_adm = bool(row)
+        _admin_cache[tg_id] = (is_adm, now + 60.0)
+        return is_adm
     finally:
         _close_conn(conn)
 
@@ -3160,6 +3170,8 @@ def recalculate_all_submissions_globally() -> int:
         _close_conn(conn)
 
 
-# Baza inicializatsiyasi
-init_db()
+# Baza inicializatsiyasi faqat bevosita ishga tushirilganda
+if __name__ == '__main__':
+    init_db()
+
 
