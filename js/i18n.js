@@ -3,7 +3,7 @@
  * Ko'p tillilik lug'ati (I18N) va t(key) tarjima funksiyasi
  */
 
-const LS_LANG = "app_lang";
+var LS_LANG = window.LS_LANG || "app_lang";
 
 // ── I18N ────────────────────────────────────────
 var I18N = {

@@ -3,11 +3,11 @@
  * Tab navigatsiya, API so'rovlari, profil, testlar va umumiy initsializatsiya
  */
 
-const API_BASE = '';
-const LS_PIN = 'app_pin';
-const LS_USER = 'app_user';
-const LS_LANG = 'app_lang';
-const LS_THEME = 'app_theme';
+var API_BASE  = window.API_BASE || '';
+var LS_PIN    = window.LS_PIN || 'app_pin';
+var LS_USER   = window.LS_USER || 'app_user';
+var LS_LANG   = window.LS_LANG || 'app_lang';
+var LS_THEME  = window.LS_THEME || 'app_theme';
 
 var LANG_LABELS = { uz: 'UZ', ru: 'RU', en: 'EN' };
 var splashTimer = null;
