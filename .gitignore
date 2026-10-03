@@ -27,3 +27,9 @@ Thumbs.db
 
 # Cloudflare & Temp
 tunnel_url.txt
+
+# Local only
+*.db
+*.db-*
+*.zip
+*.code-workspace

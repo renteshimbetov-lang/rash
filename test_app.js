@@ -5,8 +5,8 @@
 const TestApp = {
   testId: 1,
   testCode: 'TEST-01',
-  testTitle: 'Matematika Blok Test',
-  subject: 'Matematika',
+  testTitle: 'Fizika Blok Test',
+  subject: 'Fizika',
   userTgId: 0,
   userFullname: 'Foydalanuvchi',
   isDarkMode: false,
@@ -95,6 +95,9 @@ const TestApp = {
     // 3.1. Agar telefon o'chib yongan yoki sahifa yangilangan bo'lsa, javoblarni xotiradan tiklash
     this.restoreAnswersFromStorage();
 
+    // 3.2. Yuqori Neon Firuza Test Taymerini ishga tushirish
+    this.initTopTimer(null);
+
     // 4. Mavzuga mos kirish animatsiyasini ishga tushirish
     this.runIntroAnimation();
 
@@ -107,6 +110,9 @@ const TestApp = {
             TestApp.isAdmin = Boolean(d.is_admin);
             var cur = d.tests.find(function(t) { return Number(t.id) === Number(TestApp.testId); });
             if (cur) {
+              TestApp.activeTestInfo = cur;
+              TestApp.initTopTimer(cur);
+
               if (cur.min_submit_info) {
                 TestApp.minSubmitInfo = cur.min_submit_info;
                 TestApp.startMinSubmitTimer();
@@ -137,90 +143,11 @@ const TestApp = {
     }
   },
 
-  startSplashCanvas() {
-    const canvas = document.getElementById('splash-canvas');
-    if (!canvas) return null;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    let width = canvas.width = window.innerWidth;
-    let height = canvas.height = window.innerHeight;
-
-    const symbols = ['∞', 'π', '∑', '∫', '√x', 'f(x)', '∆', 'θ', 'λ', '≈', '≠', 'e', 'α', 'β', 'γ', 'dx', 'dy', 'lim'];
-    const particles = [];
-    const count = Math.min(26, Math.max(16, Math.floor(width / 16)));
-
-    for (let i = 0; i < count; i++) {
-      particles.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        char: symbols[Math.floor(Math.random() * symbols.length)],
-        size: 13 + Math.random() * 18,
-        vx: (Math.random() - 0.5) * 0.45,
-        vy: -0.35 - Math.random() * 0.75,
-        opacity: 0.12 + Math.random() * 0.45,
-        pulseSpeed: 0.02 + Math.random() * 0.03,
-        angle: Math.random() * Math.PI * 2,
-        spinSpeed: (Math.random() - 0.5) * 0.015
-      });
-    }
-
-    let animId = null;
-    const isDark = document.body.classList.contains('dark-mode') || document.documentElement.getAttribute('data-theme') === 'dark';
-
-    function draw() {
-      ctx.clearRect(0, 0, width, height);
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.angle += p.spinSpeed;
-        p.opacity += Math.sin(Date.now() * p.pulseSpeed) * 0.005;
-        if (p.opacity < 0.1) p.opacity = 0.1;
-        if (p.opacity > 0.6) p.opacity = 0.6;
-
-        if (p.y < -30) { p.y = height + 30; p.x = Math.random() * width; }
-        if (p.x < -30) p.x = width + 30;
-        if (p.x > width + 30) p.x = -30;
-
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.angle);
-        ctx.font = 'bold ' + p.size + 'px serif';
-        if (isDark) {
-          ctx.fillStyle = 'rgba(147, 197, 253, ' + p.opacity + ')';
-          ctx.shadowColor = 'rgba(56, 189, 248, 0.4)';
-          ctx.shadowBlur = 8;
-        } else {
-          ctx.fillStyle = 'rgba(37, 99, 235, ' + (p.opacity * 0.8) + ')';
-          ctx.shadowColor = 'rgba(37, 99, 235, 0.2)';
-          ctx.shadowBlur = 6;
-        }
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(p.char, 0, 0);
-        ctx.restore();
-      }
-      animId = requestAnimationFrame(draw);
-    }
-
-    animId = requestAnimationFrame(draw);
-
-    return function stop() {
-      if (animId) cancelAnimationFrame(animId);
-    };
-  },
-
   finishSplashImmediately() {
     const splash = document.getElementById('intro-splash') || document.getElementById('splashScreen');
     if (!splash) return;
     if (this._splashDismissed) return;
     this._splashDismissed = true;
-
-    if (this._stopSplashCanvas) {
-      try { this._stopSplashCanvas(); } catch(e) {}
-      this._stopSplashCanvas = null;
-    }
 
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
       try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
@@ -236,12 +163,10 @@ const TestApp = {
     const splash = document.getElementById('intro-splash') || document.getElementById('splashScreen');
     if (!splash) return;
 
-    this._stopSplashCanvas = this.startSplashCanvas();
-
     window.dismissSplash = () => this.finishSplashImmediately();
     window.finishSplashImmediately = () => this.finishSplashImmediately();
 
-    // 3200ms dan so'ng avtomatik ravishda mayin o'tish (xuddi asosiy app kabi)
+    // 3200ms dan so'ng avtomatik o'tish
     setTimeout(() => {
       this.finishSplashImmediately();
     }, 3200);
@@ -318,9 +243,9 @@ const TestApp = {
             <div class="open-question-row" id="qrow-${key}">
               <div class="savol-badge">${key}-savol</div>
               <div class="savol-input-box" id="box-${key}" onclick="MathKeyboard.openFor('${key}')">
-                <input type="text" class="savol-input" id="input-${key}" readonly inputmode="none" placeholder="" onclick="MathKeyboard.openFor('${key}')">
+                <input type="text" class="savol-input" id="input-${key}" readonly inputmode="none" placeholder="Masalan: 400 J, 4 m/s²" onclick="MathKeyboard.openFor('${key}')">
               </div>
-              <button type="button" class="btn-kb-icon" onclick="MathKeyboard.openFor('${key}')" title="Klaviaturani ochish">⌨️</button>
+              <button type="button" class="btn-kb-icon" onclick="MathKeyboard.openFor('${key}')" title="Klaviaturani ochish" style="display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="14" y2="12"/><line x1="18" y1="12" x2="18" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></button>
             </div>
           `;
         }
@@ -356,6 +281,114 @@ const TestApp = {
     } catch (e) {
       console.warn('Storage save error:', e);
     }
+  },
+
+  // ----------------------------------------------------
+  // TEST TAYMERI (VAQT) — NEON FIRUZA VA PROGRESS
+  // Yuqorida neon firuza (--accent-cyan) rangli progress chiziq bilan yurgiziladi,
+  // 1 daqiqadan kam qolganda avtomatik sariq/qizilga o'zgaradi.
+  // ----------------------------------------------------
+  initTopTimer(cur) {
+    if (this._topTimerInterval) {
+      clearInterval(this._topTimerInterval);
+      this._topTimerInterval = null;
+    }
+
+    const tid = this.testId || '1';
+    const uid = this.userTgId || '0';
+    const storageKey = `bm_fizika_timer_start_${tid}_${uid}`;
+
+    let timeLimitMin = 0;
+    if (cur && cur.time_limit_min) {
+      timeLimitMin = parseInt(cur.time_limit_min, 10);
+    }
+
+    let totalSeconds = 0;
+    if (timeLimitMin > 0) {
+      totalSeconds = timeLimitMin * 60;
+    } else if (cur && cur.min_submit_info && cur.min_submit_info.remaining_seconds > 0) {
+      totalSeconds = Math.max(45 * 60, cur.min_submit_info.remaining_seconds);
+    } else {
+      // Standart 120 daqiqalik (2 soatlik) Fizika blok test davri
+      totalSeconds = 120 * 60;
+    }
+
+    let startTime = parseInt(localStorage.getItem(storageKey), 10);
+    if (!startTime || isNaN(startTime) || startTime > Date.now()) {
+      startTime = Date.now();
+      localStorage.setItem(storageKey, String(startTime));
+    }
+
+    const fillEl = document.getElementById('test-timer-fill');
+    const digitsEl = document.getElementById('timer-countdown-display');
+    const badgeEl = document.getElementById('timer-badge');
+    const noteEl = document.getElementById('test-timer-note');
+
+    const updateTimerUI = () => {
+      const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
+      let remainingSec = Math.max(0, totalSeconds - elapsedSec);
+
+      // Agar min_submit cheklovi mavjud bo'lsa
+      if (this.minSubmitInfo && this.minSubmitInfo.remaining_seconds !== undefined && !this.minSubmitInfo.can_submit) {
+        remainingSec = Math.max(0, this.minSubmitInfo.remaining_seconds);
+      }
+
+      const mins = Math.floor(remainingSec / 60);
+      const secs = remainingSec % 60;
+      const hours = Math.floor(mins / 60);
+      const remMins = mins % 60;
+
+      let timeStr = '';
+      if (hours > 0) {
+        timeStr = `${String(hours).padStart(2, '0')}:${String(remMins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      } else {
+        timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      }
+
+      if (digitsEl) digitsEl.textContent = timeStr;
+
+      const pct = Math.max(0, Math.min(100, (remainingSec / totalSeconds) * 100));
+      if (fillEl) fillEl.style.width = pct + '%';
+
+      // 1 daqiqadan (60s) kam qolganda avtomatik sariq/qizilga o'zgaradi
+      if (remainingSec <= 60 && remainingSec > 20) {
+        if (fillEl) {
+          fillEl.className = 'test-timer-fill timer-warning';
+        }
+        if (badgeEl) {
+          badgeEl.className = 'timer-badge-neon timer-warning';
+        }
+        if (noteEl) noteEl.textContent = 'Qoldi:';
+      } else if (remainingSec <= 20 && remainingSec > 0) {
+        if (fillEl) {
+          fillEl.className = 'test-timer-fill timer-danger';
+        }
+        if (badgeEl) {
+          badgeEl.className = 'timer-badge-neon timer-danger';
+        }
+        if (noteEl) noteEl.textContent = 'Shoshiling:';
+      } else if (remainingSec === 0) {
+        if (fillEl) {
+          fillEl.className = 'test-timer-fill timer-danger';
+          fillEl.style.width = '0%';
+        }
+        if (badgeEl) {
+          badgeEl.className = 'timer-badge-neon timer-danger';
+        }
+        if (noteEl) noteEl.textContent = 'Tugadi:';
+      } else {
+        if (fillEl) {
+          fillEl.className = 'test-timer-fill';
+        }
+        if (badgeEl) {
+          badgeEl.className = 'timer-badge-neon';
+        }
+        if (noteEl) noteEl.textContent = 'Vaqt:';
+      }
+    };
+
+    updateTimerUI();
+    this._topTimerInterval = setInterval(updateTimerUI, 1000);
   },
 
   restoreAnswersFromStorage() {
@@ -757,7 +790,7 @@ const TestApp = {
   async submitTestNow() {
     if (!this.userTgId || this.userTgId <= 0) {
       this.closeConfirmSubmitModal();
-      alert("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin.");
+      alert("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@fizika_rash_testbot) va Mini ilova orqali topshirish mumkin.");
       const webBlock = document.getElementById('web-block-screen');
       if (webBlock) webBlock.style.display = 'flex';
       return;

@@ -3,11 +3,11 @@
  * Tab navigatsiya, API so'rovlari, profil, testlar va umumiy initsializatsiya
  */
 
-var API_BASE  = window.API_BASE || '';
-var LS_PIN    = window.LS_PIN || 'app_pin';
-var LS_USER   = window.LS_USER || 'app_user';
-var LS_LANG   = window.LS_LANG || 'app_lang';
-var LS_THEME  = window.LS_THEME || 'app_theme';
+const API_BASE = '';
+const LS_PIN = 'app_pin';
+const LS_USER = 'app_user';
+const LS_LANG = 'app_lang';
+const LS_THEME = 'app_theme';
 
 var LANG_LABELS = { uz: 'UZ', ru: 'RU', en: 'EN' };
 var splashTimer = null;
@@ -37,35 +37,46 @@ function initApp() {
   renderOnboardingSlides();
 
   try {
+    var urlParams = new URLSearchParams(window.location.search);
+    var queryTgId = urlParams.get('tg_id');
+    var isPreview = urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user' || urlParams.get('demo') === '1';
     var tg = window.Telegram && window.Telegram.WebApp;
     if (tg) {
       try { tg.ready(); tg.expand(); } catch (e) {}
     }
-    var urlParams = new URLSearchParams(window.location.search);
-    var queryTgId = urlParams.get('tg_id');
     var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    var hasTgContext = !!(tg && (tg.platform && tg.platform !== 'unknown' || tg.initData || tgU));
 
-    var tgPlatform = tg ? (tg.platform || '').toLowerCase() : '';
-    var isTg = !!(tg && (
-      (tgPlatform && tgPlatform !== 'unknown') ||
-      (tg.initData && tg.initData.length > 0) ||
-      (tgU && tgU.id) ||
-      queryTgId
-    ));
-
-    // ⛔️ ODDIY VEB-BRAUZERDA (TELEGRAMSIZ) OCHILGANDA TO'LIQ BLOKLASH!
-    if (!isTg) {
-      var wb = document.getElementById('web-block-screen');
-      if (wb) wb.style.display = 'flex';
-      var sp = document.getElementById('splashScreen');
-      if (sp) sp.style.display = 'none';
-      var appEl = document.getElementById('app');
-      if (appEl) appEl.style.display = 'none';
-      return;
+    if (isPreview) {
+      state.tgUser = { id: 7080517395, first_name: "O'quvchi", last_name: '', username: 'demo_user' };
+      state.userInfo = { tg_id: 7080517395, fullname: "O'quvchi (Namuna)", phone: '+998901234567', status: 'approved', is_registered: true };
+      state.isAdmin = false;
+    } else if (tgU && tgU.id) {
+      state.tgUser = tgU;
+    } else if (queryTgId && parseInt(queryTgId, 10) > 0) {
+      state.tgUser = { id: parseInt(queryTgId, 10), first_name: (tgU && tgU.first_name) || 'Foydalanuvchi', last_name: (tgU && tgU.last_name) || '', username: (tgU && tgU.username) || '' };
+    } else {
+      var saved = null;
+      try {
+        var rawSaved = localStorage.getItem(LS_USER);
+        if (rawSaved) saved = JSON.parse(rawSaved);
+      } catch (e) {}
+      if (saved && saved.tg_id) {
+        state.tgUser = { id: saved.tg_id, first_name: saved.fullname || 'Foydalanuvchi', last_name: '', username: '' };
+        state.userInfo = saved;
+      } else if (hasTgContext || window.Telegram) {
+        state.tgUser = { id: 0, first_name: 'Foydalanuvchi', last_name: '', username: '' };
+      } else {
+        // ⚠️ Faqat oddiy tashqi veb brauzerda kirilganda (Telegramsiz) to'xtatish
+        var webBlock = document.getElementById('web-block-screen');
+        if (webBlock) webBlock.style.display = 'flex';
+        var splashScreen = document.getElementById('splashScreen');
+        if (splashScreen) splashScreen.style.display = 'none';
+        var appEl = document.getElementById('app');
+        if (appEl) appEl.style.display = 'none';
+        return;
+      }
     }
-
-    var effectiveId = (tgU && tgU.id) || (queryTgId ? parseInt(queryTgId, 10) : 0);
-    state.tgUser = tgU || { id: effectiveId, first_name: 'Foydalanuvchi', last_name: '', username: '' };
     try {
       var savedUser = localStorage.getItem(LS_USER);
       if (savedUser && !isPreview && !state.userInfo) state.userInfo = JSON.parse(savedUser);
@@ -75,7 +86,7 @@ function initApp() {
   }
 
   if (window.BM_LOGO_B64) {
-    document.querySelectorAll('.header-logo-img, .header-bm-logo, .splash-emblem-img').forEach(function(img) {
+    document.querySelectorAll('.header-logo-img, .header-bm-logo').forEach(function(img) {
       img.src = window.BM_LOGO_B64;
     });
   }
@@ -89,7 +100,7 @@ if (document.readyState === 'loading') {
   initApp();
 }
 
-// ── SPLASH (Kosmik Fizika Kirish Animatsiyasi) ──────────
+// ── SPLASH (Kosmik Matematik Kirish Animatsiyasi) ──────────
 function startSplashCanvas() {
   var canvas = document.getElementById('splash-canvas');
   if (!canvas) return null;
@@ -99,7 +110,7 @@ function startSplashCanvas() {
   var width = canvas.width = window.innerWidth;
   var height = canvas.height = window.innerHeight;
 
-  var symbols = ['E=mc²', 'F=ma', 'v=s/t', 'λ', 'Ω', 'Hz', 'ρ', 'F', 'a', 'm', 'v', 'p', 'h', 'c', 'g', 'q', 'U', 'I', 'R', 'N', 'J', 'W', 'eV', '⚛', '⚡'];
+  var symbols = ['∞', 'π', '∑', '∫', '√x', 'f(x)', '∆', 'θ', 'λ', '≈', '≠', 'e', 'α', 'β', 'γ', 'dx', 'dy', 'lim'];
   var particles = [];
   var count = Math.min(26, Math.max(16, Math.floor(width / 16)));
 
@@ -164,14 +175,8 @@ function startSplashCanvas() {
   };
 }
 
-var _stopSplashCanvas = null;
-
 function dismissSplash() {
   if (splashTimer) clearTimeout(splashTimer);
-  if (typeof _stopSplashCanvas === 'function') {
-    try { _stopSplashCanvas(); } catch(e) {}
-    _stopSplashCanvas = null;
-  }
   var splash = document.getElementById('splashScreen') || document.getElementById('splash-screen');
   if (!splash) return;
 
@@ -188,7 +193,7 @@ function dismissSplash() {
         openOnboardingModal();
       }, 300);
     }
-  }, 600);
+  }, 700);
 }
 window.dismissSplash = dismissSplash;
 window.finishSplashImmediately = dismissSplash;
@@ -197,27 +202,158 @@ function runSplash() {
   var splash = document.getElementById('splashScreen') || document.getElementById('splash-screen');
   if (!splash) { launchApp(); return; }
 
-  // Kosmik fizika zarrachalari animatsiyasini ishga tushirish
-  _stopSplashCanvas = startSplashCanvas();
-
   // Ma'lumotlarni fonda oldindan yuklash
   launchApp();
 
-  // 3200ms dan so'ng animatsiya to'liq va tabiiy yakunlangach o'tish (boshqa mini app kabi)
+  // Sahifa yuklanganda animatsiya to'liq o'tgach (3.4 soniyadan keyin) avtomatik yopish
   splashTimer = setTimeout(function() {
     dismissSplash();
-  }, 3200);
+  }, 3400);
 }
 
-// ── PIN SYSTEM (Olib tashlangan / Bypassed) ──────────────────
-async function initPinScreen() { launchApp(); }
-function updatePinUI() {}
-function onPinKey() {}
-function onPinDel() {}
-function renderPinDots() {}
-async function processPin() { launchApp(); }
-function showPinError() {}
-function changePinPrompt() { showToast("PIN kod talab etilmaydi"); }
+// ── PIN SYSTEM ──────────────────────────────────
+async function initPinScreen() {
+  var hasPin = !!localStorage.getItem(LS_PIN);
+  if (!hasPin && state.userInfo && state.userInfo.has_pin) {
+    hasPin = true;
+  }
+
+  // Telegram CloudStorage tekshirish
+  if (!hasPin && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.CloudStorage) {
+    try {
+      window.Telegram.WebApp.CloudStorage.getItem(LS_PIN, function(err, val) {
+        if (!err && val) {
+          localStorage.setItem(LS_PIN, val);
+          state.pinMode = 'enter';
+          updatePinUI(true);
+        }
+      });
+    } catch(e) {}
+  }
+
+  updatePinUI(hasPin);
+  renderPinDots(0);
+}
+
+function updatePinUI(hasPin) {
+  var pinTitle = document.getElementById('pin-title');
+  var pinSub = document.getElementById('pin-subtitle');
+  if (!pinTitle || !pinSub) return;
+
+  if (!hasPin) {
+    state.pinMode = 'setup';
+    pinTitle.textContent = t('pin_create');
+    pinSub.textContent = t('pin_create_sub');
+  } else {
+    state.pinMode = 'enter';
+    var name = (state.userInfo && state.userInfo.fullname)
+      || (state.tgUser && state.tgUser.first_name) || 'Salom';
+    pinTitle.textContent = t('welcome') + ', ' + name.split(' ')[0] + '!';
+    pinSub.textContent = t('pin_enter_sub');
+  }
+}
+
+function onPinKey(val) {
+  if (state.pinBuffer.length >= 4) return;
+  state.pinBuffer += val;
+  renderPinDots(state.pinBuffer.length);
+  if (state.pinBuffer.length === 4) setTimeout(processPin, 120);
+}
+
+function onPinDel() {
+  if (state.pinBuffer.length === 0) return;
+  state.pinBuffer = state.pinBuffer.slice(0, -1);
+  renderPinDots(state.pinBuffer.length);
+}
+
+function renderPinDots(count, mode) {
+  var dots = document.querySelectorAll('.pin-dot');
+  dots.forEach(function(d, i) {
+    d.classList.remove('filled', 'error');
+    if (mode === 'error') { d.classList.add('error'); }
+    else if (i < count) { d.classList.add('filled'); }
+  });
+}
+
+async function processPin() {
+  var pin = state.pinBuffer;
+  state.pinBuffer = '';
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+
+  if (state.pinMode === 'setup') {
+    state.pinFirst = pin;
+    state.pinMode = 'confirm';
+    document.getElementById('pin-title').textContent = t('pin_confirm');
+    document.getElementById('pin-subtitle').textContent = t('pin_confirm_sub');
+    renderPinDots(0);
+    showPinError('');
+  } else if (state.pinMode === 'confirm') {
+    if (pin === state.pinFirst) {
+      // 1. LocalStorage ga saqlash
+      localStorage.setItem(LS_PIN, btoa(pin));
+      // 2. Telegram CloudStorage ga saqlash
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.CloudStorage) {
+        try { window.Telegram.WebApp.CloudStorage.setItem(LS_PIN, btoa(pin)); } catch(e) {}
+      }
+      if (tgId) {
+        try {
+          fetch('/api/app/set-pin', {
+            method: 'POST',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ tg_id: tgId, pin: pin, init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '' })
+          });
+        } catch(e) {}
+      }
+      showPinError('');
+      launchApp();
+    } else {
+      showPinError(t('pin_mismatch'));
+      renderPinDots(4, 'error');
+      state.pinMode = 'setup';
+      state.pinFirst = '';
+      setTimeout(function() {
+        renderPinDots(0);
+        document.getElementById('pin-title').textContent = t('pin_create');
+        document.getElementById('pin-subtitle').textContent = t('pin_create_sub');
+        showPinError('');
+      }, 1000);
+    }
+  } else {
+    var stored = '';
+    try { stored = atob(localStorage.getItem(LS_PIN) || ''); } catch(e) {}
+    
+    var isValid = (stored && pin === stored);
+
+    if (!isValid && tgId) {
+      try {
+        var res = await fetch('/api/app/verify-pin', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ tg_id: tgId, pin: pin, init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '' })
+        });
+        var data = await res.json();
+        if (data.valid) {
+          isValid = true;
+          localStorage.setItem(LS_PIN, btoa(pin));
+        }
+      } catch(e) {}
+    }
+
+    if (isValid) {
+      showPinError('');
+      launchApp();
+    } else {
+      showPinError(t('pin_wrong'));
+      renderPinDots(4, 'error');
+      setTimeout(function() { renderPinDots(0); showPinError(''); }, 900);
+    }
+  }
+}
+
+function showPinError(msg) {
+  var el = document.getElementById('pin-error');
+  if (el) el.textContent = msg;
+}
 
 // ── LAUNCH APP ──────────────────────────────────
 async function launchApp() {
@@ -414,7 +550,6 @@ async function loadActiveTests() {
         window._serverTimeOffset = (data.server_time * 1000) - Date.now();
       }
       window.availableActiveTests = data.tests || [];
-      window._availableTests = window.availableActiveTests;
       renderHomeTab(data.tests);
     }
     else throw new Error('no success');
@@ -431,7 +566,6 @@ async function loadMyResults() {
     var data = await apiGet('/api/app/my-results?tg_id=' + tgId);
     if (data.success) {
       window.cachedMyResults = data.results || [];
-      window._myResults = window.cachedMyResults;
       renderTestsTab(data.results);
     }
     else throw new Error('no success');
@@ -664,15 +798,8 @@ function renderTestDetailCard(test, type) {
     });
     if (matchingResult) {
       done = true;
-      if (matchingResult.is_rejected || matchingResult.status === 'rejected') {
-        test.is_rejected = true;
-      }
       var isPub = Boolean(matchingResult.results_published);
-      if (test.is_rejected) {
-        test.user_score = 0;
-        test.user_correct = 0;
-        test.user_grade = "Bekor qilingan";
-      } else if (isPub) {
+      if (isPub) {
         if (test.user_score == null) test.user_score = matchingResult.score;
         if (test.user_correct == null) test.user_correct = matchingResult.correct_count;
         if (test.user_total == null) test.user_total = matchingResult.total_count;
@@ -688,13 +815,9 @@ function renderTestDetailCard(test, type) {
     }
   }
 
-  var isRejected = Boolean(test.is_rejected || (matchingResult && (matchingResult.is_rejected || matchingResult.status === 'rejected')));
-
   var cardClass = isUpcoming ? 'test-card-upcoming' : (isActive ? 'test-card-active' : 'test-card-closed');
   var badgeHtml = '';
-  if (isRejected) {
-    badgeHtml = '<span class="badge" style="background:rgba(239,68,68,0.15);color:#EF4444;border:1px solid rgba(239,68,68,0.3);font-weight:800;">❌ ' + (t('badge_cancelled') || 'Bekor qilingan') + '</span>';
-  } else if (isUpcoming) {
+  if (isUpcoming) {
     badgeHtml = '<span class="badge" style="background:rgba(245,158,11,0.15);color:#D97706;border:1px solid rgba(245,158,11,0.3);font-weight:800;">' + t('badge_upcoming') + '</span>';
   } else if (isActive) {
     if (done) {
@@ -760,16 +883,7 @@ function renderTestDetailCard(test, type) {
   var cardOnClick = isInactive ? (' onclick="handlePastTestCardClick(' + test.id + ')" style="cursor:pointer;"') : '';
 
   var userStatusBannerHtml = '';
-  if (isRejected) {
-    userStatusBannerHtml =
-      '<div class="test-user-status-banner" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;margin:12px 0;">' +
-        '<span class="status-icon" style="font-size:20px;">⛔️</span>' +
-        '<div class="status-content">' +
-          '<div class="status-title" style="color:#EF4444;font-weight:800;font-size:13.5px;">Test javoblaringiz bekor qilingan</div>' +
-          '<div class="status-desc" style="color:var(--text-muted);font-size:12px;margin-top:2px;">Ushbu test bo\'yicha topshirgan javoblaringiz ma\'muriyat tomonidan bekor qilindi va qabul qilinmadi.</div>' +
-        '</div>' +
-      '</div>';
-  } else if (isInactive) {
+  if (isInactive) {
     if (done) {
       var isPub = Boolean(test.results_published);
       var scoreText = (isPub && test.user_score != null) ? (test.user_score + ' ' + t('test_score_unit')) : '';
@@ -843,11 +957,7 @@ function renderTestDetailCard(test, type) {
 
   // Tugmalar
   html += '<div class="test-rich-actions">';
-  if (isRejected) {
-    html += '<button type="button" class="btn-rich-action" style="width:100%;background:rgba(239,68,68,0.15);color:#EF4444;border:1px solid rgba(239,68,68,0.3);font-weight:800;cursor:pointer;" onclick="event.stopPropagation(); showToast(\'Ushbu test javoblaringiz ma\\\'muriyat tomonidan bekor qilingan\');">' +
-      '<span>⛔️</span> Test bekor qilingan' +
-    '</button>';
-  } else if (isUpcoming) {
+  if (isUpcoming) {
     html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%;cursor:pointer;" onclick="event.stopPropagation(); showTestNotStartedAlert(\'' + escHtml(startStr) + '\')">' +
       '<span>⏳</span> ' + t('btn_waiting_start') + (test.scheduled_start ? (' (' + escHtml(test.scheduled_start) + ')') : '') +
     '</button>';
@@ -1321,32 +1431,7 @@ function renderTestsTab(results) {
       var correct = r.correct_count || 0;
       var incorrect = r.incorrect_count != null ? r.incorrect_count : Math.max(0, totalQues - correct);
 
-      var isRejected = Boolean(r.is_rejected || r.status === 'rejected');
-      if (isRejected) {
-        html +=
-          '<div class="test-card-modern animate-in" style="animation-delay:' + (idx * 0.04) + 's;border:1.5px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.04);" onclick="showResultModal(window._myResults[' + origIndex + '])">' +
-            '<div class="test-card-top-row">' +
-              '<div class="test-card-title">' + escHtml(r.test_title || r.title || t('default_test_title')) + '</div>' +
-              '<div class="test-card-date">📅 ' + date + '</div>' +
-            '</div>' +
-            '<div class="test-card-middle-row">' +
-              '<div class="test-score-box" style="background:rgba(239,68,68,0.15);border:1.5px solid #EF4444;color:#EF4444;">' +
-                '<span class="test-score-num" style="font-size:16px;color:#EF4444;">❌</span>' +
-                '<span class="test-score-rank" style="font-size:9.5px;color:#EF4444;">' + (t('badge_cancelled') || 'Bekor') + '</span>' +
-              '</div>' +
-              '<div class="test-metrics-grid">' +
-                '<span class="test-metric-tag" style="color:#EF4444;font-weight:800;">⛔️ Test bekor qilingan</span>' +
-                '<span class="test-metric-tag" style="color:var(--text-muted);">Natija qabul qilinmagan</span>' +
-              '</div>' +
-            '</div>' +
-            '<div class="test-card-bottom-row">' +
-              '<button type="button" class="btn-test-action-quick" style="color:#EF4444;">' +
-                '<span>ℹ️ ' + t('tests_card_btn_analysis') + '</span>' +
-              '</button>' +
-              '<span style="color:var(--text-muted);font-size:14px;font-weight:800;">➔</span>' +
-            '</div>' +
-          '</div>';
-      } else if (isPub) {
+      if (isPub) {
         var score = Number(r.score != null ? r.score : 0);
         var grade = r.grade || getGradeFromScore(score, maxScore);
         var gradeClass = 'good';
@@ -2743,108 +2828,88 @@ function applyI18n() {
 
 // ── RESULT MODAL ─────────────────────────────────
 function showResultModal(result) {
-  if (typeof result === 'string') { try { result = JSON.parse(result); } catch(e) { return; } }
   var modal = document.getElementById('result-modal');
   var title = document.getElementById('result-modal-title');
   var body = document.getElementById('result-modal-body');
   if (!modal || !body) return;
 
-  var testId = result.test_id || result.id || 0;
   var score = (result.score != null) ? result.score : 0;
   var maxScore = result.max_score || 100;
   var grade = result.grade || getGradeFromScore(score, maxScore);
   var gradeClass = gradeToClass(grade);
   var date = formatDate(result.submitted_at);
-  var correct = (result.correct_count != null) ? Number(result.correct_count) : 0;
-  var total = result.total_count || result.total_questions || 55;
-  var wrong = (result.incorrect_count != null) ? result.incorrect_count : Math.max(0, total - correct);
+  var correct = result.correct_count || 0;
+  var total = result.total_count || 45;
+  var wrong = result.incorrect_count || (total - correct);
   var blank = result.unanswered_count || 0;
 
   var gradeBg = { 'grade-5':'rgba(16,185,129,0.15)', 'grade-4':'rgba(59,130,246,0.15)', 'grade-3':'rgba(245,158,11,0.15)', 'grade-2':'rgba(239,68,68,0.15)' };
   var gradeColor = { 'grade-5':'#10B981', 'grade-4':'#3B82F6', 'grade-3':'#F59E0B', 'grade-2':'#EF4444' };
   var gradeBorder = { 'grade-5':'#10B981', 'grade-4':'#3B82F6', 'grade-3':'#F59E0B', 'grade-2':'#EF4444' };
 
-  var isRejected = Boolean(result.is_rejected || result.status === 'rejected');
-  if (isRejected) {
-    grade = t('badge_cancelled') || 'Bekor qilingan';
-    score = 0;
-    gradeClass = 'grade-2';
-  }
-
   var isPub = Boolean(result.results_published);
-  if (title) title.textContent = (result.test_title || result.title || t('result_title'));
+  title.textContent = (result.test_title || result.title || t('result_title'));
 
-  var html =
-    '<div style="text-align:center;margin:6px 0 14px;">' +
-      '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 28px;border-radius:18px;background:' + (isRejected ? 'rgba(239,68,68,0.15)' : (gradeBg[gradeClass]||'rgba(99,102,241,0.15)')) + ';border:2px solid ' + (isRejected ? '#EF4444' : (gradeBorder[gradeClass]||'#6366F1')) + ';min-width:140px;">' +
-        '<span style="font-size:24px;font-weight:900;line-height:1.1;color:' + (isRejected ? '#EF4444' : (gradeColor[gradeClass]||'#6366F1')) + ';">' + (isRejected ? '❌ ' + grade : grade) + '</span>' +
-        '<span style="font-size:14px;font-weight:800;color:var(--text);margin-top:4px;">' + (isRejected ? 'Natija bekor qilingan' : (score + ' ' + t('score_pts'))) + '</span>' +
-      '</div>' +
-    '</div>';
-
-  if (isRejected) {
-    html += '<div style="margin:8px 0 14px;padding:12px 14px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:12px;font-size:12.5px;color:#EF4444;font-weight:700;line-height:1.45;text-align:left;">' +
-      '⛔️ Ushbu test javoblaringiz ma\'muriyat tomonidan bekor qilindi va qabul qilinmadi.' +
-    '</div>';
-  } else {
-    html +=
-      '<div id="compare-keys-section" style="text-align:center; margin: 10px 0 14px;">' +
-        '<button id="btn-compare-keys" type="button" onclick="promptCompareKeys(' + testId + ')" style="background:linear-gradient(135deg, #3B82F6, #6366F1);color:white;border:none;padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;width:100%;box-shadow:0 4px 14px rgba(59, 130, 246, 0.4);display:flex;align-items:center;justify-content:center;gap:8px;">' + t('btn_see_keys') + '</button>' +
-        '<div id="compare-keys-auth" style="display:none;margin-top:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left;">' +
-          '<p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;font-weight:600;">' + t('desc_key_code') + '</p>' +
-          '<div style="display:flex;gap:8px;margin-bottom:6px;">' +
-            '<input type="text" id="input-key-code" placeholder="' + t('placeholder_key_code') + '" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-body, #111827);color:var(--text);font-size:14px;outline:none;">' +
-            '<button type="button" id="btn-submit-key-code" onclick="submitCompareKeys(' + testId + ')" style="background:#10B981;color:white;border:none;padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap;">' + t('btn_confirm') + '</button>' +
-          '</div>' +
-          '<div id="compare-keys-error" style="color:var(--error);font-size:12px;margin-top:4px;display:none;line-height:1.4;"></div>' +
-        '</div>' +
-      '</div>' +
-      '<div id="compare-keys-result" style="display:none;margin-bottom:14px;max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:10px;"></div>';
-
-    if (!isPub) {
-      html += '<div style="margin:8px 0 12px;padding:10px 14px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.25);border-radius:12px;font-size:12.5px;color:#D97706;font-weight:600;line-height:1.45;text-align:left;">' +
-        '⏳ ' + t('test_waiting_result') +
+  if (!isPub) {
+    body.innerHTML = 
+      '<div style="text-align:center;margin:16px 0 20px;">' +
+        '<div style="width:70px;height:70px;border-radius:24px;background:rgba(245,158,11,0.15);color:#F59E0B;font-size:32px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">⏳</div>' +
+        '<h3 style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:6px;">' + t('result_checking_title') + '</h3>' +
+        '<p style="font-size:13.5px;color:var(--text-muted);line-height:1.5;max-width:300px;margin:0 auto 16px;">' + t('result_checking_desc') + '</p>' +
+        '<div style="background:var(--bg-body);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;color:var(--text-muted);font-weight:600;">' + t('lbl_submitted_time') + date + '</div>' +
       '</div>';
-    }
+    modal.style.display = 'flex';
+    return;
   }
 
-  html +=
+  body.innerHTML =
+    '<div style="text-align:center;margin:10px 0 16px;">' +
+      '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 28px;border-radius:18px;background:' + (gradeBg[gradeClass]||'rgba(99,102,241,0.15)') + ';border:2px solid ' + (gradeBorder[gradeClass]||'#6366F1') + ';min-width:140px;">' +
+        '<span style="font-size:32px;font-weight:900;line-height:1.1;color:' + (gradeColor[gradeClass]||'#6366F1') + ';">' + grade + '</span>' +
+        '<span style="font-size:14px;font-weight:800;color:var(--text-main);margin-top:4px;">' + score + ' ' + t('score_pts') + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div id="compare-keys-section" style="text-align:center; margin: 12px 0;">' +
+      '<button id="btn-compare-keys" onclick="promptCompareKeys(' + result.test_id + ')" style="background:linear-gradient(135deg, #3B82F6, #6366F1);color:white;border:none;padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;width:100%;box-shadow:0 4px 14px rgba(59, 130, 246, 0.4);">' + t('btn_see_keys') + '</button>' +
+      '<div id="compare-keys-auth" style="display:none;margin-top:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px;">' +
+        '<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;font-weight:600;">' + t('desc_key_code') + '</p>' +
+        '<input type="password" id="input-key-code" placeholder="' + t('placeholder_key_code') + '" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-body);color:var(--text-main);font-size:14px;margin-bottom:8px;">' +
+        '<button onclick="submitCompareKeys(' + result.test_id + ')" style="background:#10B981;color:white;border:none;padding:10px;border-radius:8px;font-weight:700;cursor:pointer;width:100%;">' + t('btn_confirm') + '</button>' +
+        '<div id="compare-keys-error" style="color:var(--error);font-size:12px;margin-top:6px;display:none;"></div>' +
+      '</div>' +
+    '</div>' +
+    '<div id="compare-keys-result" style="display:none;margin-bottom:16px;max-height:250px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:8px;"></div>' +
     '<div class="result-row"><span class="result-row-label">' + t('lbl_total_score') + '</span><span class="result-row-val" style="color:var(--primary);font-weight:800;font-size:16px;">' + score + ' ' + t('score_pts') + '</span></div>' +
     '<div class="result-row"><span class="result-row-label">' + t('result_grade') + '</span><span class="result-row-val" style="color:' + (gradeColor[gradeClass]||'var(--accent)') + ';font-weight:800;">' + grade + '</span></div>' +
     '<div class="result-row"><span class="result-row-label">' + t('result_correct') + '</span><span class="result-row-val green">' + correct + ' / ' + total + ' ' + t('unit_count') + '</span></div>' +
     '<div class="result-row"><span class="result-row-label">' + t('result_wrong') + '</span><span class="result-row-val red">' + wrong + ' ' + t('unit_count') + '</span></div>' +
-    (blank > 0 ? ('<div class="result-row"><span class="result-row-label">' + t('result_blank') + '</span><span class="result-row-val orange">' + blank + ' ' + t('unit_count') + '</span></div>') : '') +
+    '<div class="result-row"><span class="result-row-label">' + t('result_blank') + '</span><span class="result-row-val orange">' + blank + ' ' + t('unit_count') + '</span></div>' +
     '<div class="result-row"><span class="result-row-label">' + t('result_date') + '</span><span class="result-row-val">' + date + '</span></div>';
 
-  body.innerHTML = html;
   modal.style.display = 'flex';
 }
 
 function promptCompareKeys(testId) {
-  var btn = document.getElementById('btn-compare-keys');
-  var auth = document.getElementById('compare-keys-auth');
-  var inp = document.getElementById('input-key-code');
-  if (btn) btn.style.display = 'none';
-  if (auth) auth.style.display = 'block';
-  if (inp) {
-    inp.focus();
-    inp.onkeydown = function(e) {
-      if (e.key === 'Enter') submitCompareKeys(testId);
-    };
-  }
+  document.getElementById('btn-compare-keys').style.display = 'none';
+  document.getElementById('compare-keys-auth').style.display = 'block';
 }
 
 async function submitCompareKeys(testId) {
-  var tgId = (state.tgUser && state.tgUser.id) || (state.userInfo && state.userInfo.tg_id) || 0;
-  var inp = document.getElementById('input-key-code');
-  var code = inp ? inp.value.trim() : '';
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  var code = document.getElementById('input-key-code').value.trim();
   var errEl = document.getElementById('compare-keys-error');
   var resEl = document.getElementById('compare-keys-result');
   var btn = document.getElementById('btn-submit-key-code') || (typeof event !== 'undefined' && event && event.target);
-
+  
   if (state._isComparing) return;
-  state._isComparing = true;
 
+  if (!code) {
+    errEl.textContent = t('err_enter_code');
+    errEl.style.display = 'block';
+    return;
+  }
+
+  state._isComparing = true;
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Tekshirilmoqda... ⏳';
@@ -2857,7 +2922,7 @@ async function submitCompareKeys(testId) {
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         tg_id: tgId,
-        test_id: Number(testId),
+        test_id: testId,
         code: code,
         init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
       })
@@ -2865,28 +2930,21 @@ async function submitCompareKeys(testId) {
     const data = await res.json();
 
     if (res.status === 429) {
-      if (errEl) {
-        errEl.textContent = data.message || "Iltimos, biroz kuting! So'rovingiz navbatda qayta ishlanmoqda...";
-        errEl.style.display = 'block';
-      }
+      errEl.textContent = data.message || "Iltimos, biroz kuting! So'rovingiz navbatda qayta ishlanmoqda...";
+      errEl.style.display = 'block';
       return;
     }
-
+    
     if (data.success) {
-      var auth = document.getElementById('compare-keys-auth');
-      if (auth) auth.style.display = 'none';
+      document.getElementById('compare-keys-auth').style.display = 'none';
       renderKeyComparison(data, resEl);
     } else {
-      if (errEl) {
-        errEl.textContent = data.message || t('error_occurred');
-        errEl.style.display = 'block';
-      }
-    }
-  } catch(e) {
-    if (errEl) {
-      errEl.textContent = t('err_network') || "Serverga ulanib bo'lmadi";
+      errEl.textContent = data.message || t('error_occurred');
       errEl.style.display = 'block';
     }
+  } catch(e) {
+    errEl.textContent = t('err_network');
+    errEl.style.display = 'block';
   } finally {
     state._isComparing = false;
     if (btn) {
@@ -3257,26 +3315,15 @@ function finishOnboarding() {
 
 // ──────────────────────────────────────────────────────────
 
-
-// Global Scope eksport (HTML onclick va barcha tashqi modullar uchun)
+// Global Scope eksport (HTML onclick va boshqa modullar uchun)
 window.state = state;
 window.switchTab = switchTab;
-window.switchHomeSubtab = switchHomeSubtab;
-window.switchAdminSubtab = switchAdminSubtab;
-window.filterMyTests = filterMyTests;
 window.dismissSplash = dismissSplash;
-window.finishSplashImmediately = dismissSplash;
 window.launchApp = launchApp;
 window.initApp = initApp;
 window.getAuthHeaders = getAuthHeaders;
-window.apiGet = apiGet;
 window.showToast = showToast;
 window.escHtml = escHtml;
-window.formatDate = formatDate;
-window.formatDateOnly = formatDateOnly;
-window.formatTimeOnly = formatTimeOnly;
-window.getGradeFromScore = getGradeFromScore;
-window.gradeToClass = gradeToClass;
 window.toggleTheme = toggleTheme;
 window.syncTelegramTheme = syncTelegramTheme;
 window.showResultModal = showResultModal;
@@ -3285,36 +3332,8 @@ window.promptCompareKeys = promptCompareKeys;
 window.submitCompareKeys = submitCompareKeys;
 window.renderKeyComparison = renderKeyComparison;
 window.openPastTestResult = openPastTestResult;
-window.showPastTestEndedModal = showPastTestEndedModal;
-window.closePastTestModal = closePastTestModal;
-window.handlePastTestCardClick = handlePastTestCardClick;
 window.openEditProfileModal = openEditProfileModal;
 window.closeEditProfileModal = closeEditProfileModal;
-window.saveEditedProfile = saveEditedProfile;
-window.deleteMyAccount = deleteMyAccount;
-window.toggleProfileDetails = toggleProfileDetails;
-window.toggleUserSimulationMode = toggleUserSimulationMode;
-window.openAdminUserModal = openAdminUserModal;
-window.toggleAdminUserInfo = toggleAdminUserInfo;
-window.closeAdminUserModal = closeAdminUserModal;
-window.updateUserStatusFromModal = updateUserStatusFromModal;
-window.handleAdminUserSearch = handleAdminUserSearch;
-window.setAdminUserFilter = setAdminUserFilter;
-window.applyQuickTemplate = applyQuickTemplate;
-window.updateBroadcastCharCount = updateBroadcastCharCount;
-window.clearBroadcastText = clearBroadcastText;
-window.sendAdminBroadcast = sendAdminBroadcast;
 window.openOnboardingModal = openOnboardingModal;
 window.closeOnboardingModal = closeOnboardingModal;
 window.finishOnboarding = finishOnboarding;
-window.loadActiveTests = loadActiveTests;
-window.loadMyResults = loadMyResults;
-window.loadAllUsers = loadAllUsers;
-window.openTestSolving = openTestSolving;
-window.startTestInBot = startTestInBot;
-window.returnToTelegramChat = returnToTelegramChat;
-window.showTestNotStartedAlert = showTestNotStartedAlert;
-window.goToBotRegister = goToBotRegister;
-window.checkRegistrationStatus = checkRegistrationStatus;
-window.closeUnregisteredModal = closeUnregisteredModal;
-window.cycleLang = cycleLang;
