@@ -5,8 +5,8 @@
 const TestApp = {
   testId: 1,
   testCode: 'TEST-01',
-  testTitle: 'Fizika Blok Test',
-  subject: 'Fizika',
+  testTitle: 'Matematika Blok Test',
+  subject: 'Matematika',
   userTgId: 0,
   userFullname: 'Foydalanuvchi',
   isDarkMode: false,
@@ -237,7 +237,7 @@ const TestApp = {
             <div class="open-question-row" id="qrow-${key}">
               <div class="savol-badge">${key}-savol</div>
               <div class="savol-input-box" id="box-${key}" onclick="MathKeyboard.openFor('${key}')">
-                <input type="text" class="savol-input" id="input-${key}" readonly inputmode="none" placeholder="Masalan: 400 J, 4 m/s²" onclick="MathKeyboard.openFor('${key}')">
+                <input type="text" class="savol-input" id="input-${key}" readonly inputmode="none" placeholder="" onclick="MathKeyboard.openFor('${key}')">
               </div>
               <button type="button" class="btn-kb-icon" onclick="MathKeyboard.openFor('${key}')" title="Klaviaturani ochish">⌨️</button>
             </div>
@@ -676,7 +676,7 @@ const TestApp = {
   async submitTestNow() {
     if (!this.userTgId || this.userTgId <= 0) {
       this.closeConfirmSubmitModal();
-      alert("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@fizika_rash_testbot) va Mini ilova orqali topshirish mumkin.");
+      alert("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin.");
       const webBlock = document.getElementById('web-block-screen');
       if (webBlock) webBlock.style.display = 'flex';
       return;
