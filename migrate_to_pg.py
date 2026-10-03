@@ -1,3 +1,4 @@
+import os
 """
 SQLite → PostgreSQL (Neon.tech) Migration Script v2
 Avval jadvallar yaratadi, keyin barcha ma'lumotlarni ko'chiradi.
@@ -5,8 +6,15 @@ Avval jadvallar yaratadi, keyin barcha ma'lumotlarni ko'chiradi.
 import sqlite3
 import sys
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 SQLITE_FILE = "test_system.db"
-PG_URL = "postgresql://neondb_owner:npg_FWBm9DaiZ1OV@ep-sparkling-bread-b4bo6wgm-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+PG_URL = DATABASE_URL
 
 def migrate():
     print("📂 SQLite bazasidan ma'lumotlar o'qilmoqda...")

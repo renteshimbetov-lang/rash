@@ -2,7 +2,14 @@ import os
 import asyncio
 from aiohttp import web
 
-os.environ["DATABASE_URL"] = "postgresql://neondb_owner:npg_FWBm9DaiZ1OV@ep-sparkling-bread-b4bo6wgm-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+os.environ.setdefault("DATABASE_URL", DATABASE_URL)
 os.environ["WEBAPP_URL"] = "http://localhost:8080"
 os.environ["BOT_TOKEN"] = "8039427064:AAEmq3_dummy_token_for_dashboard_only"
 

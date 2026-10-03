@@ -409,6 +409,76 @@ const TestApp = {
   },
 
   // ----------------------------------------------------
+  // BARCHA JAVOBLARNI O'CHIRISH (CLEAR ALL)
+  // ----------------------------------------------------
+  confirmClearAll() {
+    if (this.isSubmitting) return;
+    if (typeof MathKeyboard !== 'undefined' && MathKeyboard.close) {
+      MathKeyboard.close();
+    }
+    let answeredCount = 0;
+    for (let k in this.answers) {
+      if (this.answers[k] && String(this.answers[k]).trim().length > 0) {
+        answeredCount++;
+      }
+    }
+    if (answeredCount === 0) {
+      alert("Hozircha hech qanday javob belgilanmagan!");
+      return;
+    }
+    const modal = document.getElementById('clear-confirm-modal');
+    if (modal) {
+      modal.classList.add('open');
+    } else if (confirm("⚠️ Barcha belgilangan javoblarni o'chirmoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi.")) {
+      this.clearAllAnswers();
+    }
+  },
+
+  closeClearModal() {
+    const modal = document.getElementById('clear-confirm-modal');
+    if (modal) {
+      modal.classList.remove('open');
+    }
+  },
+
+  clearAllAnswers() {
+    if (this.isSubmitting) return;
+    this.closeClearModal();
+    this.answers = {};
+    this.clearAnswersFromStorage();
+
+    // 1-35 variantli savollar tugmalari va kartalarini tozalash
+    for (let q = 1; q <= 35; q++) {
+      const opts = [33, 34, 35].includes(q) ? ['A', 'B', 'C', 'D', 'E', 'F'] : ['A', 'B', 'C', 'D'];
+      opts.forEach(opt => {
+        const btn = document.getElementById(`opt-${q}-${opt}`);
+        if (btn) btn.classList.remove('selected');
+      });
+      const card = document.getElementById(`qcard-${q}`);
+      if (card) card.classList.remove('answered');
+      this.updateMapItem(String(q), false);
+    }
+
+    // 36a-45b ochiq savollar inputlari va qutilarini tozalash
+    for (let q = 36; q <= 45; q++) {
+      for (let sub of ['a', 'b']) {
+        const fieldKey = `${q}${sub}`;
+        const input = document.getElementById(`input-${fieldKey}`);
+        if (input) input.value = '';
+        const box = document.getElementById(`box-${fieldKey}`);
+        if (box) box.classList.remove('filled');
+        this.updateMapItem(fieldKey, false);
+      }
+    }
+
+    this.updateProgress();
+
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      try { window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning'); } catch(e) {}
+    }
+  },
+
+  // ----------------------------------------------------
   // JAVOBNI TANLASH VA O'RNATISH
   // ----------------------------------------------------
   selectOption(qNum, option) {

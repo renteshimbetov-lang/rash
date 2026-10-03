@@ -113,6 +113,13 @@
           <h1 class="header-test-title" id="test-title-display">#122 test</h1>
         </div>
         <div class="header-actions">
+          <button type="button" class="btn-clear-all" id="btn-clear-all" onclick="TestApp.confirmClearAll()" title="Barcha belgilangan javoblarni tozalash">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Hammasini o'chirish</span>
+          </button>
           <button class="theme-toggle-btn" onclick="TestApp.toggleTheme()" title="Mavzu">🌓</button>
         </div>
       </div>
@@ -123,6 +130,9 @@
           <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%;"></div>
         </div>
         <span class="progress-count-mini" id="answered-counter">0 / 55</span>
+        <button type="button" class="btn-clear-inline" onclick="TestApp.confirmClearAll()" title="Barcha javoblarni tozalash">
+          🗑 Tozalash
+        </button>
       </div>
 
       <!-- Yashirin yordamchi elementlar (JS bilan to'liq moslik uchun) -->
@@ -440,6 +450,23 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- =========================================
+       5. HAMMASINI O'CHIRISH TASDIQ MODALI
+       ========================================= -->
+  <div class="modal-overlay" id="clear-confirm-modal">
+    <div class="modal-card">
+      <div class="modal-icon-circle" style="background: rgba(239, 68, 68, 0.12); color: #EF4444; font-size: 34px;">🗑</div>
+      <h3 class="modal-heading" style="color: #EF4444;">Hammasini o'chirish</h3>
+      <p class="modal-desc">
+        Haqiqatan ham barcha belgilangan javoblarni o'chirmoqchimisiz? Barcha variantlar va yozma javoblar tozalanadi.
+      </p>
+      <div class="modal-buttons">
+        <button type="button" class="btn-modal-cancel" onclick="TestApp.closeClearModal()">Bekor qilish</button>
+        <button type="button" class="btn-modal-confirm" style="background: linear-gradient(135deg, #EF4444, #DC2626);" onclick="TestApp.clearAllAnswers()">Ha, o'chirish 🗑</button>
+      </div>
     </div>
   </div>
 
