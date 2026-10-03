@@ -128,6 +128,8 @@ function initApp() {
     });
   }
 
+  startSplashTimer();
+
   // PIN ekranini ishga tushiramiz — agar PIN mavjud bo'lsa ko'rsatiladi, aks holda app to'g'ri ochiladi
   if (typeof window.initPinScreen === 'function') {
     window.initPinScreen();
@@ -139,11 +141,16 @@ function initApp() {
 // ── SPLASH ──────────────────────────────────────
 var _splashTimer = null;
 
-function runSplash() {
+function startSplashTimer() {
   var splash = document.getElementById('splashScreen');
-  if (!splash) { launchApp(); return; }
-  launchApp();
+  if (!splash || _splashTimer) return;
+  if (splash.style.display === 'none' || splash.classList.contains('dismissed')) return;
   _splashTimer = setTimeout(function() { dismissSplash(); }, 3200);
+}
+
+// runSplash endi launchApp'ni chaqiradi, launchApp esa runSplash'ni QAYTA chaqirmaydi (cheksiz rekursiya bartaraf etildi)
+function runSplash() {
+  launchApp();
 }
 
 function dismissSplash() {
@@ -174,16 +181,15 @@ function launchApp() {
     pinScreen.style.display = 'none';
     pinScreen.style.opacity = '0';
   }
-  var splash = document.getElementById('splashScreen');
-  if (!splash || splash.style.display === 'none') {
-    // Splash allaqachon yo'q yoki ko'rinmaydi — to'g'ridan app'ni ko'rsatamiz
-    showMainApp();
-  } else {
-    runSplash();
-  }
+  // Ilova splash orqasida fonda yuklanadi, splash esa taymer bilan yopiladi
+  showMainApp();
+  startSplashTimer();
 }
 
+var _appShown = false;
 function showMainApp() {
+  if (_appShown) return;   // ikki marta chaqirilsa interval/so'rovlar takrorlanmasin
+  _appShown = true;
   var app = document.getElementById('app');
   if (app) {
     app.style.display       = 'flex';
@@ -364,10 +370,10 @@ async function checkBotServerStatus() {
   try {
     var ctrl  = new AbortController();
     var tid   = setTimeout(function() { ctrl.abort(); }, 8000);
-    var r     = await fetch('/api/health', { signal: ctrl.signal });
+    var r     = await fetch('/api/app/status', { signal: ctrl.signal });
     clearTimeout(tid);
     var data  = await r.json();
-    var isOk  = data && (data.status === 'ok' || data.bot_ok);
+    var isOk  = data && (data.bot_active || data.status === 'online' || data.status === 'ok' || data.bot_ok);
     pill.className  = 'server-status-pill ' + (isOk ? 'online' : 'offline');
     txt.textContent = isOk ? t('status_active') : t('status_offline');
   } catch(e) {
@@ -1004,6 +1010,19 @@ function escHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+function getGradeFromScore(score, maxScore) {
+  var sc = parseFloat(score) || 0, max = parseFloat(maxScore) || 100;
+  if (sc <= 0) return 'Yetarli emas';
+  var pct = max > 0 ? (sc / max * 100) : sc;
+  if (pct >= 86 && sc >= 70) return 'A+';
+  if (pct >= 75 && sc >= 65) return 'A';
+  if (pct >= 65 && sc >= 60) return 'B+';
+  if (pct >= 60 && sc >= 55) return 'B';
+  if (pct >= 55 && sc >= 50) return 'C+';
+  if (pct >= 46 && sc >= 46) return 'C';
+  return 'Yetarli emas';
+}
+
 function formatDateOnly(ts) {
   if (!ts) return '&#8212;';
   var d = new Date(ts * 1000);

@@ -139,7 +139,7 @@ var QUICK_ACTIONS = [
     sub: "Ism va telefon raqamini o'zgartirish",
     icon: '✏️',
     keywords: 'profil tahrirlash ism telefon yangilash',
-    action: function() { closeGlobalSearch(); switchTab('profile'); openEditProfileModal(); }
+    action: function() { closeGlobalSearch(); switchTab('profile'); if (typeof openEditProfileModal === 'function') openEditProfileModal(); }
   },
   {
     id: 'act_theme',
