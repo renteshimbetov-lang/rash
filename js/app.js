@@ -405,7 +405,7 @@ function switchTab(tabId) {
 }
 
 function switchHomeSubtab(subtab) {
-  if (state.homeSubtab === subtab) return;
+  state.homeSubtabUserSelected = true;
   state.homeSubtab = subtab;
   try {
     if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback)
@@ -414,6 +414,7 @@ function switchHomeSubtab(subtab) {
   if (window._availableTests) renderHomeTab(window._availableTests);
   else loadActiveTests();
 }
+window.switchHomeSubtab = switchHomeSubtab;
 
 // ── HOME TAB ─────────────────────────────────────
 async function loadActiveTests() {
@@ -465,10 +466,11 @@ function renderHomeTab(tests) {
   var active   = tests.filter(function(t) { return t.is_active && !isTestUpcoming(t); });
   var past     = tests.filter(function(t) { return !t.is_active && !isTestUpcoming(t); });
 
-  if (active.length === 0 && upcoming.length === 0 && past.length > 0) {
+  // Faqat birinchi marta (foydalanuvchi o'zi tugmani bosmagan bo'lsa) va faol test bo'lmasa "Oldingi testlar"ga o'tadi
+  if (!state.homeSubtabUserSelected && active.length === 0 && upcoming.length === 0 && past.length > 0) {
     state.homeSubtab = 'past';
   }
-  var sub = state.homeSubtab;
+  var sub = state.homeSubtab || 'active';
 
   var html = '<div class="section-header animate-in">' +
     '<div class="section-title">' + t('home_title') + '</div>' +
@@ -591,8 +593,12 @@ function renderTestCard(test, type) {
 
 function openTestSolving(testId) {
   var tgId = (state.tgUser && state.tgUser.id) || 0;
+  if (!tgId && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+    tgId = window.Telegram.WebApp.initDataUnsafe.user.id;
+  }
   window.location.href = '/index.html?test_id=' + testId + '&tg_id=' + tgId;
 }
+window.openTestSolving = openTestSolving;
 
 function openPastTestResult(testId) {
   var numId    = Number(testId);
@@ -643,6 +649,7 @@ function openPastTestResult(testId) {
     });
   }
 }
+window.openPastTestResult = openPastTestResult;
 
 function showPastTestEndedModal(testId) {
   var test  = (window._availableTests || []).find(function(t) { return Number(t.id) === Number(testId); });
