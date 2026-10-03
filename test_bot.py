@@ -5991,7 +5991,17 @@ def _fetch_active_tests_payload_sync(tg_id: int):
             td['already_submitted'] = bool(existing)
             is_pub = bool(t.get('results_published', 0))
             if existing:
-                if is_pub:
+                is_rej = (str(existing.get('status', '')).strip().lower() == 'rejected')
+                td['is_rejected'] = is_rej
+                td['submission_status'] = existing.get('status', 'valid')
+                td['reject_reason'] = existing.get('reject_reason', '')
+                if is_rej:
+                    td['user_score'] = 0
+                    td['user_correct'] = 0
+                    td['user_incorrect'] = 0
+                    td['user_total'] = 0
+                    td['user_grade'] = "Bekor qilingan"
+                elif is_pub:
                     td['user_score'] = existing.get('score')
                     td['user_correct'] = existing.get('correct_count')
                     td['user_incorrect'] = existing.get('incorrect_count')
@@ -6004,8 +6014,11 @@ def _fetch_active_tests_payload_sync(tg_id: int):
                     td['user_total'] = None
                     td['user_grade'] = "Kutilmoqda"
                 td['submitted_at'] = existing.get('submitted_at')
+            else:
+                td['is_rejected'] = False
         else:
             td['already_submitted'] = False
+            td['is_rejected'] = False
 
         sched_stat = get_test_schedule_status(t)
         is_upcoming = sched_stat['is_upcoming']
@@ -7098,8 +7111,9 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
-            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (Render.com)")
+            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+            await bot.set_chat_menu_button(menu_button=menu_btn)
+            log.info("✅ Bot menyu tugmasi 'Profil 👤' Render.com URL ga ulandi!")
         except Exception as e:
             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
         return
@@ -7111,8 +7125,9 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
-            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (Railway)")
+            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+            await bot.set_chat_menu_button(menu_button=menu_btn)
+            log.info("✅ Bot menyu tugmasi 'Profil 👤' Railway URL ga ulandi!")
         except Exception as e:
             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
         return
@@ -7124,8 +7139,9 @@ async def maintain_tunnel(local_port: int):
         try:
             with open("tunnel_url.txt", "w") as f:
                 f.write(WEBAPP_URL)
-            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
-            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (env URL)")
+            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+            await bot.set_chat_menu_button(menu_button=menu_btn)
+            log.info("✅ Bot menyu tugmasi 'Profil 👤' env URL ga ulandi!")
         except Exception as e:
             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
         return
@@ -7158,8 +7174,9 @@ async def maintain_tunnel(local_port: int):
                             with open("tunnel_url.txt", "w") as f:
                                 f.write(WEBAPP_URL)
                             # Update Bot Menu Button automatically
-                            await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
-                            log.info("✅ Bot menyu tugmasi standart menyuga o'zgartirildi (tunnel)")
+                            menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{WEBAPP_URL}/app.html"))
+                            await bot.set_chat_menu_button(menu_button=menu_btn)
+                            log.info("✅ Bot menyu tugmasi 'Profil 👤' Mini App URL ga ulandi!")
                         except Exception as e:
                             log.error(f"Menu tugmasini yangilashda xatolik: {e}")
                 await proc.wait()
@@ -7559,8 +7576,20 @@ async def main():
 
             # Telegram pastki chat menyu tugmasini doimiy ravishda "Profil 👤" qilib o'rnatish
             try:
-                await bot.set_chat_menu_button(menu_button=MenuButtonDefault())
-                log.info("✅ Telegram Bot pastki menyu tugmasi standart menyuga o'zgartirildi")
+                app_url = WEBAPP_URL
+                if not app_url and os.path.exists("tunnel_url.txt"):
+                    try:
+                        with open("tunnel_url.txt", "r") as f:
+                            app_url = f.read().strip()
+                    except Exception:
+                        pass
+                if not app_url:
+                    app_url = os.getenv("WEBAPP_URL") or "https://rash-vmrm.onrender.com"
+                if "/dashboard" in app_url:
+                    app_url = app_url.split("/dashboard")[0]
+                menu_btn = MenuButtonWebApp(text="Profil 👤", web_app=WebAppInfo(url=f"{app_url.rstrip('/')}/app.html"))
+                await bot.set_chat_menu_button(menu_button=menu_btn)
+                log.info("✅ Telegram Bot pastki menyu tugmasi 'Profil 👤' qilib sozlandi!")
             except Exception as me:
                 log.warning(f"Bot chat menyu tugmasini o'rnatishda ogohlantirish: {me}")
         except Exception as ce:

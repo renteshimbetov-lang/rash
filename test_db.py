@@ -2249,7 +2249,15 @@ def get_user_submissions(user_tg_id: int) -> List[Dict[str, Any]]:
             continue
         is_pub = bool(d.get("results_published", 0))
         d["results_published"] = is_pub
-        if is_pub:
+        is_rejected = (str(d.get("status", "")).strip().lower() == "rejected")
+        d["is_rejected"] = is_rejected
+        if is_rejected:
+            d["grade"] = "Bekor qilingan"
+            d["score"] = 0
+            d["correct_count"] = 0
+            d["incorrect_count"] = 0
+            d["status_text"] = "Bekor qilingan"
+        elif is_pub:
             d["grade"] = calculate_grade(d.get("score", 0))
         else:
             d["grade"] = "Kutilmoqda"

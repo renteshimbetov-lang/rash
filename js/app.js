@@ -670,8 +670,15 @@ function renderTestDetailCard(test, type) {
     });
     if (matchingResult) {
       done = true;
+      if (matchingResult.is_rejected || matchingResult.status === 'rejected') {
+        test.is_rejected = true;
+      }
       var isPub = Boolean(matchingResult.results_published);
-      if (isPub) {
+      if (test.is_rejected) {
+        test.user_score = 0;
+        test.user_correct = 0;
+        test.user_grade = "Bekor qilingan";
+      } else if (isPub) {
         if (test.user_score == null) test.user_score = matchingResult.score;
         if (test.user_correct == null) test.user_correct = matchingResult.correct_count;
         if (test.user_total == null) test.user_total = matchingResult.total_count;
@@ -687,9 +694,13 @@ function renderTestDetailCard(test, type) {
     }
   }
 
+  var isRejected = Boolean(test.is_rejected || (matchingResult && (matchingResult.is_rejected || matchingResult.status === 'rejected')));
+
   var cardClass = isUpcoming ? 'test-card-upcoming' : (isActive ? 'test-card-active' : 'test-card-closed');
   var badgeHtml = '';
-  if (isUpcoming) {
+  if (isRejected) {
+    badgeHtml = '<span class="badge" style="background:rgba(239,68,68,0.15);color:#EF4444;border:1px solid rgba(239,68,68,0.3);font-weight:800;">❌ ' + (t('badge_cancelled') || 'Bekor qilingan') + '</span>';
+  } else if (isUpcoming) {
     badgeHtml = '<span class="badge" style="background:rgba(245,158,11,0.15);color:#D97706;border:1px solid rgba(245,158,11,0.3);font-weight:800;">' + t('badge_upcoming') + '</span>';
   } else if (isActive) {
     if (done) {
@@ -755,7 +766,16 @@ function renderTestDetailCard(test, type) {
   var cardOnClick = isInactive ? (' onclick="handlePastTestCardClick(' + test.id + ')" style="cursor:pointer;"') : '';
 
   var userStatusBannerHtml = '';
-  if (isInactive) {
+  if (isRejected) {
+    userStatusBannerHtml =
+      '<div class="test-user-status-banner" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;margin:12px 0;">' +
+        '<span class="status-icon" style="font-size:20px;">⛔️</span>' +
+        '<div class="status-content">' +
+          '<div class="status-title" style="color:#EF4444;font-weight:800;font-size:13.5px;">Test javoblaringiz bekor qilingan</div>' +
+          '<div class="status-desc" style="color:var(--text-muted);font-size:12px;margin-top:2px;">Ushbu test bo\'yicha topshirgan javoblaringiz ma\'muriyat tomonidan bekor qilindi va qabul qilinmadi.</div>' +
+        '</div>' +
+      '</div>';
+  } else if (isInactive) {
     if (done) {
       var isPub = Boolean(test.results_published);
       var scoreText = (isPub && test.user_score != null) ? (test.user_score + ' ' + t('test_score_unit')) : '';
@@ -829,7 +849,11 @@ function renderTestDetailCard(test, type) {
 
   // Tugmalar
   html += '<div class="test-rich-actions">';
-  if (isUpcoming) {
+  if (isRejected) {
+    html += '<button type="button" class="btn-rich-action" style="width:100%;background:rgba(239,68,68,0.15);color:#EF4444;border:1px solid rgba(239,68,68,0.3);font-weight:800;cursor:pointer;" onclick="event.stopPropagation(); showToast(\'Ushbu test javoblaringiz ma\\\'muriyat tomonidan bekor qilingan\');">' +
+      '<span>⛔️</span> Test bekor qilingan' +
+    '</button>';
+  } else if (isUpcoming) {
     html += '<button type="button" class="btn-rich-action btn-rich-secondary" style="width:100%;cursor:pointer;" onclick="event.stopPropagation(); showTestNotStartedAlert(\'' + escHtml(startStr) + '\')">' +
       '<span>⏳</span> ' + t('btn_waiting_start') + (test.scheduled_start ? (' (' + escHtml(test.scheduled_start) + ')') : '') +
     '</button>';
@@ -1303,7 +1327,32 @@ function renderTestsTab(results) {
       var correct = r.correct_count || 0;
       var incorrect = r.incorrect_count != null ? r.incorrect_count : Math.max(0, totalQues - correct);
 
-      if (isPub) {
+      var isRejected = Boolean(r.is_rejected || r.status === 'rejected');
+      if (isRejected) {
+        html +=
+          '<div class="test-card-modern animate-in" style="animation-delay:' + (idx * 0.04) + 's;border:1.5px solid rgba(239,68,68,0.45);background:rgba(239,68,68,0.04);" onclick="showResultModal(window._myResults[' + origIndex + '])">' +
+            '<div class="test-card-top-row">' +
+              '<div class="test-card-title">' + escHtml(r.test_title || r.title || t('default_test_title')) + '</div>' +
+              '<div class="test-card-date">📅 ' + date + '</div>' +
+            '</div>' +
+            '<div class="test-card-middle-row">' +
+              '<div class="test-score-box" style="background:rgba(239,68,68,0.15);border:1.5px solid #EF4444;color:#EF4444;">' +
+                '<span class="test-score-num" style="font-size:16px;color:#EF4444;">❌</span>' +
+                '<span class="test-score-rank" style="font-size:9.5px;color:#EF4444;">' + (t('badge_cancelled') || 'Bekor') + '</span>' +
+              '</div>' +
+              '<div class="test-metrics-grid">' +
+                '<span class="test-metric-tag" style="color:#EF4444;font-weight:800;">⛔️ Test bekor qilingan</span>' +
+                '<span class="test-metric-tag" style="color:var(--text-muted);">Natija qabul qilinmagan</span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="test-card-bottom-row">' +
+              '<button type="button" class="btn-test-action-quick" style="color:#EF4444;">' +
+                '<span>ℹ️ ' + t('tests_card_btn_analysis') + '</span>' +
+              '</button>' +
+              '<span style="color:var(--text-muted);font-size:14px;font-weight:800;">➔</span>' +
+            '</div>' +
+          '</div>';
+      } else if (isPub) {
         var score = Number(r.score != null ? r.score : 0);
         var grade = r.grade || getGradeFromScore(score, maxScore);
         var gradeClass = 'good';
@@ -2721,33 +2770,48 @@ function showResultModal(result) {
   var gradeColor = { 'grade-5':'#10B981', 'grade-4':'#3B82F6', 'grade-3':'#F59E0B', 'grade-2':'#EF4444' };
   var gradeBorder = { 'grade-5':'#10B981', 'grade-4':'#3B82F6', 'grade-3':'#F59E0B', 'grade-2':'#EF4444' };
 
+  var isRejected = Boolean(result.is_rejected || result.status === 'rejected');
+  if (isRejected) {
+    grade = t('badge_cancelled') || 'Bekor qilingan';
+    score = 0;
+    gradeClass = 'grade-2';
+  }
+
   var isPub = Boolean(result.results_published);
   if (title) title.textContent = (result.test_title || result.title || t('result_title'));
 
   var html =
     '<div style="text-align:center;margin:6px 0 14px;">' +
-      '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 28px;border-radius:18px;background:' + (gradeBg[gradeClass]||'rgba(99,102,241,0.15)') + ';border:2px solid ' + (gradeBorder[gradeClass]||'#6366F1') + ';min-width:140px;">' +
-        '<span style="font-size:32px;font-weight:900;line-height:1.1;color:' + (gradeColor[gradeClass]||'#6366F1') + ';">' + grade + '</span>' +
-        '<span style="font-size:14px;font-weight:800;color:var(--text);margin-top:4px;">' + score + ' ' + t('score_pts') + '</span>' +
+      '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 28px;border-radius:18px;background:' + (isRejected ? 'rgba(239,68,68,0.15)' : (gradeBg[gradeClass]||'rgba(99,102,241,0.15)')) + ';border:2px solid ' + (isRejected ? '#EF4444' : (gradeBorder[gradeClass]||'#6366F1')) + ';min-width:140px;">' +
+        '<span style="font-size:24px;font-weight:900;line-height:1.1;color:' + (isRejected ? '#EF4444' : (gradeColor[gradeClass]||'#6366F1')) + ';">' + (isRejected ? '❌ ' + grade : grade) + '</span>' +
+        '<span style="font-size:14px;font-weight:800;color:var(--text);margin-top:4px;">' + (isRejected ? 'Natija bekor qilingan' : (score + ' ' + t('score_pts'))) + '</span>' +
       '</div>' +
-    '</div>' +
-    '<div id="compare-keys-section" style="text-align:center; margin: 10px 0 14px;">' +
-      '<button id="btn-compare-keys" type="button" onclick="promptCompareKeys(' + testId + ')" style="background:linear-gradient(135deg, #3B82F6, #6366F1);color:white;border:none;padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;width:100%;box-shadow:0 4px 14px rgba(59, 130, 246, 0.4);display:flex;align-items:center;justify-content:center;gap:8px;">' + t('btn_see_keys') + '</button>' +
-      '<div id="compare-keys-auth" style="display:none;margin-top:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left;">' +
-        '<p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;font-weight:600;">' + t('desc_key_code') + '</p>' +
-        '<div style="display:flex;gap:8px;margin-bottom:6px;">' +
-          '<input type="text" id="input-key-code" placeholder="' + t('placeholder_key_code') + '" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-body, #111827);color:var(--text);font-size:14px;outline:none;">' +
-          '<button type="button" id="btn-submit-key-code" onclick="submitCompareKeys(' + testId + ')" style="background:#10B981;color:white;border:none;padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap;">' + t('btn_confirm') + '</button>' +
-        '</div>' +
-        '<div id="compare-keys-error" style="color:var(--error);font-size:12px;margin-top:4px;display:none;line-height:1.4;"></div>' +
-      '</div>' +
-    '</div>' +
-    '<div id="compare-keys-result" style="display:none;margin-bottom:14px;max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:10px;"></div>';
-
-  if (!isPub) {
-    html += '<div style="margin:8px 0 12px;padding:10px 14px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.25);border-radius:12px;font-size:12.5px;color:#D97706;font-weight:600;line-height:1.45;text-align:left;">' +
-      '⏳ ' + t('test_waiting_result') +
     '</div>';
+
+  if (isRejected) {
+    html += '<div style="margin:8px 0 14px;padding:12px 14px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:12px;font-size:12.5px;color:#EF4444;font-weight:700;line-height:1.45;text-align:left;">' +
+      '⛔️ Ushbu test javoblaringiz ma\'muriyat tomonidan bekor qilindi va qabul qilinmadi.' +
+    '</div>';
+  } else {
+    html +=
+      '<div id="compare-keys-section" style="text-align:center; margin: 10px 0 14px;">' +
+        '<button id="btn-compare-keys" type="button" onclick="promptCompareKeys(' + testId + ')" style="background:linear-gradient(135deg, #3B82F6, #6366F1);color:white;border:none;padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;width:100%;box-shadow:0 4px 14px rgba(59, 130, 246, 0.4);display:flex;align-items:center;justify-content:center;gap:8px;">' + t('btn_see_keys') + '</button>' +
+        '<div id="compare-keys-auth" style="display:none;margin-top:10px;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px;text-align:left;">' +
+          '<p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;font-weight:600;">' + t('desc_key_code') + '</p>' +
+          '<div style="display:flex;gap:8px;margin-bottom:6px;">' +
+            '<input type="text" id="input-key-code" placeholder="' + t('placeholder_key_code') + '" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-body, #111827);color:var(--text);font-size:14px;outline:none;">' +
+            '<button type="button" id="btn-submit-key-code" onclick="submitCompareKeys(' + testId + ')" style="background:#10B981;color:white;border:none;padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap;">' + t('btn_confirm') + '</button>' +
+          '</div>' +
+          '<div id="compare-keys-error" style="color:var(--error);font-size:12px;margin-top:4px;display:none;line-height:1.4;"></div>' +
+        '</div>' +
+      '</div>' +
+      '<div id="compare-keys-result" style="display:none;margin-bottom:14px;max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:12px;padding:10px;"></div>';
+
+    if (!isPub) {
+      html += '<div style="margin:8px 0 12px;padding:10px 14px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.25);border-radius:12px;font-size:12.5px;color:#D97706;font-weight:600;line-height:1.45;text-align:left;">' +
+        '⏳ ' + t('test_waiting_result') +
+      '</div>';
+    }
   }
 
   html +=
