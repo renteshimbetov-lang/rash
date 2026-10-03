@@ -128,14 +128,10 @@ function initApp() {
     });
   }
 
+  // PIN-kod talab qilinmaydi — to'g'ridan-to'g'ri ilova ishga tushadi
+  try { localStorage.removeItem(LS_PIN); } catch(e) {}
   startSplashTimer();
-
-  // PIN ekranini ishga tushiramiz — agar PIN mavjud bo'lsa ko'rsatiladi, aks holda app to'g'ri ochiladi
-  if (typeof window.initPinScreen === 'function') {
-    window.initPinScreen();
-  } else {
-    runSplash();
-  }
+  runSplash();
 }
 
 // ── SPLASH ──────────────────────────────────────
@@ -842,7 +838,6 @@ function renderProfileTab() {
         '<div style="display:flex;justify-content:space-between;font-size:14px;"><span style="color:var(--text-muted);">&#128202; Holat</span><span style="font-weight:700">' + escHtml(status) + '</span></div>' +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:10px;">' +
-        '<button type="button" onclick="openChangePinFlow()" style="padding:12px;border-radius:12px;background:var(--bg-card-sub);border:1px solid var(--border);font-weight:700;font-size:14px;cursor:pointer;color:var(--text);">&#128272; ' + t('change_pin') + '</button>' +
         (!isReg ? '<button type="button" onclick="goToBotRegister()" style="padding:12px;border-radius:12px;background:linear-gradient(135deg,#3B82F6,#6366F1);color:#fff;border:none;font-weight:700;font-size:14px;cursor:pointer;">&#128640; Ro\'yxatdan o\'tish</button>' : '') +
       '</div>' +
     '</div>';
@@ -854,12 +849,6 @@ function statBox(icon, val, label) {
     '<div style="font-size:17px;font-weight:900;color:var(--text);">' + val + '</div>' +
     '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escHtml(String(label)) + '</div>' +
   '</div>';
-}
-
-function openChangePinFlow() {
-  if (typeof window.changePinPrompt === 'function') window.changePinPrompt();
-  else if (typeof window.startPinChange === 'function') window.startPinChange();
-  else showToast("PIN o'zgartirish tez orada qo'shiladi");
 }
 
 // ── ADMIN TAB ────────────────────────────────────
