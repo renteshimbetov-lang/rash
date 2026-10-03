@@ -29,6 +29,7 @@ USE_POSTGRES = bool(DATABASE_URL and ("postgresql" in DATABASE_URL or "postgres"
 # ── PostgreSQL Connection Pool (Yuqori yuklama uchun optimallashtirilgan) ──
 _pg_pool = None
 _pool_connections = set()
+_conn_last_used = {}
 PG_POOL_MINCONN = int(os.getenv("PG_POOL_MINCONN", "4"))
 PG_POOL_MAXCONN = int(os.getenv("PG_POOL_MAXCONN", "50"))
 
@@ -60,10 +61,9 @@ def _close_conn(conn):
     if conn is None:
         return
     conn_id = id(conn)
-    is_pooled = getattr(conn, "_is_from_pool", False) or (conn_id in _pool_connections)
-    if USE_POSTGRES and is_pooled:
+    if USE_POSTGRES and conn_id in _pool_connections:
         _pool_connections.discard(conn_id)
-        conn._is_from_pool = False
+        _conn_last_used[conn_id] = time.time()
         pool = _get_pg_pool()
         if pool:
             try:
@@ -133,9 +133,9 @@ def get_connection():
                             pass
                         conn = pool.getconn()
 
-                    # Smart Ping: faqat ulanish 45 soniyadan ortiq vaqt harakatsiz turgan bo'lsa SELECT 1 bilan tekshirish
+                    conn_id = id(conn)
                     now_t = time.time()
-                    last_used = getattr(conn, "_last_used_at", 0)
+                    last_used = _conn_last_used.get(conn_id, 0)
                     if now_t - last_used > 45:
                         try:
                             with conn.cursor() as cur_check:
@@ -147,12 +147,12 @@ def get_connection():
                             except Exception:
                                 pass
                             conn = pool.getconn()
+                            conn_id = id(conn)
 
-                    conn._last_used_at = now_t
+                    _conn_last_used[conn_id] = now_t
                     conn.cursor_factory = RealDictCursor
                     conn.autocommit = False
-                    conn._is_from_pool = True
-                    _pool_connections.add(id(conn))
+                    _pool_connections.add(conn_id)
                     return conn
                 except Exception as pe:
                     import psycopg2.pool
@@ -172,7 +172,6 @@ def get_connection():
             keepalives_count=5
         )
         conn.autocommit = False
-        conn._is_from_pool = False
         return conn
     else:
         conn = sqlite3.connect(DB_FILE, timeout=20.0, check_same_thread=False)
