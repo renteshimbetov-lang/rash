@@ -413,7 +413,7 @@ const MathKeyboard = {
   },
 
   switchTab(tab) {
-    const tabs = ['math', 'fizika', 'vars', 'power', 'func'];
+    const tabs = ['math', 'power', 'func', 'vars'];
     tabs.forEach(t => {
       const btn = document.getElementById(`kb-tab-${t}`);
       const body = document.getElementById(`keyboard-body-${t}`);

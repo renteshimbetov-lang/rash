@@ -4,55 +4,38 @@
    ============================================= */
 /* Font loaded asynchronously in html */
 :root {
-  /* Asosiy fonlar */
-  --bg-main: #0B0F19;          /* Chuqur kosmik fon */
-  --bg-card: #161E2E;          /* Test savollari va kartalar foni */
-  --bg-card-hover: #1E293B;    /* Bosilgandagi holat */
-  
-  /* Chegaralar va ajratuvchilar */
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-active: #3B82F6;
-  
-  /* Aksent ranglar (Fizika ruhi) */
-  --accent-electric: #3B82F6;  /* Asosiy elektr ko'k */
-  --accent-cyan: #06B6D4;      /* Neon firuza (Glow va timer uchun) */
-  
-  /* Holatlar */
-  --success: #10B981;          /* To'g'ri javob (Zumrad yashil) */
-  --danger: #EF4444;           /* Xato javob (Neon qizil) */
-  --warning: #F59E0B;          /* Ogohlantirish / Qolgan vaqt */
-  
-  /* Matn ranglari */
-  --text-primary: #F8FAFC;    /* Asosiy savol matni */
-  --text-secondary: #94A3B8;  /* Izohlar, pastki matnlar */
-  --text-muted: #64748B;      /* Noaniq/o'chirilgan holatlar */
-
   --grad-1: #1a56db;
   --grad-2: #1e3a8a;
   --grad-3: #3b82f6;
-  --accent: var(--accent-electric);
+  --accent: #3b82f6;
   --accent-2: #60a5fa;
 
-  /* ── LIQUID GLASS DESIGN TOKENS (DARK OBSIDIAN / COSMIC SPACE) ── */
-  --liquid-glass-bg: #161E2E;
-  --liquid-glass-hover: #1E293B;
-  --liquid-glass-border: 1px solid var(--border-color);
-  --liquid-glass-specular: inset 0 1px 1px 0 rgba(255, 255, 255, 0.15);
+  /* ── MACOS 27 LIQUID GLASS DESIGN TOKENS (DARK OBSIDIAN) ── */
+  --liquid-glass-bg: linear-gradient(145deg, rgba(26, 34, 53, 0.74) 0%, rgba(15, 23, 42, 0.62) 100%);
+  --liquid-glass-hover: linear-gradient(145deg, rgba(38, 48, 72, 0.82) 0%, rgba(22, 32, 55, 0.72) 100%);
+  --liquid-glass-border: 1px solid rgba(255, 255, 255, 0.13);
+  --liquid-glass-specular: inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.35);
   --liquid-glass-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.6), 0 4px 14px -2px rgba(0, 0, 0, 0.4);
-  --liquid-glass-blur: blur(24px) saturate(190%);
+  --liquid-glass-blur: blur(30px) saturate(190%) contrast(105%);
 
-  --bg: var(--bg-main);
-  --bg-glass: rgba(255, 255, 255, 0.06);
-  --bg-glass-2: rgba(255, 255, 255, 0.03);
-  --border: var(--border-color);
+  --bg: #070913;
+  --bg-card: var(--liquid-glass-bg);
+  --bg-card-hover: var(--liquid-glass-hover);
+  --bg-glass: rgba(255, 255, 255, 0.08);
+  --bg-glass-2: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.13);
+  --border-active: rgba(59, 130, 246, 0.55);
 
-  --text: var(--text-primary);
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
   --text-soft: #cbd5e1;
 
-  --success-bg: rgba(16, 185, 129, 0.14);
-  --error: var(--danger);
-  --error-bg: rgba(239, 68, 68, 0.14);
-  --warning-bg: rgba(245, 158, 11, 0.14);
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.14);
+  --error: #f87171;
+  --error-bg: rgba(248, 113, 113, 0.14);
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.14);
 
   --shadow: var(--liquid-glass-shadow);
   --shadow-glow: 0 0 24px rgba(37, 99, 235, 0.35);

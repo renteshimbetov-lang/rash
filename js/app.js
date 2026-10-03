@@ -37,6 +37,9 @@ function initApp() {
   renderOnboardingSlides();
 
   try {
+    var urlParams = new URLSearchParams(window.location.search);
+    var queryTgId = urlParams.get('tg_id');
+    var isPreview = urlParams.get('preview') === 'user' || urlParams.get('mode') === 'user' || urlParams.get('demo') === '1';
     var tg = window.Telegram && window.Telegram.WebApp;
     if (tg) {
       try { tg.ready(); tg.expand(); } catch (e) {}
@@ -75,7 +78,7 @@ function initApp() {
   }
 
   if (window.BM_LOGO_B64) {
-    document.querySelectorAll('.header-logo-img, .header-bm-logo, .splash-emblem-img').forEach(function(img) {
+    document.querySelectorAll('.header-logo-img, .header-bm-logo').forEach(function(img) {
       img.src = window.BM_LOGO_B64;
     });
   }
@@ -89,7 +92,7 @@ if (document.readyState === 'loading') {
   initApp();
 }
 
-// ── SPLASH (Kosmik Fizika Kirish Animatsiyasi) ──────────
+// ── SPLASH (Kosmik Matematik Kirish Animatsiyasi) ──────────
 function startSplashCanvas() {
   var canvas = document.getElementById('splash-canvas');
   if (!canvas) return null;
@@ -99,7 +102,7 @@ function startSplashCanvas() {
   var width = canvas.width = window.innerWidth;
   var height = canvas.height = window.innerHeight;
 
-  var symbols = ['E=mc²', 'F=ma', 'v=s/t', 'λ', 'Ω', 'Hz', 'ρ', 'F', 'a', 'm', 'v', 'p', 'h', 'c', 'g', 'q', 'U', 'I', 'R', 'N', 'J', 'W', 'eV', '⚛', '⚡'];
+  var symbols = ['∞', 'π', '∑', '∫', '√x', 'f(x)', '∆', 'θ', 'λ', '≈', '≠', 'e', 'α', 'β', 'γ', 'dx', 'dy', 'lim'];
   var particles = [];
   var count = Math.min(26, Math.max(16, Math.floor(width / 16)));
 
@@ -197,7 +200,7 @@ function runSplash() {
   var splash = document.getElementById('splashScreen') || document.getElementById('splash-screen');
   if (!splash) { launchApp(); return; }
 
-  // Kosmik fizika zarrachalari animatsiyasini ishga tushirish
+  // Kosmik matematik zarrachalar animatsiyasini ishga tushirish
   _stopSplashCanvas = startSplashCanvas();
 
   // Ma'lumotlarni fonda oldindan yuklash

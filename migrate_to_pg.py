@@ -1,4 +1,3 @@
-import os
 """
 SQLite → PostgreSQL (Neon.tech) Migration Script v2
 Avval jadvallar yaratadi, keyin barcha ma'lumotlarni ko'chiradi.
@@ -7,7 +6,7 @@ import sqlite3
 import sys
 
 SQLITE_FILE = "test_system.db"
-PG_URL = os.getenv("DATABASE_URL", "")
+PG_URL = "postgresql://neondb_owner:npg_FWBm9DaiZ1OV@ep-sparkling-bread-b4bo6wgm-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
 def migrate():
     print("📂 SQLite bazasidan ma'lumotlar o'qilmoqda...")
@@ -46,7 +45,7 @@ def migrate():
         id SERIAL PRIMARY KEY,
         test_code TEXT UNIQUE NOT NULL,
         title TEXT NOT NULL,
-        subject TEXT DEFAULT 'Fizika',
+        subject TEXT DEFAULT 'Matematika',
         pdf_file_id TEXT,
         pdf_file_name TEXT,
         answers_json TEXT NOT NULL,
@@ -158,7 +157,7 @@ def migrate():
                     results_published = EXCLUDED.results_published
                 RETURNING id
             """, (
-                t["test_code"], t["title"], t.get("subject", "Fizika"),
+                t["test_code"], t["title"], t.get("subject", "Matematika"),
                 t.get("pdf_file_id"), t.get("pdf_file_name"),
                 t["answers_json"], t.get("total_questions", 45),
                 t.get("time_limit_min", 0), t.get("is_active", 1),

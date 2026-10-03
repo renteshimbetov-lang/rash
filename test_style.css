@@ -3,59 +3,61 @@
    ========================================= */
 
 :root {
-  /* Asosiy fonlar */
-  --bg-main: #0B0F19;          /* Chuqur kosmik fon */
-  --bg-card: #161E2E;          /* Test savollari va kartalar foni */
-  --bg-card-hover: #1E293B;    /* Bosilgandagi holat */
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-light: rgba(37, 99, 235, 0.12);
+  --success: #10B981;
+  --success-light: rgba(16, 185, 129, 0.12);
+  --error: #EF4444;
+  --error-light: rgba(239, 68, 68, 0.12);
+  --warning: #F59E0B;
+  --warning-light: rgba(245, 158, 11, 0.12);
   
-  /* Chegaralar va ajratuvchilar */
-  --border-color: rgba(255, 255, 255, 0.08);
-  --border-active: #3B82F6;
-  
-  /* Aksent ranglar (Fizika ruhi) */
-  --accent-electric: #3B82F6;  /* Asosiy elektr ko'k */
-  --accent-cyan: #06B6D4;      /* Neon firuza (Glow va timer uchun) */
-  
-  /* Holatlar */
-  --success: #10B981;          /* To'g'ri javob (Zumrad yashil) */
-  --danger: #EF4444;           /* Xato javob (Neon qizil) */
-  --warning: #F59E0B;          /* Ogohlantirish / Qolgan vaqt */
-  
-  /* Matn ranglari */
-  --text-primary: #F8FAFC;    /* Asosiy savol matni */
-  --text-secondary: #94A3B8;  /* Izohlar, pastki matnlar */
-  --text-muted: #64748B;      /* Noaniq/o'chirilgan holatlar */
+  /* ── MACOS 27 LIQUID GLASS DESIGN TOKENS (LIGHT CRYSTAL) ── */
+  --liquid-glass-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.58) 100%);
+  --liquid-glass-hover: linear-gradient(145deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.74) 100%);
+  --liquid-glass-border: 1px solid rgba(255, 255, 255, 0.88);
+  --liquid-glass-specular: inset 0 1.5px 2px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.03);
+  --liquid-glass-shadow: 0 16px 38px -6px rgba(15, 23, 42, 0.09), 0 4px 14px -2px rgba(15, 23, 42, 0.04);
+  --liquid-glass-blur: blur(30px) saturate(190%) contrast(105%);
 
-  /* Legacy va qo'shimcha tokenlar */
-  --primary: var(--accent-electric);
-  --primary-hover: #2563EB;
-  --primary-light: rgba(59, 130, 246, 0.14);
-  --error: var(--danger);
-  --error-light: rgba(239, 68, 68, 0.14);
-  --success-light: rgba(16, 185, 129, 0.14);
-  --warning-light: rgba(245, 158, 11, 0.14);
-  --text-main: var(--text-primary);
-  --border: var(--border-color);
-  --bg-card-sub: var(--bg-card);
-
-  /* ── LIQUID GLASS DESIGN TOKENS (DARK OBSIDIAN / COSMIC SPACE) ── */
-  --liquid-glass-bg: var(--bg-card);
-  --liquid-glass-hover: var(--bg-card-hover);
-  --liquid-glass-border: 1px solid var(--border-color);
-  --liquid-glass-specular: inset 0 1px 1px 0 rgba(255, 255, 255, 0.12);
-  --liquid-glass-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.6), 0 4px 14px -2px rgba(0, 0, 0, 0.4);
-  --liquid-glass-blur: blur(24px) saturate(180%);
-
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --bg-main: #F2F5FD;
+  --bg-card: var(--liquid-glass-bg);
+  --bg-card-sub: rgba(255, 255, 255, 0.6);
+  --text-main: #0F172A;
+  --text-muted: #64748B;
+  --border: rgba(255, 255, 255, 0.85);
+  
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
   --shadow-md: var(--liquid-glass-shadow);
-  --shadow-lg: 0 24px 56px -8px rgba(0, 0, 0, 0.65);
+  --shadow-lg: 0 20px 48px -8px rgba(15, 23, 42, 0.12);
   
   --radius-sm: 10px;
   --radius-md: 16px;
-  --radius-lg: 20px;
+  --radius-lg: 22px;
   --radius-xl: 30px;
   --radius-full: 9999px;
   --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body.dark-mode {
+  /* ── MACOS 27 LIQUID GLASS DESIGN TOKENS (DARK OBSIDIAN) ── */
+  --liquid-glass-bg: linear-gradient(145deg, rgba(26, 34, 53, 0.74) 0%, rgba(15, 23, 42, 0.62) 100%);
+  --liquid-glass-hover: linear-gradient(145deg, rgba(38, 48, 72, 0.82) 0%, rgba(22, 32, 55, 0.72) 100%);
+  --liquid-glass-border: 1px solid rgba(255, 255, 255, 0.13);
+  --liquid-glass-specular: inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.35);
+  --liquid-glass-shadow: 0 16px 42px -6px rgba(0, 0, 0, 0.6), 0 4px 14px -2px rgba(0, 0, 0, 0.4);
+  --liquid-glass-blur: blur(30px) saturate(190%) contrast(105%);
+
+  --bg-main: #070913;
+  --bg-card: var(--liquid-glass-bg);
+  --bg-card-sub: rgba(255, 255, 255, 0.06);
+  --text-main: #F8FAFC;
+  --text-muted: #94A3B8;
+  --border: rgba(255, 255, 255, 0.13);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: var(--liquid-glass-shadow);
+  --shadow-lg: 0 24px 56px -8px rgba(0, 0, 0, 0.65);
 }
 
 * {
@@ -664,133 +666,6 @@ body.keyboard-open .test-container {
   transition: all 0.2s ease;
 }
 
-/* =========================================
-   TEST TAYMERI (VAQT) — NEON FIRUZA VA PROGRESS
-   Yuqorida neon firuza (--accent-cyan) rangli progress chiziq bilan yurgiziladi,
-   1 daqiqadan kam qolganda avtomatik sariq/qizilga o'zgaradi.
-   ========================================= */
-.test-timer-strip {
-  position: sticky;
-  top: 0;
-  z-index: 90;
-  background: rgba(11, 15, 25, 0.94);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border-bottom: 1px solid var(--border-color);
-  padding: 10px 14px 12px;
-  margin: -8px -8px 12px -8px;
-  border-radius: 0 0 16px 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  transition: all 0.3s ease;
-}
-
-.test-timer-track {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  overflow: hidden;
-  position: relative;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.test-timer-fill {
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(90deg, var(--accent-cyan), #38BDF8);
-  border-radius: 999px;
-  box-shadow: 0 0 12px var(--accent-cyan), 0 0 4px var(--accent-cyan);
-  transition: width 1s linear, background 0.4s ease, box-shadow 0.4s ease;
-}
-
-/* 1 daqiqadan kam qolganda avtomatik sariq/qizilga o'zgaradi */
-.test-timer-fill.timer-warning {
-  background: linear-gradient(90deg, var(--warning), #FBBF24) !important;
-  box-shadow: 0 0 16px var(--warning), 0 0 6px var(--warning) !important;
-  animation: timerNeonGlowWarn 1.2s ease-in-out infinite alternate;
-}
-
-.test-timer-fill.timer-danger {
-  background: linear-gradient(90deg, var(--danger), #F87171) !important;
-  box-shadow: 0 0 18px var(--danger), 0 0 8px var(--danger) !important;
-  animation: timerNeonGlowDanger 0.8s ease-in-out infinite alternate;
-}
-
-@keyframes timerNeonGlowWarn {
-  0% { box-shadow: 0 0 8px var(--warning); opacity: 0.9; }
-  100% { box-shadow: 0 0 20px var(--warning); opacity: 1; }
-}
-
-@keyframes timerNeonGlowDanger {
-  0% { box-shadow: 0 0 10px var(--danger); opacity: 0.85; }
-  100% { box-shadow: 0 0 24px var(--danger); opacity: 1; }
-}
-
-.test-timer-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 8px;
-  font-size: 12px;
-}
-
-.timer-badge-neon {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: rgba(6, 182, 212, 0.12);
-  border: 1px solid rgba(6, 182, 212, 0.35);
-  color: var(--accent-cyan);
-  font-weight: 700;
-  transition: all 0.3s ease;
-}
-
-.timer-badge-neon.timer-warning {
-  background: rgba(245, 158, 11, 0.16) !important;
-  border-color: var(--warning) !important;
-  color: var(--warning) !important;
-}
-
-.timer-badge-neon.timer-danger {
-  background: rgba(239, 68, 68, 0.18) !important;
-  border-color: var(--danger) !important;
-  color: var(--danger) !important;
-  animation: timerBadgePulse 0.8s ease-in-out infinite alternate;
-}
-
-@keyframes timerBadgePulse {
-  0% { transform: scale(1); }
-  100% { transform: scale(1.04); }
-}
-
-.timer-note-text {
-  font-size: 11px;
-  font-weight: 600;
-  opacity: 0.9;
-}
-
-.timer-digits {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-}
-
-.timer-answered-chip {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-color);
-  padding: 3px 10px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
 /* Kichik o'lchamdagi to'ldirilgan javoblar shkalasi (kompakt progress bar) */
 .progress-section-compact {
   display: flex;
@@ -926,114 +801,75 @@ body.keyboard-open .test-container {
   gap: 10px;
 }
 
-/* =========================================
-   1. SAVOLLAR KARTOCHKASI (1-32 va 33-35)
-   Savollar kartasi: Fon --bg-card, burchaklari 16px yumaloq, atrofiga nozik chiziq (border: 1px solid var(--border-color))
-   ========================================= */
+/* 1-34 Savol Kartochkasi (macOS 27 Liquid Glass) */
 .question-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 12px 14px;
+  background: var(--bg-card-sub);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   backdrop-filter: var(--liquid-glass-blur);
   -webkit-backdrop-filter: var(--liquid-glass-blur);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.2);
   transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.question-card:hover {
-  background: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.14);
-}
-
 .question-card.answered {
-  border-color: rgba(59, 130, 246, 0.45);
-  box-shadow: 0 4px 18px rgba(59, 130, 246, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-color: rgba(16, 185, 129, 0.5);
+  background: rgba(16, 185, 129, 0.06);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.3);
 }
 
 .question-num-tag {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-main);
   min-width: 32px;
-  letter-spacing: -0.2px;
 }
 
 .options-group {
   display: flex;
-  gap: 7px;
+  gap: 6px;
   flex: 1;
   justify-content: flex-end;
 }
 
-/* =========================================
-   2. JAVOB VARIANTLARI (A, B, C, D)
-   Standart holatda oddiy blok; variant tanlanganda chegarasi --accent-electric bo'lib yonadi;
-   to'g'ri/xato tekshirilganda mos ravishda --success yoki --danger rangiga o'tadi.
-   ========================================= */
 .option-btn {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-primary);
-  font-size: 14.5px;
-  font-weight: 700;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 11px;
+  border: 1.2px solid var(--border);
+  background: var(--liquid-glass-bg);
+  backdrop-filter: var(--liquid-glass-blur);
+  -webkit-backdrop-filter: var(--liquid-glass-blur);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: none;
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.3);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.option-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
 .option-btn:active {
-  transform: scale(0.93);
+  transform: scale(0.92);
 }
 
-/* Variant tanlanganda chegarasi --accent-electric bo'lib yonadi */
 .option-btn.selected {
-  background: rgba(59, 130, 246, 0.18);
-  border-color: var(--accent-electric);
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
   color: #FFFFFF;
-  font-weight: 800;
-  box-shadow: 0 0 14px rgba(59, 130, 246, 0.55), inset 0 0 8px rgba(59, 130, 246, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.5);
   transform: scale(1.05);
 }
 
-/* To'g'ri tekshirilganda mos ravishda --success rangiga o'tadi */
-.option-btn.correct,
-.option-btn.is-correct {
-  background: rgba(16, 185, 129, 0.22) !important;
-  border-color: var(--success) !important;
-  color: #FFFFFF !important;
-  font-weight: 800 !important;
-  box-shadow: 0 0 16px rgba(16, 185, 129, 0.6), inset 0 0 8px rgba(16, 185, 129, 0.3) !important;
-}
-
-/* Xato tekshirilganda mos ravishda --danger rangiga o'tadi */
-.option-btn.wrong,
-.option-btn.danger,
-.option-btn.is-wrong {
-  background: rgba(239, 68, 68, 0.22) !important;
-  border-color: var(--danger) !important;
-  color: #FFFFFF !important;
-  font-weight: 800 !important;
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.6), inset 0 0 8px rgba(239, 68, 68, 0.3) !important;
-}
-
-/* 33-35 savollar: 6 ta variant (A, B, C, D, E, F) */
+/* 35-savol: 6 ta variant */
 .options-group-6 {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -1044,7 +880,7 @@ body.keyboard-open .test-container {
 .options-group-6 .option-btn {
   width: 100%;
   min-width: unset;
-  height: 38px;
+  height: 36px;
 }
 
 /* 36-45 Yopiq Savollar Kartochkasi */
@@ -1057,39 +893,28 @@ body.keyboard-open .test-container {
   gap: 10px;
   width: 100%;
   margin-bottom: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 8px 12px;
-  transition: all 0.22s ease;
-}
-
-.open-question-row:hover {
-  background: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .savol-badge {
-  background: rgba(59, 130, 246, 0.18);
-  color: #FFFFFF;
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  font-weight: 800;
-  font-size: 13px;
-  padding: 8px 12px;
-  border-radius: 11px;
-  min-width: 82px;
+  background: #3b50df;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  min-width: 96px;
   text-align: center;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 2px 6px rgba(59, 80, 223, 0.25);
   flex-shrink: 0;
 }
 
 .savol-input-box {
   flex: 1;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-color);
-  border-radius: 11px;
-  height: 40px;
+  background: #ffffff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 12px;
+  height: 44px;
   display: flex;
   align-items: center;
   padding: 0 12px;
@@ -1098,18 +923,18 @@ body.keyboard-open .test-container {
 }
 
 .savol-input-box.filled {
-  border-color: var(--accent-electric);
-  background: rgba(59, 130, 246, 0.08);
+  border-color: #3b82f6;
+  background: #ffffff;
 }
 
 .savol-input-box.focused {
-  border-color: var(--accent-electric);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  border-color: #3b50df;
+  box-shadow: 0 0 0 3px rgba(59, 80, 223, 0.18);
 }
 
 body.dark-mode .savol-input-box {
-  background: rgba(255, 255, 255, 0.03);
-  border-color: var(--border-color);
+  background: #1e293b;
+  border-color: #334155;
 }
 
 .savol-input {
@@ -1117,9 +942,9 @@ body.dark-mode .savol-input-box {
   border: none;
   background: transparent;
   outline: none;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #0f172a;
   font-family: inherit;
   cursor: pointer;
 }
@@ -1129,12 +954,11 @@ body.dark-mode .savol-input {
 }
 
 .btn-kb-icon {
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-color);
-  color: var(--accent-cyan);
-  border-radius: 11px;
+  width: 44px;
+  height: 44px;
+  background: #ffffff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1145,8 +969,8 @@ body.dark-mode .savol-input {
 }
 
 body.dark-mode .btn-kb-icon {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: var(--border-color);
+  background: #1e293b;
+  border-color: #334155;
 }
 
 .btn-kb-icon:active {
@@ -2332,58 +2156,3 @@ body.dark-mode .kb-key.kb-nav-next {
 }
 
 
-
-/* ── FIZIKA TEZKOR BIRLIKLAR VA CHIPLAR ── */
-.kb-quick-chips-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 6px 10px;
-  background: #F1F5F9;
-  border-bottom: 1px solid #E2E8F0;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.kb-quick-chips-bar::-webkit-scrollbar {
-  display: none;
-}
-body.dark-mode .kb-quick-chips-bar {
-  background: #1E293B;
-  border-bottom-color: #334155;
-}
-.kb-chip-btn {
-  flex-shrink: 0;
-  padding: 5px 11px;
-  border-radius: 8px;
-  border: 1px solid rgba(14, 165, 233, 0.35);
-  background: #FFFFFF;
-  color: #0284c7;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-body.dark-mode .kb-chip-btn {
-  background: #0F172A;
-  color: #38bdf8;
-  border-color: rgba(56, 189, 248, 0.35);
-}
-.kb-chip-btn:active {
-  transform: scale(0.93);
-  background: #0284c7;
-  color: #FFFFFF;
-}
-.kb-chip-btn.accent {
-  background: rgba(14, 165, 233, 0.12);
-  border-color: #0284c7;
-  color: #0284c7;
-}
-body.dark-mode .kb-chip-btn.accent {
-  background: rgba(56, 189, 248, 0.18);
-  color: #38bdf8;
-}

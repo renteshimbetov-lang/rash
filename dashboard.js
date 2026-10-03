@@ -1,5 +1,5 @@
 /**
- * Shohruh Fizika — MacBook Pro Admin Dashboard
+ * Shohruh Matematika — MacBook Pro Admin Dashboard
  * High-performance, Real-time Desktop Web Application
  */
 
@@ -168,7 +168,7 @@ function startBootCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  var symbols = ['E=mc²', 'F=ma', 'v=s/t', 'λ', 'Ω', 'Hz', 'ρ', 'F', 'a', 'm', 'v', 'p', 'h', 'c', 'g', 'q', 'U', 'I', 'R', 'N', 'J', 'W', 'eV', '⚛', '⚡'];
+  var symbols = ['∞', 'π', '∑', '∫', '√x', 'f(x)', '∆', 'θ', 'λ', '≈', '≠', 'e²', 'α', 'β', '∂y', 'lim', 'dx', '∇'];
   var count = Math.min(28, Math.max(16, Math.floor(canvas.width / 18)));
   var particles = [];
   for (var i = 0; i < count; i++) {
@@ -1229,7 +1229,7 @@ function renderTests() {
           <div style="font-weight:700;font-size:14px;color:var(--text-main);">${esc(t.title || 'Test')}</div>
           <div style="font-size:11px;color:var(--text-muted);font-weight:600;">Batafsil ma'lumot va kalitlar uchun bosing</div>
         </td>
-        <td><span class="badge badge-purple">${esc(t.subject || 'Fizika')}</span></td>
+        <td><span class="badge badge-purple">${esc(t.subject || 'Matematika')}</span></td>
         <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);font-weight:600;">${esc(t.scheduled_date || '—')} ${esc(t.scheduled_start || '')}</td>
         <td style="font-family:var(--font-mono);font-size:12px;color:var(--text-main);font-weight:600;">${esc(t.scheduled_end || '—')}</td>
         <td><b>${t.total_questions || 55} ta</b></td>
@@ -1294,7 +1294,7 @@ function openTestModal(testId) {
   modal.classList.add('open');
 
   document.getElementById('modal-test-title').textContent = `#${t.test_code} — ${t.title || 'Test'}`;
-  document.getElementById('modal-test-sub').textContent = `Fan: ${t.subject || 'Fizika'} • Yaratilgan sana: ${t.created_at_fmt || t.created_date || '—'}`;
+  document.getElementById('modal-test-sub').textContent = `Fan: ${t.subject || 'Matematika'} • Yaratilgan sana: ${t.created_at_fmt || t.created_date || '—'}`;
 
   // 1. Schedule & Times (Qachon boshlangan, qachon tugagan)
   const startTimeStr = t.scheduled_date ? `${t.scheduled_date} ${t.scheduled_start || ''}`.trim() : (t.created_at_fmt || 'E\'lon qilingan vaqtdan');

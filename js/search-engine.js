@@ -51,15 +51,15 @@ var searchState = {
 var BOT_KNOWLEDGE_BASE = [
   {
     id: 'about_bot',
-    title: "Shohruh Fizika (BM Bot) haqida",
+    title: "Shohruh Matematika (BM Bot) haqida",
     category: 'about',
     icon: 'ℹ️',
-    keywords: 'bot haqida nima buxoriylar maktabi shohruh fizika tizim platforma',
-    summary: "Shohruh Fizika o'quv markazining rasmiy test tekshirish va bilimni baholash tizimi.",
-    fullHtml: "<h4>Shohruh Fizika — BM Rasch Test Tizimi</h4>" +
-              "<p>Ushbu tizim o'quvchilarning fizika fanidan bilim darajasini zamonaviy psixometrik standartlar (Rasch modeli) asosida xolis va adolatli baholash uchun ishlab chiqilgan.</p>" +
+    keywords: 'bot haqida nima buxoriylar maktabi shohruh matematika tizim platforma',
+    summary: "Shohruh Matematika o'quv markazining rasmiy test tekshirish va bilimni baholash tizimi.",
+    fullHtml: "<h4>Shohruh Matematika — BM Rasch Test Tizimi</h4>" +
+              "<p>Ushbu tizim o'quvchilarning matematika fanidan bilim darajasini zamonaviy psixometrik standartlar (Rasch modeli) asosida xolis va adolatli baholash uchun ishlab chiqilgan.</p>" +
               "<ul>" +
-              "<li><b>Rasmiy Telegram Bot:</b> @fizika_rash_testbot</li>" +
+              "<li><b>Rasmiy Telegram Bot:</b> @bm_rashtest_bot</li>" +
               "<li><b>Rahbar va Bosh Admin:</b> Shohruh Eshimbetov</li>" +
               "<li><b>Asosiy yo'nalish:</b> Milliy sertifikat, DTM va olimpiada testlari tahlili</li>" +
               "<li><b>Format:</b> Har bir test bo'yicha batafsil savolma-savol tahlil va Rasmiy PDF reyting jadvali taqdim etiladi.</li>" +
@@ -139,8 +139,8 @@ var BOT_KNOWLEDGE_BASE = [
               "<p>Har qanday savol, taklif yoki texnik muammolar yuzasidan quyidagi kontaktlarga murojaat qilishingiz mumkin:</p>" +
               "<ul>" +
               "<li>👤 <b>Bosh Admin:</b> @eshmbetov</li>" +
-              "<li>🤖 <b>Rasmiy Bot:</b> @fizika_rash_testbot</li>" +
-              "<li>📢 <b>Rasmiy Kanal:</b> Shohruh Fizika o'quv kanali</li>" +
+              "<li>🤖 <b>Rasmiy Bot:</b> @bm_rashtest_bot</li>" +
+              "<li>📢 <b>Rasmiy Kanal:</b> Shohruh Matematika o'quv kanali</li>" +
               "</ul>" +
               "<div style='margin-top:14px;'><a href='https://t.me/eshmbetov' target='_blank' style='display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;background:linear-gradient(135deg,#3B82F6,#6366F1);color:white;text-decoration:none;font-weight:700;'>Adminga yozish (@eshmbetov) ➔</a></div>"
   }
@@ -385,7 +385,7 @@ function renderSearchResults() {
       html += '<div class="search-card-item" onclick="handleSearchSelectTest(' + test.id + ', \'' + (test.test_code || '') + '\', ' + (isDone ? 'true' : 'false') + ')">' +
         '<div class="search-card-icon icon-blue">📝</div>' +
         '<div class="search-card-info">' +
-          '<div class="search-card-title">' + escHtml(test.title || 'Fizika Testi') + '</div>' +
+          '<div class="search-card-title">' + escHtml(test.title || 'Matematika Testi') + '</div>' +
           '<div class="search-card-sub">' +
             statusPill +
             (codeStr ? '<span>' + escHtml(codeStr) + '</span>' : '') +

@@ -86,7 +86,7 @@ const AdminApp = {
           }
           const titleInput = document.getElementById('adm-test-title');
           if (titleInput && !titleInput.value) {
-            titleInput.value = `Fizika Blok Test #${data.next_code}`;
+            titleInput.value = `Matematika Blok Test #${data.next_code}`;
           }
         }
       })
@@ -180,37 +180,115 @@ const AdminApp = {
       });
   },
 
-  runIntroAnimation() {
-    // Mini ilovani darhol bir zumda ochish (hech qanday sun'iy kutishlarsiz)
-    const splash = document.getElementById('intro-splash');
-    if (splash) {
-      splash.style.display = 'none';
-    }
-  },
+  startSplashCanvas() {
+    const canvas = document.getElementById('splash-canvas');
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
 
-  confirmClearAll() {
-    let filledCount = 0;
-    for (let k in this.answers) {
-      if (this.answers[k] && this.answers[k].ans && String(this.answers[k].ans).trim().length > 0) {
-        filledCount++;
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    const symbols = ['∞', 'π', '∑', '∫', '√x', 'f(x)', '∆', 'θ', 'λ', '≈', '≠', 'e', 'α', 'β', 'γ', 'dx', 'dy', 'lim'];
+    const particles = [];
+    const count = Math.min(26, Math.max(16, Math.floor(width / 16)));
+
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        char: symbols[Math.floor(Math.random() * symbols.length)],
+        size: 13 + Math.random() * 18,
+        vx: (Math.random() - 0.5) * 0.45,
+        vy: -0.35 - Math.random() * 0.75,
+        opacity: 0.12 + Math.random() * 0.45,
+        pulseSpeed: 0.02 + Math.random() * 0.03,
+        angle: Math.random() * Math.PI * 2,
+        spinSpeed: (Math.random() - 0.5) * 0.015
+      });
+    }
+
+    let animId = null;
+    const isDark = document.body.classList.contains('dark-mode') || document.documentElement.getAttribute('data-theme') === 'dark';
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.angle += p.spinSpeed;
+        p.opacity += Math.sin(Date.now() * p.pulseSpeed) * 0.005;
+        if (p.opacity < 0.1) p.opacity = 0.1;
+        if (p.opacity > 0.6) p.opacity = 0.6;
+
+        if (p.y < -30) { p.y = height + 30; p.x = Math.random() * width; }
+        if (p.x < -30) p.x = width + 30;
+        if (p.x > width + 30) p.x = -30;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.font = 'bold ' + p.size + 'px serif';
+        if (isDark) {
+          ctx.fillStyle = 'rgba(147, 197, 253, ' + p.opacity + ')';
+          ctx.shadowColor = 'rgba(56, 189, 248, 0.4)';
+          ctx.shadowBlur = 8;
+        } else {
+          ctx.fillStyle = 'rgba(37, 99, 235, ' + (p.opacity * 0.8) + ')';
+          ctx.shadowColor = 'rgba(37, 99, 235, 0.2)';
+          ctx.shadowBlur = 6;
+        }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.char, 0, 0);
+        ctx.restore();
       }
+      animId = requestAnimationFrame(draw);
     }
-    if (filledCount === 0) {
-      alert("Hozircha hech qanday kalit/javob belgilanmagan!");
-      return;
-    }
-    if (confirm("⚠️ Barcha kiritilgan test kalitlari va javoblarini o'chirmoqchimisiz? Bu amal barcha variantli va ochiq savollar kalitlarini tozalaydi.")) {
-      this.clearAll();
-    }
+
+    animId = requestAnimationFrame(draw);
+
+    return function stop() {
+      if (animId) cancelAnimationFrame(animId);
+    };
   },
 
-  clearAll() {
-    this.initAnswers();
-    this.renderForm();
-    this.updateUnfilledStats();
-    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-      try { window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning'); } catch(e) {}
+  finishSplashImmediately() {
+    const splash = document.getElementById('admin-splash') || document.getElementById('intro-splash') || document.getElementById('splashScreen');
+    if (!splash) return;
+    if (this._splashDismissed) return;
+    this._splashDismissed = true;
+
+    if (this._stopSplashCanvas) {
+      try { this._stopSplashCanvas(); } catch(e) {}
+      this._stopSplashCanvas = null;
     }
+
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      try { window.Telegram.WebApp.HapticFeedback.impactOccurred('medium'); } catch(e) {}
+    }
+
+    splash.classList.add('dismissed');
+    setTimeout(() => {
+      splash.style.display = 'none';
+    }, 600);
+  },
+
+  runIntroAnimation() {
+    const splash = document.getElementById('admin-splash') || document.getElementById('intro-splash') || document.getElementById('splashScreen');
+    if (!splash) return;
+
+    this._stopSplashCanvas = this.startSplashCanvas();
+
+    window.finishAdminSplash = () => this.finishSplashImmediately();
+    window.dismissSplash = () => this.finishSplashImmediately();
+    window.finishSplashImmediately = () => this.finishSplashImmediately();
+
+    // 3200ms dan so'ng avtomatik ravishda mayin o'tish (xuddi asosiy app kabi)
+    setTimeout(() => {
+      this.finishSplashImmediately();
+    }, 3200);
   },
 
   initAnswers() {
@@ -292,18 +370,18 @@ const AdminApp = {
             <div class="open-admin-sub-row">
               <span style="font-size: 12px; font-weight: 800; color: var(--primary); min-width: 28px;">${q}a:</span>
               <div class="savol-input-box" id="box-${q}a" onclick="MathKeyboard.openFor('${q}a')" style="height: 38px; flex: 1; padding: 0 8px; cursor: pointer;">
-                <input type="text" class="savol-input" id="input-${q}a" readonly inputmode="none" placeholder="Masalan: 400 J, 4 m/s²" value="${itemA.ans}" onclick="MathKeyboard.openFor('${q}a')" style="font-size: 13px; cursor: pointer;">
+                <input type="text" class="savol-input" id="input-${q}a" readonly inputmode="none" placeholder="Kalitni klaviaturadan kiriting" value="${itemA.ans}" onclick="MathKeyboard.openFor('${q}a')" style="font-size: 13px; cursor: pointer;">
               </div>
-              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="MathKeyboard.openFor('${q}a')" title="Klaviatura"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="14" y2="12"/><line x1="18" y1="12" x2="18" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></button>
+              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; font-size: 16px; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}a')" title="Matematik klaviatura">⌨️</button>
             </div>
 
             <!-- b -->
             <div class="open-admin-sub-row">
               <span style="font-size: 12px; font-weight: 800; color: var(--primary); min-width: 28px;">${q}b:</span>
               <div class="savol-input-box" id="box-${q}b" onclick="MathKeyboard.openFor('${q}b')" style="height: 38px; flex: 1; padding: 0 8px; cursor: pointer;">
-                <input type="text" class="savol-input" id="input-${q}b" readonly inputmode="none" placeholder="Masalan: 400 J, 4 m/s²" value="${itemB.ans}" onclick="MathKeyboard.openFor('${q}b')" style="font-size: 13px; cursor: pointer;">
+                <input type="text" class="savol-input" id="input-${q}b" readonly inputmode="none" placeholder="Kalitni klaviaturadan kiriting" value="${itemB.ans}" onclick="MathKeyboard.openFor('${q}b')" style="font-size: 13px; cursor: pointer;">
               </div>
-              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;" onclick="MathKeyboard.openFor('${q}b')" title="Klaviatura"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="6" y1="8" x2="6" y2="8"/><line x1="10" y1="8" x2="10" y2="8"/><line x1="14" y1="8" x2="14" y2="8"/><line x1="18" y1="8" x2="18" y2="8"/><line x1="6" y1="12" x2="6" y2="12"/><line x1="10" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="14" y2="12"/><line x1="18" y1="12" x2="18" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></button>
+              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; font-size: 16px; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}b')" title="Matematik klaviatura">⌨️</button>
             </div>
           </div>
         `;
@@ -479,8 +557,8 @@ const AdminApp = {
   },
 
   async saveTest() {
-    const title = (document.getElementById('adm-test-title')?.value || '').trim() || 'Fizika Milliy Sertifikat Testi';
-    const subject = (document.getElementById('adm-test-subject')?.value || '').trim() || 'Fizika';
+    const title = (document.getElementById('adm-test-title')?.value || '').trim() || 'Matematika Milliy Sertifikat Testi';
+    const subject = (document.getElementById('adm-test-subject')?.value || '').trim() || 'Matematika';
     let code = (document.getElementById('adm-test-code')?.value || '').trim().toUpperCase();
     const timeLimit = parseInt(document.getElementById('adm-test-time')?.value) || 0;
 
@@ -783,7 +861,8 @@ const AdminApp = {
     }
     s = s.replace(/\{([^}]+)\}/g, '$1');
     s = s.replace(/\\/g, '');
-    s = s.replace(/^[−–—]/, '-');
+    s = s.replace(/\s*\+\s*/g, ' + ');
+    s = s.replace(/\s*\-\s*/g, ' - ');
     s = s.replace(/\s+/g, ' ');
     return s.trim();
   }

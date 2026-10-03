@@ -12,20 +12,10 @@ import math
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any, Tuple
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
-
 UZB_TZ = timezone(timedelta(hours=5))
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
 
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
-
-# Agar Render da hali ham eski Matematika Neon DB (ep-sparkling-bread) qolgan bo'lsa, avtomatik yangi Fizika bazasiga yo'naltirish
-if "ep-sparkling-bread" in DATABASE_URL or not DATABASE_URL:
-    DATABASE_URL = "postgresql://neondb_owner:npg_sCxRJyj3Ob8c@ep-plain-mountain-b2554mwk-pooler.c-6.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
 # Neon.tech uchun: agar URL da '-pooler' bo'lmasa, uni avtomatik '-pooler' (PgBouncer) rejimiga o'tkazish
 # Bu 'Max connections' (ulanuvchilar soni chegarasi) xatoligini to'liq bartaraf qiladi.
@@ -249,7 +239,7 @@ def init_db():
                 id SERIAL PRIMARY KEY,
                 test_code TEXT UNIQUE NOT NULL,
                 title TEXT NOT NULL,
-                subject TEXT DEFAULT 'Fizika',
+                subject TEXT DEFAULT 'Matematika',
                 pdf_file_id TEXT,
                 pdf_file_name TEXT,
                 answers_json TEXT NOT NULL,
@@ -374,7 +364,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 test_code TEXT UNIQUE NOT NULL,
                 title TEXT NOT NULL,
-                subject TEXT DEFAULT 'Fizika',
+                subject TEXT DEFAULT 'Matematika',
                 pdf_file_id TEXT,
                 pdf_file_name TEXT,
                 answers_json TEXT NOT NULL,
@@ -1738,7 +1728,7 @@ def normalize_answer(ans: Any) -> str:
     s = re.sub(r"[\u00f7]", "/", s)
 
     # 5. O'nlik kasrlardagi vergul: 2,5 -> 2.5
-    s = re.sub(r"(\d+),(\d+)", r"\g<1>.\g<2>", s)
+    s = re.sub(r"(\d+),(\d+)", r"\1.\2", s)
 
     # 6. Plus-minus belgisi
     s = re.sub(r"(\+\/\-|\+\s*\-|\+\-)", "±", s)
@@ -1869,186 +1859,6 @@ def count_binary_plus_minus(s: str) -> int:
     return cnt
 
 
-
-
-# ── FIZIKA JAVOBLARINI SOLISHTIRISH (SI birliklar va prefikslar bilan) ──────────
-_SUPERSCRIPT_MAP = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺", "0123456789-+")
-_SI_PREFIXES = {
-    "p": 1e-12, "n": 1e-9, "μ": 1e-6, "µ": 1e-6, "u": 1e-6, "mk": 1e-6, "mc": 1e-6,
-    "m": 1e-3, "c": 1e-2, "s": 1e-2, "d": 1e-1, "k": 1e3, "M": 1e6, "G": 1e9, "T": 1e12,
-}
-# Asosiy birliklar (uzunroqlari birinchi tekshiriladi)
-_BASE_UNITS = {
-    "eV": ("eV", 1.0), "Hz": ("Hz", 1.0), "Pa": ("Pa", 1.0), "Wb": ("Wb", 1.0),
-    "mol": ("mol", 1.0), "ohm": ("Ω", 1.0), "Om": ("Ω", 1.0), "Ω": ("Ω", 1.0),
-    "min": ("s", 60.0), "J": ("J", 1.0), "N": ("N", 1.0), "W": ("W", 1.0),
-    "V": ("V", 1.0), "A": ("A", 1.0), "C": ("C", 1.0), "F": ("F", 1.0),
-    "H": ("H", 1.0), "T": ("T", 1.0), "K": ("K", 1.0), "L": ("L", 1.0),
-    "l": ("L", 1.0), "g": ("g", 1.0), "m": ("m", 1.0), "s": ("s", 1.0),
-}
-_BASE_ORDER = sorted(_BASE_UNITS.keys(), key=len, reverse=True)
-_PHYS_WORDS_RE = re.compile(r"\b(?:ga|marta|ga\s+teng|teng)\b", re.IGNORECASE)
-
-
-def clean_physics_str(s: str) -> str:
-    """Fizika javobini normallashtirish (registr saqlanadi: M=mega, m=milli)."""
-    if not s:
-        return ""
-    s = str(s).strip()
-    s = s.replace("−", "-").replace("–", "-").replace("—", "-")
-    s = s.replace("≈", "").replace("~", "").replace("`", "'").replace("’", "'").replace("'", "'")
-    s = s.replace("×", "*").replace("·", "*").replace("⋅", "*")
-    s = s.replace("²", "^2").replace("³", "^3")
-    s = s.translate(_SUPERSCRIPT_MAP)
-    s = re.sub(r"(\d),(\d)", r"\1.\2", s)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
-
-
-def _parse_unit_factor(tok: str):
-    """'kV' -> ({'V':1}, 1e3); 'cm^2' -> ({'m':2}, 1e-4). Tanilmasa None."""
-    m = re.fullmatch(r"([A-Za-zμµΩ]+)(?:\^?(-?\d+))?", tok)
-    if not m:
-        return None
-    name, exp = m.group(1), int(m.group(2) or 1)
-    if name in ("sm", "cm"):  # santimetr
-        return {"m": exp}, (1e-2) ** exp
-    if name in ("kg",):
-        return {"g": exp}, (1e3) ** exp
-    for attempt in (name, name.lower()):
-        bases = _BASE_ORDER if attempt == name else [b for b in _BASE_ORDER if b == b.lower()] + ["j", "n", "w", "v", "a", "hz", "pa", "ev"]
-        for base in bases:
-            if not attempt.endswith(base):
-                continue
-            prefix = attempt[: -len(base)]
-            key = base if base in _BASE_UNITS else {"j": "J", "n": "N", "w": "W", "v": "V", "a": "A", "hz": "Hz", "pa": "Pa", "ev": "eV"}[base]
-            dim, mult = _BASE_UNITS[key]
-            if prefix == "":
-                scale = mult
-            elif prefix in _SI_PREFIXES:
-                scale = _SI_PREFIXES[prefix] * mult
-            else:
-                continue
-            return {dim: exp}, scale ** exp
-    return None
-
-
-def parse_physics_unit(unit: str):
-    """'kV/m' -> ({'V':1,'m':-1}, 1000.0). Bo'sh -> ({}, 1.0). Tanilmasa None."""
-    unit = (unit or "").strip().strip(".")
-    if not unit:
-        return {}, 1.0
-    unit = unit.replace(" ", "")
-    dims, scale = {}, 1.0
-    parts = re.split(r"(/|\*)", unit)
-    sign = 1
-    for p in parts:
-        if p == "/":
-            sign = -1
-            continue
-        if p == "*":
-            continue
-        if not p:
-            continue
-        r = _parse_unit_factor(p)
-        if r is None:
-            return None
-        d, sc = r
-        for k, v in d.items():
-            dims[k] = dims.get(k, 0) + sign * v
-        scale *= sc ** sign
-    dims = {k: v for k, v in dims.items() if v != 0}
-    return dims, scale
-
-
-def extract_physics_number_and_unit(s: str):
-    """'1.45*10^-6 J ga kamaydi' -> (-1.45e-6, 'J', clean). Son bo'lmasa (None, '', clean)."""
-    clean = clean_physics_str(s)
-    work = clean
-    negative_word = bool(re.search(r"kamay", work, re.IGNORECASE))
-    work = re.sub(r"\b(?:ga\s+)?(?:kamaydi|kamayadi|ortdi|ortadi|oshdi|oshadi)\b", " ", work, flags=re.IGNORECASE)
-    work = _PHYS_WORDS_RE.sub(" ", work)
-    m = re.search(r"([-+]?\d+(?:\.\d+)?)(?:\s*(?:\*|x)\s*10\s*\^?\s*\(?\s*([-+]?\d+)\s*\)?|\s*e([-+]?\d+))?", work)
-    if not m:
-        return None, "", clean
-    try:
-        num_val = float(m.group(1))
-        exp = m.group(2) or m.group(3)
-        if exp:
-            num_val *= 10 ** int(exp)
-    except Exception:
-        return None, "", clean
-    if negative_word and num_val > 0:
-        num_val = -num_val
-    unit_part = (work[: m.start()] + " " + work[m.end():]).strip()
-    unit_part = re.sub(r"\s+", "", unit_part)
-    return num_val, unit_part, clean
-
-
-def _num_close(a: float, b: float, approx: bool) -> bool:
-    tol = 0.035 if approx else 1e-3
-    return abs(a - b) <= max(1e-9, tol * max(abs(a), abs(b)))
-
-
-def check_physics_match(u_raw: Any, c_raw: Any) -> bool:
-    """Fizika javoblari: SI prefikslar (nJ = 1e-9 J), birliklar, vergul/nuqta,
-    taqribiy (≈) qiymatlar, 'kamaydi' = manfiy, 'N-nur' va matnli javoblar."""
-    if u_raw is None or c_raw is None:
-        return False
-    c_full = str(c_raw)
-    u_full = str(u_raw)
-    u = clean_physics_str(u_full)
-    c = clean_physics_str(c_full)
-    if not u or not c:
-        return False
-    approx = ("≈" in c_full) or ("~" in c_full) or ("≈" in u_full) or ("~" in u_full)
-
-    if u.lower().replace(" ", "") == c.lower().replace(" ", ""):
-        return True
-
-    # Matnli maxsus javoblar (masalan: "hech qaysi nur" vs "hech qaysi" vs "hech biri")
-    if any(h in c.lower() for h in ["hech", "yo'q", "mavjud emas"]):
-        if any(h in u.lower() for h in ["hech", "yo'q", "mavjud emas"]):
-            return True
-
-    # Qavs ichidagi muqobil javob: "2-nur (1,89 eV)" -> "2-nur" yoki "1,89 eV"
-    paren = re.match(r"^(.*?)\s*\((.+)\)\s*$", c)
-    if paren:
-        return check_physics_match(u_raw, paren.group(1)) or check_physics_match(u_raw, paren.group(2))
-
-    # Faqat maxsus "N-nur", "N-holat" kabi tartib raqamlar
-    ord_m = re.fullmatch(r"(\d+)\s*-?\s*(nur|holat|qism|daraja)\b.*", c, re.IGNORECASE)
-    if ord_m:
-        u_ord = re.fullmatch(r"(\d+)\s*-?\s*([A-Za-z'ʻ]*)", u)
-        if u_ord and u_ord.group(1) == ord_m.group(1):
-            return True
-
-    c_num, c_unit, _ = extract_physics_number_and_unit(c)
-    u_num, u_unit, _ = extract_physics_number_and_unit(u)
-
-    if c_num is None:
-        # Matnli javob (masalan: "hech qaysi nur")
-        cw = set(re.findall(r"[a-zA-Z'ʻ]+", c.lower())) - {"nur"}
-        uw = set(re.findall(r"[a-zA-Z'ʻ]+", u.lower())) - {"nur"}
-        return bool(cw) and cw == uw
-    if u_num is None:
-        return False
-
-    # Birlik yozilmagan bo'lsa: faqat son bo'yicha (kalitdagi birlikda deb hisoblanadi)
-    if not u_unit or not c_unit:
-        return _num_close(u_num, c_num, approx)
-
-    pu, pc = parse_physics_unit(u_unit), parse_physics_unit(c_unit)
-    if pu is None or pc is None:
-        # Noma'lum birlik — matn bo'yicha qat'iy solishtirish
-        same_unit = u_unit.replace("^", "").lower() == c_unit.replace("^", "").lower()
-        return same_unit and _num_close(u_num, c_num, approx)
-    (du, su), (dc, sc) = pu, pc
-    if du != dc:
-        return False
-    return _num_close(u_num * su, c_num * sc, approx)
-
-
 def check_answer_match(user_ans: Any, correct_ans: Any) -> Tuple[bool, float, str]:
     """
     Foydalanuvchi javobini to'g'ri kalitga solishtirish va moslik koeffitsientini hisoblash:
@@ -2076,10 +1886,6 @@ def check_answer_match(user_ans: Any, correct_ans: Any) -> Tuple[bool, float, st
             if best_res[1] >= 1.0:
                 return best_res
         return best_res
-
-    # 0. Fizika maxsus mosligi (birliklar, vergulli sonlar, taqribiy qiymatlar)
-    if check_physics_match(u_str, c_str):
-        return (True, 1.0, "correct")
 
     u = normalize_answer(u_str)
     c = normalize_answer(c_str)
@@ -2261,7 +2067,7 @@ def check_and_save_submission(test_id: int, user_tg_id: int, user_answers: Dict[
         raise ValueError("Test topilmadi!")
 
     if not user_tg_id or int(user_tg_id) <= 0:
-        raise ValueError("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@fizika_rash_testbot) va Mini ilova orqali topshirish mumkin.")
+        raise ValueError("⚠️ Web orqali ishlash mumkin emas! Testni faqat rasmiy Telegram botimiz (@bm_rashtest_bot) va Mini ilova orqali topshirish mumkin.")
 
     existing = get_user_submission_for_test(test_id, user_tg_id)
     if existing:
@@ -2732,11 +2538,11 @@ def generate_test_results_pdf(test_id: int) -> Optional[str]:
                                    fontName=font_bold, fontSize=9, leading=12, alignment=1)
 
         elements = []
-        elements.append(Paragraph("SHOHRUH FIZIKA - RASH TEST", title_style))
+        elements.append(Paragraph("SHOHRUH MATEMATIKA - RASH TEST", title_style))
         elements.append(Spacer(1, 6))
 
         test_title_clean = _clean_pdf_text(test['title'])
-        test_subject_clean = _clean_pdf_text(test.get('subject', 'Fizika'))
+        test_subject_clean = _clean_pdf_text(test.get('subject', 'Matematika'))
         if font_name == 'Helvetica':
             test_title_clean = transliterate_cyrillic(test_title_clean)
             test_subject_clean = transliterate_cyrillic(test_subject_clean)
