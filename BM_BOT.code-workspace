@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "BM_BOT",
+			"path": "."
+		},
+		{
+			"name": "SchoolPay",
+			"path": "../SchoolPay"
+		}
+	],
+	"settings": {}
+}

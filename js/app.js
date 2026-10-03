@@ -44,18 +44,20 @@ function initApp() {
     if (tg) {
       try { tg.ready(); tg.expand(); } catch (e) {}
     }
+    var urlParams = new URLSearchParams(window.location.search);
+    var queryTgId = urlParams.get('tg_id');
     var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-    var hasTgContext = !!(tg && (tg.platform && tg.platform !== 'unknown' || tg.initData || tgU));
 
-    var tg = window.Telegram && window.Telegram.WebApp;
-    if (tg) {
-      try { tg.ready(); tg.expand(); } catch (e) {}
-    }
-    var tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
-    var hasTgContext = !!(tg && ((tg.platform && tg.platform !== 'unknown') || (tg.initData && tg.initData.length > 0) || (tgU && tgU.id)));
+    var tgPlatform = tg ? (tg.platform || '').toLowerCase() : '';
+    var isTg = !!(tg && (
+      (tgPlatform && tgPlatform !== 'unknown') ||
+      (tg.initData && tg.initData.length > 0) ||
+      (tgU && tgU.id) ||
+      queryTgId
+    ));
 
-    // ⛔️ QAT'IY XAVFSIZLIK: AGAR TELEGRAMSIZ WEB ORQALI KIRILSA — TO'LIQ BLOKLASH!
-    if (!hasTgContext || !tgU || !tgU.id) {
+    // ⛔️ ODDIY VEB-BRAUZERDA (TELEGRAMSIZ) OCHILGANDA TO'LIQ BLOKLASH!
+    if (!isTg) {
       var wb = document.getElementById('web-block-screen');
       if (wb) wb.style.display = 'flex';
       var sp = document.getElementById('splashScreen');
@@ -65,7 +67,8 @@ function initApp() {
       return;
     }
 
-    state.tgUser = tgU;
+    var effectiveId = (tgU && tgU.id) || (queryTgId ? parseInt(queryTgId, 10) : 0);
+    state.tgUser = tgU || { id: effectiveId, first_name: 'Foydalanuvchi', last_name: '', username: '' };
     try {
       var savedUser = localStorage.getItem(LS_USER);
       if (savedUser && !isPreview && !state.userInfo) state.userInfo = JSON.parse(savedUser);

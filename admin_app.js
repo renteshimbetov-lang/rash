@@ -7,6 +7,34 @@ const AdminApp = {
   editTestId: null,
 
   init() {
+    const tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) {
+      try { tg.ready(); tg.expand(); } catch(e) {}
+    }
+    const params = new URLSearchParams(window.location.search);
+    const queryTgId = params.get('tg_id');
+    const tgU = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+
+    const tgPlatform = tg ? (tg.platform || '').toLowerCase() : '';
+    const isTg = !!(tg && (
+      (tgPlatform && tgPlatform !== 'unknown') ||
+      (tg.initData && tg.initData.length > 0) ||
+      (tgU && tgU.id) ||
+      queryTgId
+    ));
+
+    // ⛔️ ODDIY VEB-BRAUZERDA (TELEGRAMSIZ) OCHILGANDA TO'LIQ BLOKLASH!
+    if (!isTg) {
+      const wb = document.getElementById('web-block-screen');
+      if (wb) wb.style.display = 'flex';
+      const sp = document.getElementById('admin-splash');
+      if (sp) sp.style.display = 'none';
+      const container = document.querySelector('.admin-container') || document.querySelector('.main-container');
+      if (container) container.style.display = 'none';
+      return;
+    }
+
+    this.creatorTgId = (tgU && tgU.id) || (queryTgId ? parseInt(queryTgId, 10) : 0);
     if (window.BM_LOGO_B64) {
       document.querySelectorAll('.header-bm-logo').forEach(img => {
         img.src = window.BM_LOGO_B64;
@@ -58,7 +86,7 @@ const AdminApp = {
           }
           const titleInput = document.getElementById('adm-test-title');
           if (titleInput && !titleInput.value) {
-            titleInput.value = `Matematika Blok Test #${data.next_code}`;
+            titleInput.value = `Fizika Blok Test #${data.next_code}`;
           }
         }
       })
@@ -426,8 +454,8 @@ const AdminApp = {
   },
 
   async saveTest() {
-    const title = (document.getElementById('adm-test-title')?.value || '').trim() || 'Matematika Milliy Sertifikat Testi';
-    const subject = (document.getElementById('adm-test-subject')?.value || '').trim() || 'Matematika';
+    const title = (document.getElementById('adm-test-title')?.value || '').trim() || 'Fizika Milliy Sertifikat Testi';
+    const subject = (document.getElementById('adm-test-subject')?.value || '').trim() || 'Fizika';
     let code = (document.getElementById('adm-test-code')?.value || '').trim().toUpperCase();
     const timeLimit = parseInt(document.getElementById('adm-test-time')?.value) || 0;
 
