@@ -6,6 +6,44 @@
 (function(window) {
   'use strict';
 
+// ── HELPER FALLBACKS & ENVIRONMENT GUARDS ─────────────────
+var t = function(key) {
+  if (typeof window.t === 'function') return window.t(key);
+  return key;
+};
+
+var escHtml = function(s) {
+  if (typeof window.escHtml === 'function') return window.escHtml(s);
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+};
+
+var formatDateOnly = function(ts) {
+  if (typeof window.formatDateOnly === 'function') return window.formatDateOnly(ts);
+  if (!ts) return '—';
+  var d = new Date(ts * 1000);
+  return d.getDate() + '.' + (d.getMonth() + 1) + '.' + d.getFullYear();
+};
+
+var getGradeFromScore = function(sc, max) {
+  if (typeof window.getGradeFromScore === 'function') return window.getGradeFromScore(sc, max);
+  return '—';
+};
+
+var apiGet = function(url) {
+  if (typeof window.apiGet === 'function') return window.apiGet(url);
+  var headers = (typeof window.getAuthHeaders === 'function') ? window.getAuthHeaders() : {};
+  return fetch(url, { headers: headers }).then(function(r) { return r.json(); });
+};
+
+var searchState = {
+  searchQuery: '',
+  searchFilter: 'all'
+};
+
 // ──────────────────────────────────────────────────────────
 // GLOBAL SEARCH & KNOWLEDGE BASE (LUPA TIZIMI)
 // ──────────────────────────────────────────────────────────
@@ -172,27 +210,39 @@ async function openGlobalSearch() {
   var clearBtn = document.getElementById('search-clear-btn');
   if (clearBtn) clearBtn.style.display = 'none';
 
-  state.searchFilter = 'all';
-  state.searchQuery = '';
+  searchState.searchFilter = 'all';
+  searchState.searchQuery = '';
   updateSearchChipUI('all');
 
   // Active tests va past results ni fonda yuklab turish (agar hali yuklanmagan bo'lsa)
-  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  var tgId = (window.state && window.state.tgUser && window.state.tgUser.id) || 0;
+  
   if (!window.availableActiveTests || window.availableActiveTests.length === 0) {
-    apiGet('/api/app/active-tests?tg_id=' + tgId).then(function(d) {
-      if (d && d.success) {
-        window.availableActiveTests = d.tests || [];
-        renderSearchResults();
-      }
-    }).catch(function() {});
+    if (window._availableTests && window._availableTests.length > 0) {
+      window.availableActiveTests = window._availableTests;
+    } else {
+      apiGet('/api/app/active-tests?tg_id=' + tgId).then(function(d) {
+        if (d && d.success) {
+          window.availableActiveTests = d.tests || [];
+          window._availableTests = window.availableActiveTests;
+          renderSearchResults();
+        }
+      }).catch(function() {});
+    }
   }
-  if (!window.cachedMyResults) {
-    apiGet('/api/app/my-results?tg_id=' + tgId).then(function(d) {
-      if (d && d.success) {
-        window.cachedMyResults = d.results || [];
-        renderSearchResults();
-      }
-    }).catch(function() {});
+
+  if (!window.cachedMyResults || window.cachedMyResults.length === 0) {
+    if (window._myResults && window._myResults.length > 0) {
+      window.cachedMyResults = window._myResults;
+    } else {
+      apiGet('/api/app/my-results?tg_id=' + tgId).then(function(d) {
+        if (d && d.success) {
+          window.cachedMyResults = d.results || [];
+          window._myResults = window.cachedMyResults;
+          renderSearchResults();
+        }
+      }).catch(function() {});
+    }
   }
 
   renderSearchResults();
@@ -214,7 +264,7 @@ function clearGlobalSearch() {
 }
 
 function selectSearchFilter(filterType) {
-  state.searchFilter = filterType;
+  searchState.searchFilter = filterType;
   updateSearchChipUI(filterType);
   renderSearchResults();
 }
@@ -230,10 +280,10 @@ function updateSearchChipUI(activeFilter) {
 
 var searchDebounceTimer = null;
 function handleGlobalSearch(query) {
-  state.searchQuery = (query || '').trim();
+  searchState.searchQuery = (query || '').trim();
   var clearBtn = document.getElementById('search-clear-btn');
   if (clearBtn) {
-    clearBtn.style.display = state.searchQuery ? 'flex' : 'none';
+    clearBtn.style.display = searchState.searchQuery ? 'flex' : 'none';
   }
   clearTimeout(searchDebounceTimer);
   searchDebounceTimer = setTimeout(function() {
@@ -245,22 +295,22 @@ function renderSearchResults() {
   var container = document.getElementById('global-search-results');
   if (!container) return;
 
-  var q = (state.searchQuery || '').toLowerCase().trim();
-  var filter = state.searchFilter || 'all';
+  var q = (searchState.searchQuery || '').toLowerCase().trim();
+  var filter = searchState.searchFilter || 'all';
 
-  var activeTests = window.availableActiveTests || [];
-  var myResults = window.cachedMyResults || [];
+  var activeTests = window.availableActiveTests || window._availableTests || [];
+  var myResults = window.cachedMyResults || window._myResults || [];
   var knowledgeBase = BOT_KNOWLEDGE_BASE || [];
   var quickActions = QUICK_ACTIONS || [];
 
   // Filter Active Tests
   var matchedTests = [];
   if (filter === 'all' || filter === 'tests') {
-    matchedTests = activeTests.filter(function(t) {
+    matchedTests = activeTests.filter(function(testItem) {
       if (!q) return true;
-      var title = (t.title || '').toLowerCase();
-      var code = (t.test_code || '').toLowerCase();
-      var subj = (t.subject || '').toLowerCase();
+      var title = (testItem.title || '').toLowerCase();
+      var code = (testItem.test_code || '').toLowerCase();
+      var subj = (testItem.subject || '').toLowerCase();
       return title.indexOf(q) !== -1 || code.indexOf(q) !== -1 || subj.indexOf(q) !== -1;
     });
   }
@@ -281,11 +331,11 @@ function renderSearchResults() {
   // Filter Bot Knowledge Base
   var matchedKnowledge = [];
   if (filter === 'all' || filter === 'about') {
-    matchedKnowledge = knowledgeBase.filter(function(k) {
+    matchedKnowledge = knowledgeBase.filter(function(knowItem) {
       if (!q) return true;
-      var title = (k.title || '').toLowerCase();
-      var kw = (k.keywords || '').toLowerCase();
-      var sum = (k.summary || '').toLowerCase();
+      var title = (knowItem.title || '').toLowerCase();
+      var kw = (knowItem.keywords || '').toLowerCase();
+      var sum = (knowItem.summary || '').toLowerCase();
       return title.indexOf(q) !== -1 || kw.indexOf(q) !== -1 || sum.indexOf(q) !== -1;
     });
   }
@@ -423,9 +473,13 @@ function renderSearchResults() {
 function handleSearchSelectTest(testId, testCode, isDone) {
   closeGlobalSearch();
   if (isDone) {
-    openPastTestResult(testId);
+    if (typeof window.openPastTestResult === 'function') {
+      window.openPastTestResult(testId);
+    } else if (typeof window.showResultModal === 'function') {
+      window.showResultModal({ test_id: testId, id: testId });
+    }
   } else {
-    switchTab('home');
+    if (typeof window.switchTab === 'function') window.switchTab('home');
     setTimeout(function() {
       var el = document.getElementById('test-card-' + testId);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -435,11 +489,15 @@ function handleSearchSelectTest(testId, testCode, isDone) {
 
 function handleSearchSelectResult(resIndex) {
   closeGlobalSearch();
-  var myResults = window.cachedMyResults || [];
+  var myResults = window.cachedMyResults || window._myResults || [];
   if (myResults[resIndex]) {
-    showResultModal(myResults[resIndex]);
+    if (typeof window.showResultModal === 'function') {
+      window.showResultModal(myResults[resIndex]);
+    }
   } else {
-    switchTab('tests');
+    if (typeof window.switchTab === 'function') {
+      window.switchTab('tests');
+    }
   }
 }
 

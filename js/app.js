@@ -423,6 +423,7 @@ async function loadActiveTests() {
     if (data.success) {
       if (data.server_time) window._serverTimeOffset = (data.server_time * 1000) - Date.now();
       window._availableTests = data.tests || [];
+      window.availableActiveTests = window._availableTests;
       renderHomeTab(data.tests || []);
     } else {
       tab.innerHTML = errorState(t('empty_active'));
@@ -695,6 +696,7 @@ async function loadMyResults() {
     var data  = await apiGet('/api/app/my-results?tg_id=' + tgId);
     if (data.success) {
       window._myResults = data.results || [];
+      window.cachedMyResults = window._myResults;
       renderTestsTab(data.results || []);
     } else { tab.innerHTML = errorState(t('empty_tests')); }
   } catch(e) { tab.innerHTML = errorState('Natijalar yuklanmadi'); }
@@ -742,46 +744,241 @@ function renderTestsTab(results) {
   tab.innerHTML = html;
 }
 
-// ── RESULT MODAL ─────────────────────────────────
+// ── RESULT MODAL & KEYS COMPARISON ───────────────────────
 function showResultModal(result) {
   if (typeof result === 'string') { try { result = JSON.parse(result); } catch(e) { return; } }
   var modal = document.getElementById('result-modal');
   var body  = document.getElementById('result-modal-body');
   if (!modal || !body) return;
 
-  var title   = result.test_title || result.title || ('Test #' + (result.test_id || result.id));
-  var score   = result.score !== undefined ? result.score : (result.total_score || '&#8212;');
-  var correct = result.correct_count !== undefined ? result.correct_count : '&#8212;';
-  var total   = result.total_count || result.total_questions || 45;
-  var grade   = result.grade || result.rasch_grade || '&#8212;';
-  var dateStr = result.submitted_at ? formatDateOnly(result.submitted_at) : '&#8212;';
+  var testId  = result.test_id || result.id || 0;
+  var title   = result.test_title || result.title || ('Test #' + testId);
+  var score   = (result.score !== undefined && result.score !== null) ? result.score : (result.total_score || '0');
+  var correct = (result.correct_count !== undefined && result.correct_count !== null) ? Number(result.correct_count) : 0;
+  var total   = result.total_count || result.total_questions || 55;
+  var wrong   = (result.incorrect_count !== undefined && result.incorrect_count !== null) ? result.incorrect_count : Math.max(0, total - correct);
+  var blank   = result.unanswered_count || 0;
+  var grade   = result.grade || result.rasch_grade || '—';
+  var dateStr = result.submitted_at ? formatDateOnly(result.submitted_at) : '—';
   var pub     = Boolean(result.results_published);
 
   var titleEl = document.getElementById('result-modal-title');
   if (titleEl) titleEl.textContent = title;
 
-  body.innerHTML = '<div style="text-align:center;padding:8px 0;">' +
-    '<div style="font-size:54px;margin-bottom:12px;">' + gradeEmoji(String(grade)) + '</div>' +
-    '<div style="font-size:28px;font-weight:900;color:var(--primary);margin-bottom:4px;">' + score + ' ball</div>' +
-    (String(grade) !== '&#8212;' ? '<div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:16px;">Daraja: ' + escHtml(String(grade)) + '</div>' : '<div style="margin-bottom:16px;"></div>') +
-    '<div style="background:var(--bg-card-sub);border-radius:14px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:8px;">' +
-      '<div style="display:flex;justify-content:space-between;font-size:14px;">' +
-        '<span style="color:var(--text-muted);">&#9989; To\'g\'ri javoblar</span>' +
-        '<span style="font-weight:700;color:var(--success)">' + correct + ' / ' + total + '</span>' +
+  var gUpper = String(grade).toUpperCase();
+  var gradeBadgeBg = 'rgba(99, 102, 241, 0.15)';
+  var gradeBadgeCol = '#6366F1';
+  if (gUpper === 'A+' || gUpper === 'A') {
+    gradeBadgeBg = 'rgba(16, 185, 129, 0.15)';
+    gradeBadgeCol = '#10B981';
+  } else if (gUpper === 'B+' || gUpper === 'B') {
+    gradeBadgeBg = 'rgba(245, 158, 11, 0.15)';
+    gradeBadgeCol = '#F59E0B';
+  } else if (gUpper === 'C+' || gUpper === 'C') {
+    gradeBadgeBg = 'rgba(139, 92, 246, 0.15)';
+    gradeBadgeCol = '#8B5CF6';
+  }
+
+  var html = '<div style="text-align:center;padding:6px 0 12px;">' +
+    '<div style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;padding:12px 24px;border-radius:18px;background:' + gradeBadgeBg + ';border:2px solid ' + gradeBadgeCol + ';min-width:140px;margin-bottom:12px;">' +
+      '<span style="font-size:32px;font-weight:900;line-height:1.1;color:' + gradeBadgeCol + ';">' + escHtml(String(grade)) + '</span>' +
+      '<span style="font-size:15px;font-weight:800;color:var(--text);margin-top:4px;">' + score + ' ball</span>' +
+    '</div>';
+
+  // Compare Keys section (Kalitlarni tekshirish)
+  html += '<div id="compare-keys-section" style="margin:10px 0 14px;">' +
+    '<button id="btn-compare-keys" type="button" onclick="promptCompareKeys(' + testId + ')" style="background:linear-gradient(135deg, #3B82F6, #6366F1);color:white;border:none;padding:12px 16px;border-radius:14px;font-weight:800;font-size:14.5px;cursor:pointer;width:100%;box-shadow:0 4px 16px rgba(59, 130, 246, 0.35);display:flex;align-items:center;justify-content:center;gap:8px;">' +
+      t('btn_see_keys') +
+    '</button>' +
+    '<div id="compare-keys-auth" style="display:none;margin-top:10px;background:var(--bg-card-sub, rgba(255,255,255,0.04));border:1px solid var(--border);border-radius:14px;padding:12px;text-align:left;">' +
+      '<p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;font-weight:600;line-height:1.4;">' + t('desc_key_code') + '</p>' +
+      '<div style="display:flex;gap:8px;margin-bottom:6px;">' +
+        '<input type="text" id="input-key-code" placeholder="' + t('placeholder_key_code') + '" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg, #111827);color:var(--text);font-size:14px;outline:none;" />' +
+        '<button type="button" id="btn-submit-key-code" onclick="submitCompareKeys(' + testId + ')" style="background:#10B981;color:white;border:none;padding:10px 16px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">' + t('btn_confirm') + '</button>' +
       '</div>' +
-      '<div style="display:flex;justify-content:space-between;font-size:14px;">' +
-        '<span style="color:var(--text-muted);">&#128197; Topshirilgan sana</span>' +
-        '<span style="font-weight:600">' + escHtml(String(dateStr)) + '</span>' +
-      '</div>' +
+      '<div id="compare-keys-error" style="color:var(--error, #EF4444);font-size:12px;margin-top:4px;display:none;font-weight:600;line-height:1.4;"></div>' +
     '</div>' +
-    (!pub ? '<div style="margin-top:14px;padding:10px 14px;background:rgba(245,158,11,0.1);border-radius:10px;font-size:13px;color:#D97706;font-weight:600;">&#9203; ' + t('test_waiting_result') + '</div>' : '') +
+  '</div>' +
+  '<div id="compare-keys-result" style="display:none;margin-bottom:14px;max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--bg-card-sub, rgba(0,0,0,0.1));"></div>';
+
+  if (!pub) {
+    html += '<div style="margin:8px 0 12px;padding:10px 14px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.25);border-radius:12px;font-size:12.5px;color:#D97706;font-weight:600;line-height:1.45;text-align:left;">' +
+      '⏳ ' + t('test_waiting_result') +
+    '</div>';
+  }
+
+  html += '<div style="background:var(--bg-card-sub);border-radius:14px;padding:14px;text-align:left;display:flex;flex-direction:column;gap:8px;">' +
+    '<div class="result-row"><span class="result-row-label">&#128202; ' + t('lbl_total_score') + '</span><span class="result-row-val" style="color:var(--primary);font-size:15px;">' + score + ' ball</span></div>' +
+    '<div class="result-row"><span class="result-row-label">&#127942; ' + t('result_grade') + '</span><span class="result-row-val" style="color:' + gradeBadgeCol + ';">' + escHtml(String(grade)) + '</span></div>' +
+    '<div class="result-row"><span class="result-row-label">&#9989; ' + t('result_correct') + '</span><span class="result-row-val green">' + correct + ' / ' + total + '</span></div>' +
+    '<div class="result-row"><span class="result-row-label">&#10060; ' + t('result_wrong') + '</span><span class="result-row-val red">' + wrong + '</span></div>' +
+    (blank > 0 ? '<div class="result-row"><span class="result-row-label">&#9898; ' + t('result_blank') + '</span><span class="result-row-val orange">' + blank + '</span></div>' : '') +
+    '<div class="result-row"><span class="result-row-label">&#128197; ' + t('result_date') + '</span><span class="result-row-val">' + escHtml(String(dateStr)) + '</span></div>' +
   '</div>';
 
+  html += '</div>';
+  body.innerHTML = html;
   modal.style.display = 'flex';
 }
 
+function promptCompareKeys(testId) {
+  var btn = document.getElementById('btn-compare-keys');
+  var auth = document.getElementById('compare-keys-auth');
+  var inp = document.getElementById('input-key-code');
+  if (btn) btn.style.display = 'none';
+  if (auth) auth.style.display = 'block';
+  if (inp) {
+    inp.focus();
+    inp.onkeydown = function(e) {
+      if (e.key === 'Enter') submitCompareKeys(testId);
+    };
+  }
+}
+
+async function submitCompareKeys(testId) {
+  var tgId = (state.tgUser && state.tgUser.id) || 0;
+  var inp = document.getElementById('input-key-code');
+  var code = inp ? inp.value.trim() : '';
+  var errEl = document.getElementById('compare-keys-error');
+  var resEl = document.getElementById('compare-keys-result');
+  var btn = document.getElementById('btn-submit-key-code');
+
+  if (window._isComparing) return;
+  window._isComparing = true;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Tekshirilmoqda... ⏳';
+  }
+  if (errEl) errEl.style.display = 'none';
+
+  try {
+    var headers = (typeof window.getAuthHeaders === 'function')
+      ? window.getAuthHeaders({ 'Content-Type': 'application/json' })
+      : { 'Content-Type': 'application/json' };
+
+    var res = await fetch('/api/app/compare-keys', {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify({
+        tg_id: tgId,
+        test_id: Number(testId),
+        code: code,
+        init_data: (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || ''
+      })
+    });
+    var data = await res.json();
+
+    if (res.status === 429) {
+      if (errEl) {
+        errEl.textContent = data.message || "Iltimos, biroz kuting! So'rovingiz navbatda qayta ishlanmoqda...";
+        errEl.style.display = 'block';
+      }
+      return;
+    }
+
+    if (data.success) {
+      var auth = document.getElementById('compare-keys-auth');
+      if (auth) auth.style.display = 'none';
+      renderKeyComparison(data, resEl);
+    } else {
+      if (errEl) {
+        errEl.textContent = data.message || t('error_occurred');
+        errEl.style.display = 'block';
+      }
+    }
+  } catch(e) {
+    if (errEl) {
+      errEl.textContent = t('err_network') || "Serverga ulanib bo'lmadi";
+      errEl.style.display = 'block';
+    }
+  } finally {
+    window._isComparing = false;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = t('btn_confirm') || 'Tasdiqlash';
+    }
+  }
+}
+
+function renderKeyComparison(data, container) {
+  if (!container) return;
+  container.style.display = 'block';
+
+  var results = data.results || {};
+  var totalCorrect = (data.total_correct !== undefined) ? data.total_correct : 0;
+  var totalClosed = (data.total_correct_closed !== undefined) ? data.total_correct_closed : 0;
+  var totalOpen = (data.total_correct_open !== undefined) ? data.total_correct_open : 0;
+
+  // 1-bosqich: Yopiq testlar (1–35)
+  var closedHtml = '';
+  for (var i = 1; i <= 35; i++) {
+    var item = results[String(i)] || { status: 'incorrect', user: '—' };
+    var isOk = item.status === 'correct';
+    var bg = isOk ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+    var col = isOk ? '#10B981' : '#EF4444';
+    var icon = isOk ? '✓' : '✗';
+    var uVal = item.user || '—';
+
+    closedHtml += '<div style="background:' + bg + ';color:' + col + ';border:1px solid ' + col + ';border-radius:10px;padding:6px 2px;text-align:center;font-size:11px;line-height:1.2;">';
+    closedHtml += '<div style="font-weight:800;font-size:11.5px;margin-bottom:2px;">#' + i + ' ' + icon + '</div>';
+    closedHtml += '<div style="font-size:10px;opacity:0.9;">' + t('compare_keys_you') + ' <b>' + escHtml(uVal) + '</b></div>';
+    closedHtml += '<div style="font-size:9.5px;font-weight:700;margin-top:2px;">' + (isOk ? t('result_correct') : t('result_wrong')) + '</div>';
+    closedHtml += '</div>';
+  }
+
+  // 2-bosqich: Ochiq yozma savollar (36a–45b, 20 band)
+  var openHtml = '';
+  for (var q = 36; q <= 45; q++) {
+    ['a', 'b'].forEach(function(sub) {
+      var key = q + sub;
+      var item = results[key] || { status: 'incorrect', user: '—', ratio: 0 };
+      var isOk = item.status === 'correct';
+      var isPartial = item.status === 'partial';
+      var bg = isOk ? 'rgba(16, 185, 129, 0.15)' : (isPartial ? 'rgba(245, 158, 11, 0.15)' : 'rgba(239, 68, 68, 0.15)');
+      var col = isOk ? '#10B981' : (isPartial ? '#F59E0B' : '#EF4444');
+      var icon = isOk ? '✓' : (isPartial ? '⚠️ 30%' : '✗');
+      var uVal = item.user || '—';
+      var statusLabel = isOk ? t('result_correct') : (isPartial ? '30% (qisman)' : t('result_wrong'));
+
+      openHtml += '<div style="background:' + bg + ';color:' + col + ';border:1px solid ' + col + ';border-radius:10px;padding:6px 2px;text-align:center;font-size:11px;line-height:1.2;overflow:hidden;">';
+      openHtml += '<div style="font-weight:800;font-size:11.5px;margin-bottom:2px;">#' + key + ' ' + icon + '</div>';
+      openHtml += '<div style="font-size:10px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="' + escHtml(uVal) + '">' + t('compare_keys_you') + ' <b>' + escHtml(uVal) + '</b></div>';
+      openHtml += '<div style="font-size:9.5px;font-weight:700;margin-top:2px;">' + statusLabel + '</div>';
+      openHtml += '</div>';
+    });
+  }
+
+  var html = '<div class="key-comparison-box" style="margin-top:6px;">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;">';
+  html += '<div><h4 style="margin:0;font-size:15px;font-weight:800;color:var(--text);">' + t('compare_keys_title') + '</h4><span style="font-size:12px;color:var(--text-muted);">' + t('compare_keys_sub') + '</span></div>';
+  html += '<div style="font-size:13px;font-weight:800;padding:4px 12px;border-radius:999px;background:' + (totalCorrect >= 28 ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)') + ';color:' + (totalCorrect >= 28 ? '#10B981' : '#EF4444') + ';border:1px solid ' + (totalCorrect >= 28 ? '#10B981' : '#EF4444') + ';">' + totalCorrect + ' / 55 ' + t('compare_keys_correct_suffix') + '</div>';
+  html += '</div>';
+
+  // 1-bosqich bloki
+  html += '<div style="margin-bottom:16px;">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  html += '<span style="font-size:13px;font-weight:700;color:var(--primary);">' + t('compare_keys_stage1') + '</span>';
+  html += '<span style="font-size:11px;font-weight:700;color:var(--text-muted);">' + totalClosed + ' / 35 ' + t('compare_keys_correct_suffix') + '</span>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(64px, 1fr));gap:6px;">' + closedHtml + '</div>';
+  html += '</div>';
+
+  // 2-bosqich bloki
+  html += '<div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+  html += '<span style="font-size:13px;font-weight:700;color:var(--primary);">' + t('compare_keys_stage2') + '</span>';
+  html += '<span style="font-size:11px;font-weight:700;color:var(--text-muted);">' + totalOpen + ' / 20 ' + t('compare_keys_correct_suffix') + '</span>';
+  html += '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(78px, 1fr));gap:6px;">' + openHtml + '</div>';
+  html += '</div>';
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
 function closeResultModal(e) {
-  if (e && e.target && e.target.id !== 'result-modal') return;
+  if (e && e.target && e.target.id !== 'result-modal' && !e.target.classList.contains('modal-close')) return;
   var modal = document.getElementById('result-modal');
   if (modal) modal.style.display = 'none';
 }
@@ -1041,6 +1238,22 @@ function errorState(msg) {
     '<button type="button" onclick="loadActiveTests()" style="margin-top:14px;padding:10px 20px;background:var(--primary);color:#fff;border:none;border-radius:12px;font-size:13px;font-weight:700;cursor:pointer;">Qayta urinish</button>' +
   '</div>';
 }
+
+// ── GLOBAL EXPORTS ───────────────────────────────
+window.escHtml = escHtml;
+window.formatDateOnly = formatDateOnly;
+window.formatTimeOnly = formatTimeOnly;
+window.getGradeFromScore = getGradeFromScore;
+window.apiGet = apiGet;
+window.apiPost = apiPost;
+window.state = state;
+window.showResultModal = showResultModal;
+window.closeResultModal = closeResultModal;
+window.promptCompareKeys = promptCompareKeys;
+window.submitCompareKeys = submitCompareKeys;
+window.renderKeyComparison = renderKeyComparison;
+window.loadActiveTests = loadActiveTests;
+window.loadMyResults = loadMyResults;
 
 // ── ENTRY POINT ──────────────────────────────────
 if (document.readyState === 'loading') {
