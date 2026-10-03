@@ -193,7 +193,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1), transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
@@ -256,7 +256,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden; /* Doiradan tashqariga burchaklar chiqmaydi */
-  animation: emblemEmerge 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: emblemEmerge 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes emblemEmerge {
@@ -294,8 +294,8 @@ body {
   opacity: 0;
   transform: translateX(-48%) rotate(-12deg);
   filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.6));
-  animation: capLandOnLogo 0.38s 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.35) forwards,
-             capFloatingWiggle 2.5s 0.56s ease-in-out infinite alternate;
+  animation: capLandOnLogo 0.75s 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.35) forwards,
+             capFloatingWiggle 2.8s 1.4s ease-in-out infinite alternate;
   transform-origin: 50% 80%;
   pointer-events: none;
 }
@@ -347,7 +347,7 @@ body {
   color: #FFFFFF;
   opacity: 0;
   transform: translateY(45px) scale(0.3);
-  animation: letterBounce 0.32s var(--d) cubic-bezier(0.175, 0.885, 0.32, 1.35) forwards;
+  animation: letterBounce 0.65s var(--d) cubic-bezier(0.175, 0.885, 0.32, 1.35) forwards;
   text-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
 }
 
@@ -393,7 +393,7 @@ body {
   letter-spacing: 2px;
   text-transform: uppercase;
   opacity: 0;
-  animation: subtitleReveal 0.4s 0.72s ease forwards;
+  animation: subtitleReveal 0.8s 2.0s ease forwards;
   z-index: 2;
   text-align: center;
 }
@@ -426,7 +426,7 @@ body {
   font-weight: 700;
   cursor: pointer;
   opacity: 0;
-  animation: skipBtnAppear 0.3s 0.75s ease forwards;
+  animation: skipBtnAppear 0.5s 2.3s ease forwards;
   transition: all 0.2s ease;
   z-index: 10;
 }
