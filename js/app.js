@@ -22,11 +22,57 @@ var state = {
   pinFirst:     '',
 };
 
-// ── API HELPER ──────────────────────────────────
+// ── AUTH HEADERS ────────────────────────────────
+/**
+ * Telegram initData va tg_id ni har bir API so'rovga qo'shadi.
+ * pin-manager.js ham window.getAuthHeaders() ni chaqiradi.
+ */
+window.getAuthHeaders = function(extraHeaders) {
+  var headers = { 'X-App-Version': 'rewrite-1' };
+  try {
+    var tg = window.Telegram && window.Telegram.WebApp;
+    if (tg) {
+      if (tg.initData && tg.initData.length > 0) {
+        headers['X-Telegram-Init-Data'] = tg.initData;
+      }
+      var u = tg.initDataUnsafe && tg.initDataUnsafe.user;
+      if (u && u.id) {
+        headers['X-Telegram-User-Id'] = String(u.id);
+      }
+    }
+    // state.tgUser dan ham qo'shamiz (agar tg context yo'q bo'lsa URL dan)
+    if (!headers['X-Telegram-User-Id'] && state && state.tgUser && state.tgUser.id) {
+      headers['X-Telegram-User-Id'] = String(state.tgUser.id);
+    }
+  } catch(e) {}
+  // Extra headerlarni birlashtirish (pin-manager.js Content-Type yuborishi uchun)
+  if (extraHeaders && typeof extraHeaders === 'object') {
+    for (var k in extraHeaders) {
+      if (Object.prototype.hasOwnProperty.call(extraHeaders, k)) {
+        headers[k] = extraHeaders[k];
+      }
+    }
+  }
+  return headers;
+};
+
+
+// ── API HELPERS ──────────────────────────────────
 function apiGet(path) {
-  return fetch(path, { headers: { 'X-App-Version': 'rewrite-1' } })
+  return fetch(path, { headers: window.getAuthHeaders() })
     .then(function(r) { return r.json(); });
 }
+
+function apiPost(path, bodyObj) {
+  var h = window.getAuthHeaders();
+  h['Content-Type'] = 'application/json';
+  return fetch(path, {
+    method: 'POST',
+    headers: h,
+    body: JSON.stringify(bodyObj || {})
+  }).then(function(r) { return r.json(); });
+}
+
 
 // ── INIT ────────────────────────────────────────
 function initApp() {

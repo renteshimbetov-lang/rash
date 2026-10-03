@@ -5623,30 +5623,59 @@ except Exception:
 
 async def find_web_file(filename: str) -> str:
     filename_clean = filename.lstrip('/')
-    candidates = [
-        os.path.join(BASE_DIR, filename_clean),
-        os.path.join(BASE_DIR, 'css', filename_clean),
-        os.path.join(BASE_DIR, 'js', filename_clean),
-        os.path.join(BASE_DIR, 'img', filename_clean),
-        os.path.join(os.getcwd(), filename_clean),
-        os.path.join(os.getcwd(), 'css', filename_clean),
-        os.path.join(os.getcwd(), 'js', filename_clean),
-        os.path.join(os.getcwd(), 'img', filename_clean),
-        os.path.join(WEB_DIR, filename_clean),
-    ]
+
+    # Qaysi papkada ekanligini yo'l prefixi bo'yicha aniqlaymiz
+    if filename_clean.startswith('js/'):
+        priority_subdirs = ['js']
+    elif filename_clean.startswith('css/'):
+        priority_subdirs = ['css']
+    elif filename_clean.startswith('img/'):
+        priority_subdirs = ['img']
+    else:
+        priority_subdirs = []
+
+    candidates = []
+
+    # 1. Prioritet: to'g'ri papkada to'liq yo'l bilan qidirish
+    for base in [BASE_DIR, os.getcwd()]:
+        candidates.append(os.path.join(base, filename_clean))
+
+    # 2. Prioritet subdirlar (js/, css/, img/) faqat agar yo'l prefixsiz berilgan bo'lsa
+    if priority_subdirs:
+        pass  # allaqachon filename_clean ichida bor
+    else:
+        # Oddiy fayl nomi — barcha subdirlarda qidirish
+        for base in [BASE_DIR, os.getcwd()]:
+            for sub in ['js', 'css', 'img']:
+                candidates.append(os.path.join(base, sub, filename_clean))
+
+    candidates.append(os.path.join(WEB_DIR, filename_clean))
+
     for c in candidates:
         if os.path.exists(c) and os.path.isfile(c):
             return c
-    # Fallback: Papkalar bo'ylab qidirish
+
+    # Fallback: basename bo'yicha rekursiv qidirish (faqat to'g'ri papkada)
     target = os.path.basename(filename_clean)
-    for root_dir in [BASE_DIR, os.getcwd()]:
-        if os.path.exists(root_dir):
-            for root, dirs, files in os.walk(root_dir):
-                if target in files:
-                    found = os.path.join(root, target)
-                    log.info(f"🔍 Topildi (recursive search): {found}")
-                    return found
+    search_roots = [BASE_DIR, os.getcwd()]
+    for root_dir in search_roots:
+        if not os.path.exists(root_dir):
+            continue
+        for root, dirs, files in os.walk(root_dir):
+            # .git papkasini o'tkazib yuboramiz
+            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules'}]
+            if target in files:
+                found = os.path.join(root, target)
+                # js/ prefixli so'rov uchun faqat js/ papkasidagi natijani qabul qilamiz
+                if filename_clean.startswith('js/') and '/js/' not in found and not found.endswith('/js/' + target):
+                    continue
+                if filename_clean.startswith('css/') and '/css/' not in found:
+                    continue
+                log.info(f"🔍 Topildi (recursive search): {found}")
+                return found
+
     return os.path.join(BASE_DIR, filename_clean)
+
 
 def set_no_cache_headers(resp):
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
@@ -5685,17 +5714,11 @@ async def handle_app(request):
     if os.path.exists(fpath) and os.path.isfile(fpath):
         resp = web.FileResponse(fpath)
     else:
-        try:
-            import web_assets_fallback
-            data, mime = web_assets_fallback.get_asset_bytes('app.html')
-            if data:
-                resp = web.Response(body=data, content_type=mime or 'text/html', charset='utf-8')
-            else:
-                resp = web.Response(status=404, text="app.html topilmadi")
-        except Exception as e:
-            log.error(f"app.html yuklashda xatolik: {e}")
-            resp = web.Response(status=404, text="app.html topilmadi")
+        # Fallback ishlatilmaydi — eski app.html dan eski kod qaytib chiqmasligi uchun
+        log.warning("app.html topilmadi — fallback o'chirilgan, real fayl talab etiladi")
+        resp = web.Response(status=404, text="app.html topilmadi")
     return set_no_cache_headers(resp)
+
 
 async def handle_static_file(request):
     path_name = request.match_info.get('path', '')
@@ -5714,16 +5737,22 @@ async def handle_static_file(request):
     try:
         import web_assets_fallback
         if hasattr(web_assets_fallback, 'get_asset_bytes'):
-            data, mime = web_assets_fallback.get_asset_bytes(path_name)
-            if data:
-                resp = web.Response(body=data, content_type=mime or 'application/octet-stream')
-                if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
-                    resp.headers['Cache-Control'] = 'public, max-age=86400'
-                else:
-                    set_no_cache_headers(resp)
-                return resp
+            # Eski app.js va app.html fallbackdan qaytarilmasin —
+            # ular endi js/app.js va real app.html dan to'g'ri yuklanadi
+            _basename = os.path.basename(path_name)
+            _STALE_SKIP = {'app.js', 'app.html'}
+            if _basename not in _STALE_SKIP:
+                data, mime = web_assets_fallback.get_asset_bytes(path_name)
+                if data:
+                    resp = web.Response(body=data, content_type=mime or 'application/octet-stream')
+                    if any(path_name.endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.svg', '.webp', '.ico']):
+                        resp.headers['Cache-Control'] = 'public, max-age=86400'
+                    else:
+                        set_no_cache_headers(resp)
+                    return resp
     except Exception:
         pass
+
 
     if 'apple-touch-icon' in path_name or path_name.endswith('.ico'):
         return web.Response(status=204)
