@@ -188,6 +188,31 @@ const AdminApp = {
     }
   },
 
+  confirmClearAll() {
+    let filledCount = 0;
+    for (let k in this.answers) {
+      if (this.answers[k] && this.answers[k].ans && String(this.answers[k].ans).trim().length > 0) {
+        filledCount++;
+      }
+    }
+    if (filledCount === 0) {
+      alert("Hozircha hech qanday kalit/javob belgilanmagan!");
+      return;
+    }
+    if (confirm("⚠️ Barcha kiritilgan test kalitlari va javoblarini o'chirmoqchimisiz? Bu amal barcha variantli va ochiq savollar kalitlarini tozalaydi.")) {
+      this.clearAll();
+    }
+  },
+
+  clearAll() {
+    this.initAnswers();
+    this.renderForm();
+    this.updateUnfilledStats();
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+      try { window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning'); } catch(e) {}
+    }
+  },
+
   initAnswers() {
     // 1-32 (4 ta variant: A, B, C, D) — ball Rasch tomonidan avtomatik hisoblanadi
     for (let q = 1; q <= 32; q++) {
