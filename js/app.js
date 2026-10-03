@@ -194,7 +194,7 @@ function dismissSplash() {
         openOnboardingModal();
       }, 300);
     }
-  }, 700);
+  }, 460);
 }
 window.dismissSplash = dismissSplash;
 window.finishSplashImmediately = dismissSplash;
@@ -209,10 +209,10 @@ function runSplash() {
   // Ma'lumotlarni fonda oldindan yuklash
   launchApp();
 
-  // Sahifa yuklanganda animatsiya to'liq o'tgach avtomatik yopish
+  // Animatsiya to'liq va tez yakunlangach avtomatik yopish
   splashTimer = setTimeout(function() {
     dismissSplash();
-  }, 1800);
+  }, 1500);
 }
 
 // ── PIN SYSTEM (Olib tashlangan / Bypassed) ──────────────────
