@@ -15,26 +15,34 @@ from typing import Optional, List, Dict, Any, Tuple
 UZB_TZ = timezone(timedelta(hours=5))
 ADMIN_ID = int(os.getenv("ADMIN_ID", "8039427064"))
 
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+# Neon.tech uchun: agar URL da '-pooler' bo'lmasa, uni avtomatik '-pooler' (PgBouncer) rejimiga o'tkazish
+# Bu 'Max connections' (ulanuvchilar soni chegarasi) xatoligini to'liq bartaraf qiladi.
+if DATABASE_URL and "neon.tech" in DATABASE_URL and "-pooler" not in DATABASE_URL:
+    DATABASE_URL = re.sub(r'(@[a-zA-Z0-9_\-]+)(?<!\-pooler)(\.[a-zA-Z0-9_\.\-]*neon\.tech)', r'\1-pooler\2', DATABASE_URL)
+    print("ℹ️ DATABASE_URL avtomatik Neon PgBouncer (-pooler) rejimiga ulandi.")
 
 # PostgreSQL yoki SQLite ni avtomatik aniqlash
 USE_POSTGRES = bool(DATABASE_URL and ("postgresql" in DATABASE_URL or "postgres" in DATABASE_URL))
 
-# ── PostgreSQL Connection Pool (tezlik uchun) ──────────────
+# ── PostgreSQL Connection Pool (Yuqori yuklama uchun optimallashtirilgan) ──
 _pg_pool = None
 _pool_connections = set()
+PG_POOL_MINCONN = int(os.getenv("PG_POOL_MINCONN", "4"))
+PG_POOL_MAXCONN = int(os.getenv("PG_POOL_MAXCONN", "50"))
 
 def _get_pg_pool():
     """PostgreSQL connection pool — bir marta yaratiladi, qayta ishlatiladi.
-    minconn=2, maxconn=20: Neon/Render bepul tarifi doirasida bir vaqtda yuqori yuklamani ko'tara olishi uchun.
+    minconn=4, maxconn=50: Neon PgBouncer pooler orqali bir vaqtda 50+ parallel so'rovlarni qabul qiladi.
     """
     global _pg_pool
-    if _pg_pool is None:
+    if _pg_pool is None and USE_POSTGRES:
         try:
             import psycopg2.pool
             _pg_pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=2,
-                maxconn=20,
+                minconn=PG_POOL_MINCONN,
+                maxconn=PG_POOL_MAXCONN,
                 dsn=DATABASE_URL,
                 connect_timeout=10,
                 keepalives=1,
@@ -52,8 +60,10 @@ def _close_conn(conn):
     if conn is None:
         return
     conn_id = id(conn)
-    if USE_POSTGRES and conn_id in _pool_connections:
+    is_pooled = getattr(conn, "_is_from_pool", False) or (conn_id in _pool_connections)
+    if USE_POSTGRES and is_pooled:
         _pool_connections.discard(conn_id)
+        conn._is_from_pool = False
         pool = _get_pg_pool()
         if pool:
             try:
@@ -110,27 +120,48 @@ def get_connection():
         from psycopg2.extras import RealDictCursor
         pool = _get_pg_pool()
         if pool:
-            try:
-                conn = pool.getconn()
-                # O'lik / uzilgan ulanishni aniqlab yangilash (Neon idle timeout)
-                if hasattr(conn, "closed") and conn.closed:
-                    conn = pool.getconn()
+            # Yuqori yuklamada pool to'lib qolsa, kutib turmasdan darhol yangi connect ochish o'rniga
+            # qisqa vaqt (30-50ms) kutib qayta urinish (Retry) orqali ulanish oladi
+            for attempt in range(4):
                 try:
-                    with conn.cursor() as cur_check:
-                        cur_check.execute("SELECT 1")
-                    conn.rollback()
-                except Exception:
-                    try:
-                        pool.putconn(conn, close=True)
-                    except Exception:
-                        pass
                     conn = pool.getconn()
-                conn.cursor_factory = RealDictCursor
-                conn.autocommit = False
-                _pool_connections.add(id(conn))
-                return conn
-            except Exception:
-                pass
+                    # O'lik / uzilgan ulanishni aniqlab yangilash
+                    if hasattr(conn, "closed") and conn.closed:
+                        try:
+                            pool.putconn(conn, close=True)
+                        except Exception:
+                            pass
+                        conn = pool.getconn()
+
+                    # Smart Ping: faqat ulanish 45 soniyadan ortiq vaqt harakatsiz turgan bo'lsa SELECT 1 bilan tekshirish
+                    now_t = time.time()
+                    last_used = getattr(conn, "_last_used_at", 0)
+                    if now_t - last_used > 45:
+                        try:
+                            with conn.cursor() as cur_check:
+                                cur_check.execute("SELECT 1")
+                            conn.rollback()
+                        except Exception:
+                            try:
+                                pool.putconn(conn, close=True)
+                            except Exception:
+                                pass
+                            conn = pool.getconn()
+
+                    conn._last_used_at = now_t
+                    conn.cursor_factory = RealDictCursor
+                    conn.autocommit = False
+                    conn._is_from_pool = True
+                    _pool_connections.add(id(conn))
+                    return conn
+                except Exception as pe:
+                    import psycopg2.pool
+                    if isinstance(pe, psycopg2.pool.PoolError) and attempt < 3:
+                        time.sleep(0.04 * (attempt + 1))
+                        continue
+                    break
+
+        # Fallback: Agar pool to'liq to'lgan va kutish muddati tugagan bo'lsagina yangi ulanish
         conn = psycopg2.connect(
             DATABASE_URL,
             cursor_factory=RealDictCursor,
@@ -141,6 +172,7 @@ def get_connection():
             keepalives_count=5
         )
         conn.autocommit = False
+        conn._is_from_pool = False
         return conn
     else:
         conn = sqlite3.connect(DB_FILE, timeout=20.0, check_same_thread=False)
