@@ -1705,6 +1705,23 @@ def get_all_users() -> List[Dict[str, Any]]:
         _close_conn(conn)
 
 
+def get_recent_users(limit: int = 15) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+        SELECT id, tg_id, fullname, phone, username, status, registered_at
+        FROM users
+        ORDER BY id DESC
+        LIMIT {_ph()}
+        """, (limit,))
+        rows = cur.fetchall()
+        return [_row_to_dict(r) for r in rows if r]
+    finally:
+        _close_conn(conn)
+
+
+
 # ──────────────────────────────────────────────────────────
 # SUBMISSIONS / RESULTS
 # ──────────────────────────────────────────────────────────

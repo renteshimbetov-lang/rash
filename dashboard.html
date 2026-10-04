@@ -254,6 +254,27 @@
       <!-- Right Main Content Area -->
       <main class="app-content">
 
+        <!-- Push Notification Permission Request Banner -->
+        <div id="push-permission-banner" class="push-permission-banner" style="display: none;">
+          <div class="push-banner-content">
+            <div class="push-banner-icon">🔔</div>
+            <div class="push-banner-text">
+              <strong>Brauzer bildirishnomalarini yoqing!</strong>
+              <span>Yangi o'quvchi ro'yxatdan o'tganda yoki yangi test topshirilganda, ekraningizda tezkor xabar chiqadi.</span>
+            </div>
+          </div>
+          <div class="push-banner-actions">
+            <button class="btn btn-primary btn-sm" onclick="requestBrowserNotificationPermission(true)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-2px;margin-right:4px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              Ruxsat berish
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="testNotificationFlow()" title="Sinov bildirishnomasi jo'natish">
+              🔔 Sinab ko'rish
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="dismissPushBanner()">Keyinroq</button>
+          </div>
+        </div>
+
         <!-- Top Content Toolbar -->
         <div class="content-toolbar">
           <div class="page-title-wrap">
@@ -1003,8 +1024,14 @@
         <span class="badge badge-primary" id="notif-header-badge">0 yangi</span>
       </div>
       <div class="notif-header-controls">
+        <button class="btn-notif-tool" id="btn-push-toggle" onclick="requestBrowserNotificationPermission(true)" title="Brauzer Push bildirishnomasi holati">
+          <span id="push-status-icon">🔔 Push</span>
+        </button>
         <button class="btn-notif-tool" id="btn-sound-toggle" onclick="toggleNotifSound()" title="Ovozli bildirishnomani yoqish/o'chirish">
           <span id="notif-sound-icon">🔔</span>
+        </button>
+        <button class="btn-notif-tool" onclick="testNotificationFlow()" title="Sinov bildirishnomasi jo'natish">
+          🧪 Sinov
         </button>
         <button class="btn-notif-tool" onclick="markAllNotificationsRead()" title="Barchasini o'qilgan deb belgilash">
           ✓ O'qildi

@@ -26,7 +26,9 @@ const State = {
   notifSoundEnabled: true,
   notifFilter: 'all',
   lastKnownSubmissionId: 0,
+  lastKnownUserId: 0,
   lastKnownUsersCount: 0,
+  browserPushGranted: false,
   broadcastHistory: [],
   broadcastTarget: 'all',
   broadcastTestId: 0
@@ -280,6 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
   runBootAnimation();
   initLiveClock();
   setupKeyboardShortcuts();
+  initPushNotifications();
   fetchDashboardData();
   startAutoRefresh();
 });
@@ -387,7 +390,7 @@ async function fetchDashboardData(manual = false) {
 
   try {
     // 1. Overview & Stats
-    const url = manual ? '/api/dashboard/overview?refresh=true' : '/api/dashboard/overview';
+    const url = manual ? '/api/dashboard/overview?refresh=true' : '/api/dashboard/overview?live=true';
     const resOverview = await fetch(url);
     if (resOverview.ok) {
       const data = await resOverview.json();
@@ -1853,7 +1856,7 @@ function startAutoRefresh() {
     if (State.autoRefresh) {
       fetchDashboardData();
     }
-  }, 25000);
+  }, 7500);
 }
 
 function stopAutoRefresh() {
@@ -2600,25 +2603,254 @@ function toggleNotificationCenter(forceState) {
   const isOpen = forceState !== undefined ? forceState : !panel.classList.contains('active');
   panel.classList.toggle('active', isOpen);
   if (isOpen) {
+    updatePushPermissionUI();
     renderNotificationList();
   }
 }
 
+/* ============================================================
+   NATIVE BROWSER PUSH NOTIFICATION SYSTEM
+   ============================================================ */
+
+function initPushNotifications() {
+  if (!('Notification' in window)) return;
+  updatePushPermissionUI();
+
+  if (Notification.permission === 'granted') {
+    State.browserPushGranted = true;
+  } else if (Notification.permission === 'default') {
+    // Show banner and ask for permission
+    const dismissed = sessionStorage.getItem('bm_push_banner_dismissed');
+    const banner = document.getElementById('push-permission-banner');
+    if (banner && !dismissed) {
+      banner.style.display = 'flex';
+    }
+    // Proactively prompt user for permission on page entry
+    try {
+      Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+          State.browserPushGranted = true;
+          dismissPushBanner();
+          showToast('✅ Brauzer bildirishnomalari faollashtirildi!', 'success');
+        }
+        updatePushPermissionUI();
+      }).catch(() => {});
+    } catch (e) {}
+  }
+}
+
+function requestBrowserNotificationPermission(isUserAction = false) {
+  if (!('Notification' in window)) {
+    if (isUserAction) {
+      showToast('Brauzeringiz tizim bildirishnomalarini qo\'llab-quvvatlamaydi.', 'warning');
+    }
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    State.browserPushGranted = true;
+    updatePushPermissionUI();
+    dismissPushBanner();
+    if (isUserAction) {
+      showToast('✅ Brauzer bildirishnomalari allaqachon faollashtirilgan!', 'success');
+      sendBrowserNotification('Shohruh Matematika Dashboard', 'Bildirishnomalar muvaffaqiyatli ulangan! Yangi o\'quvchilar darhol ekranda ko\'rinadi.');
+    }
+    return;
+  }
+
+  if (Notification.permission === 'denied') {
+    State.browserPushGranted = false;
+    updatePushPermissionUI();
+    if (isUserAction) {
+      showToast('⚠️ Bildirishnomalar brauzerda bloklangan. Manzil satridagi qulf (lock) belgisidan ruxsat bering.', 'warning');
+    }
+    return;
+  }
+
+  // Request permission from browser
+  Notification.requestPermission().then(permission => {
+    if (permission === 'granted') {
+      State.browserPushGranted = true;
+      updatePushPermissionUI();
+      dismissPushBanner();
+      showToast('✅ Brauzer bildirishnomalari muvaffaqiyatli yoqildi!', 'success');
+      playNotifSound();
+      sendBrowserNotification('Shohruh Matematika Dashboard', 'Bildirishnomalar muvaffaqiyatli faollashtirildi! Yangi o\'quvchilar va natijalar xabar qilinadi.');
+    } else {
+      State.browserPushGranted = false;
+      updatePushPermissionUI();
+      if (isUserAction) {
+        showToast('Bildirishnomaga ruxsat berilmadi', 'info');
+      }
+    }
+  }).catch(err => {
+    console.warn('Notification permission error:', err);
+  });
+}
+window.requestBrowserNotificationPermission = requestBrowserNotificationPermission;
+
+function sendBrowserNotification(title, body, tag = 'general') {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    const notif = new Notification(title, {
+      body: body,
+      tag: String(tag),
+      renotify: true
+    });
+    notif.onclick = function() {
+      window.focus();
+      toggleNotificationCenter(true);
+      this.close();
+    };
+  } catch (err) {
+    console.warn('sendBrowserNotification error:', err);
+  }
+}
+
+function updatePushPermissionUI() {
+  const banner = document.getElementById('push-permission-banner');
+  const btnPushToggle = document.getElementById('btn-push-toggle');
+  const pushIcon = document.getElementById('push-status-icon');
+
+  if (!('Notification' in window)) {
+    if (banner) banner.style.display = 'none';
+    if (btnPushToggle) btnPushToggle.style.display = 'none';
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    if (banner) banner.style.display = 'none';
+    if (pushIcon) pushIcon.innerHTML = '🔔 Push: Faol';
+    if (btnPushToggle) {
+      btnPushToggle.title = 'Push bildirishnomalari faol';
+      btnPushToggle.style.color = 'var(--success)';
+    }
+  } else if (Notification.permission === 'denied') {
+    if (banner) banner.style.display = 'none';
+    if (pushIcon) pushIcon.innerHTML = '🚫 Push: Bloklangan';
+    if (btnPushToggle) {
+      btnPushToggle.title = 'Bildirishnomalar bloklangan. Sozlamalardan ruxsat bering.';
+      btnPushToggle.style.color = 'var(--danger)';
+    }
+  } else {
+    const dismissed = sessionStorage.getItem('bm_push_banner_dismissed');
+    if (banner && !dismissed) {
+      banner.style.display = 'flex';
+    }
+    if (pushIcon) pushIcon.innerHTML = '🔔 Push: Yoqish';
+    if (btnPushToggle) {
+      btnPushToggle.title = 'Brauzer bildirishnomasiga ruxsat berish';
+      btnPushToggle.style.color = 'var(--warning)';
+    }
+  }
+}
+
+function dismissPushBanner() {
+  const banner = document.getElementById('push-permission-banner');
+  if (banner) banner.style.display = 'none';
+  sessionStorage.setItem('bm_push_banner_dismissed', '1');
+}
+window.dismissPushBanner = dismissPushBanner;
+
+function testNotificationFlow() {
+  playNotifSound();
+  showToast('🔔 Sinov bildirishnomasi jo\'natildi!', 'info');
+  sendBrowserNotification('Shohruh Matematika Dashboard', 'Sinov: Yangi o\'quvchi yoki natija kelganda xuddi shunday bildirishnoma chiqadi!');
+  const testNotif = {
+    id: 'test-' + Date.now(),
+    type: 'user',
+    title: '🔔 Sinov bildirishnomasi',
+    desc: 'Bildirishnomalar tizimi sozlandi va a\'lo darajada ishlamoqda.',
+    time: 'Hozir',
+    rawTime: Date.now(),
+    unread: true
+  };
+  State.notifications.unshift(testNotif);
+  State.unreadNotifsCount++;
+  updateNotifBadge();
+  renderNotificationList();
+}
+window.testNotificationFlow = testNotificationFlow;
+
 function checkNewLiveEvents(data) {
   if (!data) return;
   const recentSubs = data.recent_submissions || [];
+  const recentUsers = data.recent_users || [];
   const currentTotalUsers = (data.summary && data.summary.total_users) || 0;
 
   // 1. Initial run: setup baseline IDs without spamming notifications
-  if (!State.lastKnownSubmissionId && recentSubs.length > 0) {
-    State.lastKnownSubmissionId = Math.max(...recentSubs.map(s => parseInt(s.id, 10) || 0));
+  if (State.lastKnownUserId === undefined || State.lastKnownUserId === 0) {
+    if (recentSubs.length > 0) {
+      State.lastKnownSubmissionId = Math.max(...recentSubs.map(s => parseInt(s.id, 10) || 0));
+    }
+    if (recentUsers.length > 0) {
+      State.lastKnownUserId = Math.max(...recentUsers.map(u => parseInt(u.id, 10) || 0));
+    } else {
+      State.lastKnownUserId = 1;
+    }
     State.lastKnownUsersCount = currentTotalUsers;
     return;
   }
 
   let hasNew = false;
 
-  // 2. Check for new submissions
+  // 2. Check for new registered users (Detailed with Name & Username)
+  if (recentUsers.length > 0 && State.lastKnownUserId) {
+    const newUsers = recentUsers.filter(u => (parseInt(u.id, 10) || 0) > State.lastKnownUserId);
+    if (newUsers.length > 0) {
+      newUsers.sort((a, b) => (parseInt(a.id, 10) || 0) - (parseInt(b.id, 10) || 0));
+      newUsers.forEach(u => {
+        const uId = parseInt(u.id, 10);
+        if (uId > State.lastKnownUserId) {
+          State.lastKnownUserId = uId;
+        }
+        const userTitle = `👤 Yangi o'quvchi ro'yxatdan o'tdi!`;
+        const userDesc = `${u.fullname}${u.username ? ' (@' + u.username + ')' : ''} matematika botida ro'yxatdan o'tdi.`;
+        const notifItem = {
+          id: 'user-' + u.id,
+          type: 'user',
+          title: userTitle,
+          desc: userDesc,
+          time: u.registered_at_fmt || 'Hozir',
+          rawTime: Date.now(),
+          unread: true,
+          dataId: u.id
+        };
+        State.notifications.unshift(notifItem);
+        State.unreadNotifsCount++;
+        hasNew = true;
+
+        showToast(`👤 Yangi o'quvchi: ${u.fullname}`, 'info');
+        sendBrowserNotification(userTitle, userDesc, 'user-' + u.id);
+      });
+      State.lastKnownUsersCount = currentTotalUsers;
+    }
+  } else if (State.lastKnownUsersCount && currentTotalUsers > State.lastKnownUsersCount) {
+    // Fallback if recentUsers array didn't capture the diff
+    const diff = currentTotalUsers - State.lastKnownUsersCount;
+    State.lastKnownUsersCount = currentTotalUsers;
+    const userTitle = `👤 ${diff} nafar yangi o'quvchi qo'shildi`;
+    const userDesc = `Jami o'quvchilar soni: ${currentTotalUsers} nafarga yetdi.`;
+    const notifItem = {
+      id: 'user-' + Date.now(),
+      type: 'user',
+      title: userTitle,
+      desc: userDesc,
+      time: 'Hozir',
+      rawTime: Date.now(),
+      unread: true
+    };
+    State.notifications.unshift(notifItem);
+    State.unreadNotifsCount++;
+    hasNew = true;
+
+    showToast(userTitle, 'info');
+    sendBrowserNotification(userTitle, userDesc, 'user-diff-' + Date.now());
+  }
+
+  // 3. Check for new submissions
   if (recentSubs.length > 0 && State.lastKnownSubmissionId) {
     const newSubs = recentSubs.filter(s => (parseInt(s.id, 10) || 0) > State.lastKnownSubmissionId);
     if (newSubs.length > 0) {
@@ -2628,11 +2860,13 @@ function checkNewLiveEvents(data) {
         if (subId > State.lastKnownSubmissionId) {
           State.lastKnownSubmissionId = subId;
         }
+        const subTitle = `🏆 Yangi natija: ${s.fullname}`;
+        const subDesc = `${s.test_title || 'Test #' + s.test_code} — ${s.score || 0} ball (${s.is_late ? '⚠️ Kechikkan' : 'O\'z vaqtida'})`;
         const notifItem = {
           id: 'sub-' + s.id,
           type: 'submission',
-          title: `Yangi test topshirildi: ${s.fullname}`,
-          desc: `${s.test_title || 'Test #' + s.test_code} — ${s.score || 0} ball (${s.is_late ? '⚠️ Kechikkan' : 'O\'z vaqtida'})`,
+          title: subTitle,
+          desc: subDesc,
           time: s.submitted_at_fmt || 'Hozir',
           rawTime: Date.now(),
           unread: true,
@@ -2644,28 +2878,9 @@ function checkNewLiveEvents(data) {
         hasNew = true;
 
         showToast(`🔔 Yangi natija: ${s.fullname} (${s.score || 0} ball)`, s.is_late ? 'warning' : 'success');
+        sendBrowserNotification(subTitle, subDesc, 'sub-' + s.id);
       });
     }
-  }
-
-  // 3. Check for new registered users
-  if (State.lastKnownUsersCount && currentTotalUsers > State.lastKnownUsersCount) {
-    const diff = currentTotalUsers - State.lastKnownUsersCount;
-    State.lastKnownUsersCount = currentTotalUsers;
-    const notifItem = {
-      id: 'user-' + Date.now(),
-      type: 'user',
-      title: `Yangi o'quvchi qo'shildi`,
-      desc: `${diff} nafar yangi o'quvchi botda muvaffaqiyatli ro'yxatdan o'tdi (Jami: ${currentTotalUsers})`,
-      time: 'Hozir',
-      rawTime: Date.now(),
-      unread: true
-    };
-    State.notifications.unshift(notifItem);
-    State.unreadNotifsCount++;
-    hasNew = true;
-
-    showToast(`👤 Yangi o'quvchi ro'yxatdan o'tdi (${currentTotalUsers} jami)`, 'info');
   }
 
   if (hasNew) {

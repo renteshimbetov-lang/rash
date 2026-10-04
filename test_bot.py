@@ -45,6 +45,16 @@ def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%
         dt = datetime.fromtimestamp(timestamp, tz=UZB_TZ)
     return dt.strftime(fmt)
 
+_dashboard_overview_cache = {"data": None, "ts": 0}
+_dashboard_users_cache = {"data": None, "ts": 0}
+_dashboard_tests_cache = {"data": None, "ts": 0}
+
+def invalidate_dashboard_cache():
+    global _dashboard_overview_cache, _dashboard_users_cache, _dashboard_tests_cache
+    _dashboard_overview_cache["ts"] = 0
+    _dashboard_users_cache["ts"] = 0
+    _dashboard_tests_cache["ts"] = 0
+
 def get_test_schedule_status(test: Dict[str, Any]) -> Dict[str, Any]:
     """
     Testning joriy vaqtga (UZB_TZ) nisbatan aniq holatini hisoblaydi:
@@ -734,6 +744,11 @@ async def reg_fullname(message: Message, state: FSMContext):
     # 1. Yangi foydalanuvchi to'g'ridan-to'g'ri faol (approved) bo'ladi
     status = "approved"
     test_db.add_or_update_user(user_tg_id, fullname, phone, username, status=status)
+    try:
+        test_db.log_activity(user_tg_id, "user_register", f"Yangi o'quvchi ro'yxatdan o'tdi: {fullname}", {"tg_id": user_tg_id, "fullname": fullname, "username": username})
+    except Exception:
+        pass
+    invalidate_dashboard_cache()
     await state.clear()
 
     # 2. O'quvchiga darhol asosiy menyuni ochish
@@ -778,6 +793,11 @@ async def reg_phone(message: Message, state: FSMContext):
 
     status = "approved"
     test_db.add_or_update_user(user_tg_id, fullname, phone, username, status=status)
+    try:
+        test_db.log_activity(user_tg_id, "user_register", f"Yangi o'quvchi ro'yxatdan o'tdi: {fullname}", {"tg_id": user_tg_id, "fullname": fullname, "username": username})
+    except Exception:
+        pass
+    invalidate_dashboard_cache()
     await state.clear()
 
     await message.answer(
@@ -4968,6 +4988,7 @@ async def handle_submit_test_api(request):
                 test_id, user_tg_id, user_answers,
                 is_late=1 if is_late_submission else 0
             )
+        invalidate_dashboard_cache()
 
         now_uzb = datetime.now(UZB_TZ)
         time_str_sec = now_uzb.strftime("%H:%M:%S")
@@ -6501,26 +6522,25 @@ async def handle_dashboard(request):
         log.error(f"dashboard.html yuklashda xatolik: {e}")
     return web.Response(status=404, text="dashboard.html topilmadi")
 
-_dashboard_overview_cache = {"data": None, "ts": 0}
-_dashboard_users_cache = {"data": None, "ts": 0}
-_dashboard_tests_cache = {"data": None, "ts": 0}
-
 async def handle_dashboard_overview(request):
     global _dashboard_overview_cache
     now = time.time()
-    refresh = request.rel_url.query.get('refresh') == 'true'
-    if not refresh and _dashboard_overview_cache["data"] and (now - _dashboard_overview_cache["ts"] < 30.0):
+    refresh = request.rel_url.query.get('refresh') == 'true' or request.rel_url.query.get('live') == 'true'
+    if not refresh and _dashboard_overview_cache["data"] and (now - _dashboard_overview_cache["ts"] < 3.0):
         return web.json_response(_dashboard_overview_cache["data"])
 
     try:
-        summary, recent_subs, logs, tests = await asyncio.gather(
+        summary, recent_subs, logs, tests, recent_users = await asyncio.gather(
             asyncio.to_thread(test_db.get_dashboard_summary),
             asyncio.to_thread(test_db.get_all_submissions_for_admin, 15),
             asyncio.to_thread(test_db.get_activity_logs, 80),
-            asyncio.to_thread(test_db.get_tests_with_stats)
+            asyncio.to_thread(test_db.get_tests_with_stats),
+            asyncio.to_thread(test_db.get_recent_users, 15)
         )
         for s in recent_subs:
             s['submitted_at_fmt'] = format_uzb_time(s.get('submitted_at'), fmt="%d.%m.%Y %H:%M:%S")
+        for u in recent_users:
+            u['registered_at_fmt'] = format_uzb_time(u.get('registered_at'), fmt="%d.%m.%Y %H:%M:%S")
         for l in logs:
             l['time_fmt'] = format_uzb_time(l.get('time'), fmt="%d.%m.%Y %H:%M:%S")
             
@@ -6531,6 +6551,7 @@ async def handle_dashboard_overview(request):
             "success": True,
             "summary": summary,
             "recent_submissions": recent_subs,
+            "recent_users": recent_users,
             "activity_logs": logs,
             "tests": tests,
             "server_time": format_uzb_time(fmt="%d.%m.%Y %H:%M:%S")
