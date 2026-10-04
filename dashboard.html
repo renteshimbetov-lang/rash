@@ -77,7 +77,7 @@
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
           </span>
-          <span id="refresh-label">Jonli (25s)</span>
+          <span id="refresh-label">Jonli (8s)</span>
         </button>
 
         <button class="header-btn" onclick="fetchDashboardData(true)" title="Qayta yuklash (Cmd+R)">
@@ -1015,32 +1015,39 @@
   <!-- macOS Notification Center Drawer (Slide-out panel) -->
   <aside class="mac-notif-drawer" id="mac-notif-panel" aria-label="Bildirishnomalar Markazi">
     <div class="notif-drawer-header">
-      <div class="notif-header-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
-          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
-        </svg>
-        <span>Bildirishnomalar</span>
-        <span class="badge badge-primary" id="notif-header-badge">0 yangi</span>
+      <div class="notif-header-top-row">
+        <div class="notif-header-title">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+          </svg>
+          <span>Bildirishnomalar</span>
+          <span class="badge badge-primary" id="notif-header-badge">0 yangi</span>
+        </div>
+        <div class="notif-header-actions">
+          <button class="notif-icon-btn" id="btn-sound-toggle" onclick="toggleNotifSound()" title="Ovozli bildirishnomani yoqish/o'chirish">
+            <span id="notif-sound-icon">🔔</span>
+          </button>
+          <button class="notif-drawer-close" onclick="toggleNotificationCenter(false)" title="Yopish (Esc)">
+            ✕
+          </button>
+        </div>
       </div>
-      <div class="notif-header-controls">
-        <button class="btn-notif-tool" id="btn-push-toggle" onclick="requestBrowserNotificationPermission(true)" title="Brauzer Push bildirishnomasi holati">
-          <span id="push-status-icon">🔔 Push</span>
+
+      <!-- Quick Action Toolbar Strip -->
+      <div class="notif-tools-strip">
+        <button class="notif-pill-btn" id="btn-push-toggle" onclick="requestBrowserNotificationPermission(true)" title="Brauzer Push bildirishnomasi holati">
+          <span id="push-status-icon">🔔 Push: Faol</span>
         </button>
-        <button class="btn-notif-tool" id="btn-sound-toggle" onclick="toggleNotifSound()" title="Ovozli bildirishnomani yoqish/o'chirish">
-          <span id="notif-sound-icon">🔔</span>
-        </button>
-        <button class="btn-notif-tool" onclick="testNotificationFlow()" title="Sinov bildirishnomasi jo'natish">
+        <button class="notif-pill-btn notif-pill-test" onclick="testNotificationFlow()" title="Sinov bildirishnomasi jo'natish">
           🧪 Sinov
         </button>
-        <button class="btn-notif-tool" onclick="markAllNotificationsRead()" title="Barchasini o'qilgan deb belgilash">
+        <div class="notif-tools-spacer"></div>
+        <button class="notif-text-action" onclick="markAllNotificationsRead()" title="Barchasini o'qilgan deb belgilash">
           ✓ O'qildi
         </button>
-        <button class="btn-notif-tool" onclick="clearAllNotifications()" title="Barcha bildirishnomalarni tozalash">
+        <button class="notif-text-action text-danger-hover" onclick="clearAllNotifications()" title="Barcha bildirishnomalarni tozalash">
           ✕ Tozalash
-        </button>
-        <button class="notif-drawer-close" onclick="toggleNotificationCenter(false)" title="Yopish (Esc)">
-          ✕
         </button>
       </div>
     </div>
