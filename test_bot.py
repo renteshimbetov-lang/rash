@@ -1,5 +1,5 @@
 """
-STREET TEST — Test Tekshirish Telegram Boti va Mini App Serveri
+Shohruh Matematika — Test Tekshirish Telegram Boti va Mini App Serveri
 Aiogram 3.x + aiohttp WebApp Server
 ============================================================
 Barcha muhim sozlamalar environment variable orqali o'rnatiladi.
@@ -44,6 +44,31 @@ def format_uzb_time(timestamp: Optional[float] = None, fmt: str = "%d.%m.%Y %H:%
     else:
         dt = datetime.fromtimestamp(timestamp, tz=UZB_TZ)
     return dt.strftime(fmt)
+
+# ── TELEGRAM CUSTOM EMOJI & ESTETIK DIZAYN TO'PLAMI ───────────
+TG_ICONS = {
+    "star_gold": "5368324170671202286",      # ⭐ Oltin yulduzcha
+    "star_premium": "5429674068305786451",   # ⭐ Premium yulduzcha
+    "star_gradient": "5429674068305786452",  # 🌟 Maxsus yulduzcha
+    "user_outline": "5429674068305786448",   # 👤 Oq kontur foydalanuvchi
+    "warning": "5429674068305786449",        # ⚠️ Oq kontur ogohlantirish
+    "freeze": "5429674068305786455",         # ❄️ Muzlatish
+    "chat_check": "5429674068305786450",     # 💬 SMS / Chat check
+    "wallet": "5429674068305786453",         # 👛 Hamyon / Balans
+    "clock": "5429674068305786458",          # ⏰ Soat / Taymer
+    "success": "5429674068305786459",        # ✅ Tasdiq / Muvaffaqiyat
+    "error": "5429674068305786460",          # ❌ Xatolik
+    "key": "5429674068305786461",            # 🔑 Kalit / Parol / Token
+    "card": "5429674068305786462",           # 💳 Karta / To'lov
+    "order": "5429674068305786465",          # 📋 Ro'yxat / Natija
+}
+
+def tg_e(icon_name: str, fallback: str = "•") -> str:
+    """Telegram Custom Emoji tegi: <tg-emoji emoji-id="...">fallback</tg-emoji>"""
+    eid = TG_ICONS.get(icon_name)
+    if eid:
+        return f'<tg-emoji emoji-id="{eid}">{fallback}</tg-emoji>'
+    return fallback
 
 _dashboard_overview_cache = {"data": None, "ts": 0}
 _dashboard_users_cache = {"data": None, "ts": 0}
@@ -471,11 +496,11 @@ async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
             score_val = existing_sub.get("score", 0)
             corr_val = existing_sub.get("correct_count", 0)
             text = (
-                f"⛔️ <b>Siz ushbu testni topshirgansiz!</b>\n\n"
-                f"📖 <b>Test:</b> {test['title']}\n"
-                f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score_val} ball)\n"
-                f"✅ <b>To'g'ri javoblar:</b> {corr_val} ta\n"
-                f"🕒 <b>Topshirilgan vaqt:</b> {dt}\n\n"
+                f"{tg_e('warning', '⛔️')} <b>Siz ushbu testni topshirgansiz!</b>\n\n"
+                f"{tg_e('order', '📖')} <b>Test:</b> {test['title']}\n"
+                f"{tg_e('star_gold', '🎖')} <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score_val} ball)\n"
+                f"{tg_e('success', '✅')} <b>To'g'ri javoblar:</b> {corr_val} ta\n"
+                f"{tg_e('clock', '🕒')} <b>Topshirilgan vaqt:</b> {dt}\n\n"
                 f"💡 <i>Test tahlilini ko'rish uchun quyidagi tugmani bosing:</i>"
             )
             kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -487,10 +512,10 @@ async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
                 log.warning(f"send_message error: {e}")
         else:
             text = (
-                f"⏳ <b>Siz ushbu testni topshirgansiz!</b>\n\n"
-                f"📖 <b>Test:</b> {test['title']}\n"
-                f"📌 <b>Holat:</b> ⏳ <b>Javoblaringiz tekshirilmoqda...</b>\n"
-                f"🕒 <b>Topshirilgan vaqt:</b> {dt}\n\n"
+                f"{tg_e('clock', '⏳')} <b>Siz ushbu testni topshirgansiz!</b>\n\n"
+                f"{tg_e('order', '📖')} <b>Test:</b> {test['title']}\n"
+                f"{tg_e('clock', '📌')} <b>Holat:</b> ⏳ <b>Javoblaringiz tekshirilmoqda...</b>\n"
+                f"{tg_e('clock', '🕒')} <b>Topshirilgan vaqt:</b> {dt}\n\n"
                 f"ℹ️ <i>Test hozirda davom etmoqda. Admin testni to'xtatib, Rasch tahlilini e'lon qilgandan so'ng, "
                 f"to'g'ri javoblar soni, yakuniy ball va Milliy sertifikat darajangiz bot orqali shaxsiy xabar qilib yuboriladi!</i>"
             )
@@ -508,9 +533,9 @@ async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
             await bot.send_message(
                 chat_id=user_tg_id,
                 text=(
-                    f"⏳ <b>«{test['title']}» testi hali boshlanmagan!</b>\n\n"
-                    f"📅 Belgilangan sana: <b>{sdate}</b>\n"
-                    f"⏰ Boshlanish vaqti: <b>{sstart} (UZB)</b>\n\n"
+                    f"{tg_e('clock', '⏳')} <b>«{test['title']}» testi hali boshlanmagan!</b>\n\n"
+                    f"{tg_e('clock', '📅')} Belgilangan sana: <b>{sdate}</b>\n"
+                    f"{tg_e('clock', '⏰')} Boshlanish vaqti: <b>{sstart} (UZB)</b>\n\n"
                     f"<i>Test belgilangan vaqtda avtomatik boshlanadi va test kodi hamda savollar ochiladi. Ungacha kuting!</i>"
                 )
             )
@@ -522,7 +547,7 @@ async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
         try:
             await bot.send_message(
                 chat_id=user_tg_id,
-                text=f"⛔️ <b>«{test['title']}» testi to'xtatilgan!</b>\nAdmin tomonidan javoblar qabul qilish yopilgan."
+                text=f"{tg_e('warning', '⛔️')} <b>«{test['title']}» testi to'xtatilgan!</b>\nAdmin tomonidan javoblar qabul qilish yopilgan."
             )
         except Exception as e:
             log.warning(f"send_message error: {e}")
@@ -541,14 +566,14 @@ async def send_test_card_to_user_chat(user_tg_id: int, test: Dict[str, Any]):
         [make_webapp_button("📝 Javoblarni topshirish (Mini App)", encoded_url, fallback_cb=f"solve_test_{test['id']}")]
     ])
 
-    time_info = f"⏱ <b>Vaqt chegarasi:</b> {test['time_limit_min']} daqiqa\n" if test.get("time_limit_min", 0) > 0 else ""
+    time_info = f"{tg_e('clock', '⏱')} <b>Vaqt chegarasi:</b> {test['time_limit_min']} daqiqa\n" if test.get("time_limit_min", 0) > 0 else ""
 
     caption = (
-        f"📖 <b>{test['title']}</b>\n"
-        f"📌 <b>Fan:</b> {test.get('subject', 'Matematika')}\n"
-        f"❓ <b>Savollar:</b> 55 ta (1-32 ABCD, 33-35 ABCDEF, 36a-45b Yozma)\n"
-        f"{time_info}\n"
-        f"⚠️ <i>Eslatma: Testni faqat 1 marta topshirish mumkin! Javoblaringizni belgilab bo'lgach, «Testni yakunlash» tugmasini bosing.</i>"
+        f"{tg_e('order', '📖')} <b>{test['title']}</b>\n"
+        f"{tg_e('star_premium', '📌')} <b>Fan:</b> {test.get('subject', 'Matematika')}\n"
+        f"{tg_e('chat_check', '❓')} <b>Savollar:</b> 55 ta (1-32 ABCD, 33-35 ABCDEF, 36a-45b Yozma)\n"
+        f"{time_info}"
+        f"{tg_e('warning', '⚠️')} <i>Eslatma: Testni faqat 1 marta topshirish mumkin! Javoblaringizni belgilab bo'lgach, «Testni yakunlash» tugmasini bosing.</i>"
     )
 
     sent = False
@@ -642,7 +667,8 @@ async def start_handler(message: Message, state: FSMContext):
         await state.clear()
         await message.answer(
             f"👋 <b>Xush kelibsiz, {user['fullname']}!</b>\n\n"
-            "Kerakli bo'limni tanlang yoki to'g'ridan-to'g'ri test kodini yuboring 👇",
+            f"{tg_e('order', '📋')} <b>Shohruh Matematika test tizimi</b>\n\n"
+            f"{tg_e('clock', '⏰')} Kerakli bo'limni tanlang yoki to'g'ridan-to'g'ri test kodini yuboring 👇",
             reply_markup=main_menu_kb(user_tg_id)
         )
 
@@ -975,10 +1001,10 @@ async def show_profile(message: Message):
     username_str = f"@{message.from_user.username}" if message.from_user.username else (f"@{user.get('username')}" if user.get('username') else "Mavjud emas")
 
     text = (
-        "👤 <b>SHAXSIY PROFILINGIZ</b>\n\n"
-        f"👤 <b>Foydalanuvchi:</b> {user['fullname']}\n"
-        f"🔰 <b>Holat:</b> {st_text}\n\n"
-        f"📊 <b>KO'RSATKICHLAR:</b>\n"
+        f"{tg_e('star_gold', '⭐')} <b>SHAXSIY PROFILINGIZ</b>\n\n"
+        f"{tg_e('user_outline', '👤')} <b>Foydalanuvchi:</b> {user['fullname']}\n"
+        f"{tg_e('success', '✅')} <b>Holat:</b> {st_text}\n\n"
+        f"{tg_e('order', '📋')} <b>KO'RSATKICHLAR:</b>\n"
         f"• Ishlangan testlar: <b>{tests_count} ta</b>\n"
         f"• O'rtacha natija: <b>{avg_score} ball</b>\n"
         f"• Eng yuqori natija: <b>{max_score} ball</b>\n\n"
@@ -986,7 +1012,7 @@ async def show_profile(message: Message):
     )
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📋 Shaxsiy ma'lumotlar", callback_data="profile_show_details")],
+        [InlineKeyboardButton(text="⭐ Shaxsiy ma'lumotlar", callback_data="profile_show_details")],
         [
             InlineKeyboardButton(text="✏️ Ismni o'zgartirish", callback_data="profile_edit_name"),
             InlineKeyboardButton(text="📞 Raqamni o'zgartirish", callback_data="profile_edit_phone")
@@ -1012,14 +1038,14 @@ async def profile_show_details_handler(call: CallbackQuery):
     st_text = "✅ Faol o'quvchi" if st == "approved" else ("⏳ Kutilmoqda" if st == "pending" else "⛔️ Bloklangan")
 
     detail_text = (
-        "📋 <b>SHAXSIY AKKAUNT MA'LUMOTLARI</b>\n\n"
-        f"👤 <b>Ism va familiya:</b> {user['fullname']}\n"
-        f"📱 <b>Telefon raqam:</b> {phone_str}\n"
-        f"🆔 <b>Telegram ID:</b> <code>{call.from_user.id}</code>\n"
-        f"🔗 <b>Username:</b> {username_str}\n"
-        f"📅 <b>Ro'yxatdan o'tgan:</b> {dt}\n"
-        f"🔰 <b>Holat:</b> {st_text}\n"
-        f"📝 <b>Yechilgan testlar:</b> {tests_count} ta\n\n"
+        f"{tg_e('order', '📋')} <b>SHAXSIY AKKAUNT MA'LUMOTLARI</b>\n\n"
+        f"{tg_e('user_outline', '👤')} <b>Ism va familiya:</b> {user['fullname']}\n"
+        f"{tg_e('chat_check', '📱')} <b>Telefon raqam:</b> {phone_str}\n"
+        f"{tg_e('key', '🆔')} <b>Telegram ID:</b> <code>{call.from_user.id}</code>\n"
+        f"{tg_e('user_outline', '🔗')} <b>Username:</b> {username_str}\n"
+        f"{tg_e('clock', '📅')} <b>Ro'yxatdan o'tgan:</b> {dt}\n"
+        f"{tg_e('success', '🔰')} <b>Holat:</b> {st_text}\n"
+        f"{tg_e('star_premium', '📝')} <b>Yechilgan testlar:</b> {tests_count} ta\n\n"
         f"<i>Ma'lumotlarni tahrirlashingiz yoki menyuni yopishingiz mumkin 👇</i>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -4108,12 +4134,12 @@ def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch"
         msg_text = (
             f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
             f"Hurmatli <b>{name}</b>, sizning <b>«{test_title}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
-            f"🧮 <b>Baholash tizimi:</b> Rasch Modeli (JMLE)\n"
-            f"🎖 <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
-            f"✅ <b>To'g'ri ishlangan:</b> {corr} ta band\n"
-            f"❌ <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
-            f"📊 <b>Jami savollar:</b> {total} ta\n"
-            f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
+            f"{tg_e('star_premium', '🧮')} <b>Baholash tizimi:</b> Rasch Modeli (JMLE)\n"
+            f"{tg_e('star_gold', '🎖')} <b>Milliy Sertifikat darajangiz:</b> <b>{grade}</b> ({score} ball)\n"
+            f"{tg_e('success', '✅')} <b>To'g'ri ishlangan:</b> {corr} ta band\n"
+            f"{tg_e('error', '❌')} <b>Noto'g'ri / belgilanmagan:</b> {incorr} ta\n"
+            f"{tg_e('order', '📊')} <b>Jami savollar:</b> {total} ta\n"
+            f"{tg_e('clock', '🕒')} <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
             f"💡 <i>Qaysi savollaringiz to'g'ri yoki noto'g'ri ekanligini ko'rish uchun quyidagi <b>«📊 Test tahlili»</b> tugmasini bosing:</i>\n\n"
             f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
         )
@@ -4121,11 +4147,11 @@ def build_student_result_message(sub: dict, test: dict, eval_type: str = "rasch"
         msg_text = (
             f"📢 <b>DIQQAT! TEST NATIJALARI E'LON QILINDI!</b>\n\n"
             f"Hurmatli <b>{name}</b>, sizning <b>«{test_title}»</b> (<code>#{code}</code>) testi bo'yicha rasmiy natijangiz:\n\n"
-            f"📋 <b>Baholash turi:</b> Standart (To'g'ri javoblar soni)\n"
-            f"✅ <b>To'g'ri javoblar:</b> {corr} / {total} ta\n"
-            f"❌ <b>Noto'g'ri javoblar:</b> {incorr} ta\n"
-            f"🎯 <b>To'plangan ball:</b> {score} ball\n"
-            f"🕒 <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
+            f"{tg_e('star_premium', '📋')} <b>Baholash turi:</b> Standart (To'g'ri javoblar soni)\n"
+            f"{tg_e('success', '✅')} <b>To'g'ri javoblar:</b> {corr} / {total} ta\n"
+            f"{tg_e('error', '❌')} <b>Noto'g'ri javoblar:</b> {incorr} ta\n"
+            f"{tg_e('star_gold', '🎯')} <b>To'plangan ball:</b> {score} ball\n"
+            f"{tg_e('clock', '🕒')} <b>E'lon vaqti:</b> {format_uzb_time()}\n\n"
             f"💡 <i>Qaysi savollaringiz to'g'ri yoki noto'g'ri ekanligini ko'rish uchun quyidagi <b>«📊 Test tahlili»</b> tugmasini bosing:</i>\n\n"
             f"🏆 <i>Ishtirokingiz uchun tashakkur!</i>"
         )
