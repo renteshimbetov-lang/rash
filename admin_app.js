@@ -23,7 +23,7 @@ const AdminApp = {
       queryTgId
     ));
 
-    // ⛔️ ODDIY VEB-BRAUZERDA (TELEGRAMSIZ) OCHILGANDA TO'LIQ BLOKLASH!
+    // ODDIY VEB-BRAUZERDA (TELEGRAMSIZ) OCHILGANDA TO'LIQ BLOKLASH!
     if (!isTg) {
       const wb = document.getElementById('web-block-screen');
       if (wb) wb.style.display = 'flex';
@@ -95,13 +95,13 @@ const AdminApp = {
 
   setupEditMode() {
     const titleEl = document.querySelector('.test-title');
-    if (titleEl) titleEl.textContent = '✏️ Test Kalitlarini Tahrirlash';
+    if (titleEl) titleEl.textContent = 'Test Kalitlarini Tahrirlash';
     const subEl = document.querySelector('.test-subtitle');
     if (subEl) subEl.textContent = "Kalitlarni o'zgartiring va saqlang — barcha o'quvchilar natijalari va reyting avtomatik qayta hisoblanadi";
 
     const submitBtn = document.querySelector('.btn-submit-test');
     if (submitBtn) {
-      submitBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
+      submitBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span>Kalitlarni saqlash va natijalarni yangilash</span>';
     }
 
     fetch(`/api/admin/get-test-keys?test_id=${this.editTestId}`)
@@ -113,7 +113,7 @@ const AdminApp = {
         }
         const t = data.test;
         if (titleEl && t.test_code) {
-          titleEl.textContent = `✏️ #${t.test_code} Test Kalitlarini Tahrirlash`;
+          titleEl.textContent = `#${t.test_code} Test Kalitlarini Tahrirlash`;
         }
 
         const titleInput = document.getElementById('adm-test-title');
@@ -302,7 +302,7 @@ const AdminApp = {
       alert("Hozircha hech qanday kalit/javob belgilanmagan!");
       return;
     }
-    if (confirm("⚠️ Barcha kiritilgan test kalitlari va javoblarini o'chirmoqchimisiz? Bu amal barcha variantli va ochiq savollar kalitlarini tozalaydi.")) {
+    if (confirm("Barcha kiritilgan test kalitlari va javoblarini o'chirmoqchimisiz? Bu amal barcha variantli va ochiq savollar kalitlarini tozalaydi.")) {
       this.clearAll();
     }
   },
@@ -397,7 +397,7 @@ const AdminApp = {
               <div class="savol-input-box" id="box-${q}a" onclick="MathKeyboard.openFor('${q}a')" style="height: 38px; flex: 1; padding: 0 8px; cursor: pointer;">
                 <input type="text" class="savol-input" id="input-${q}a" readonly inputmode="none" placeholder="Kalitni klaviaturadan kiriting" value="${itemA.ans}" onclick="MathKeyboard.openFor('${q}a')" style="font-size: 13px; cursor: pointer;">
               </div>
-              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; font-size: 16px; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}a')" title="Matematik klaviatura">⌨️</button>
+              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}a')" title="Matematik klaviatura"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="10.01" y2="12"/><line x1="14" y1="12" x2="14.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></button>
             </div>
 
             <!-- b -->
@@ -406,7 +406,7 @@ const AdminApp = {
               <div class="savol-input-box" id="box-${q}b" onclick="MathKeyboard.openFor('${q}b')" style="height: 38px; flex: 1; padding: 0 8px; cursor: pointer;">
                 <input type="text" class="savol-input" id="input-${q}b" readonly inputmode="none" placeholder="Kalitni klaviaturadan kiriting" value="${itemB.ans}" onclick="MathKeyboard.openFor('${q}b')" style="font-size: 13px; cursor: pointer;">
               </div>
-              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; font-size: 16px; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}b')" title="Matematik klaviatura">⌨️</button>
+              <button type="button" class="btn-kb-icon" style="width: 36px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px;" onclick="MathKeyboard.openFor('${q}b')" title="Matematik klaviatura"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="10.01" y2="12"/><line x1="14" y1="12" x2="14.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></button>
             </div>
           </div>
         `;
@@ -451,7 +451,7 @@ const AdminApp = {
     // Rasch tizimida ballar avtomatik hisoblanadi
     const badge = document.getElementById('admin-total-badge');
     const dock = document.getElementById('admin-dock-total');
-    const msg = '🤖 Rasch: ball avtomatik hisoblanadi';
+    const msg = 'Rasch: ball avtomatik hisoblanadi';
     if (badge) badge.textContent = msg;
     if (dock) dock.textContent = msg;
   },
@@ -500,21 +500,21 @@ const AdminApp = {
 
     if (totalBadge) {
       if (totalUnfilled === 0) {
-        totalBadge.textContent = '✅ Barchasi to\'ldirildi (55/55)';
+        totalBadge.textContent = 'Barchasi to\'ldirildi (55/55)';
         totalBadge.style.background = '#10B981';
-        if (statusIcon) statusIcon.textContent = '🎉';
+        if (statusIcon) statusIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
         if (statusTitle) statusTitle.textContent = 'Barcha savollar tayyor:';
       } else {
         totalBadge.textContent = `${totalUnfilled} ta belgilanmagan (${totalFilled}/55)`;
         totalBadge.style.background = '#EF4444';
-        if (statusIcon) statusIcon.textContent = '⚠️';
+        if (statusIcon) statusIcon.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
         if (statusTitle) statusTitle.textContent = 'Javoblar to\'ldirilishi:';
       }
     }
 
     if (closedCountEl) {
       if (closedUnfilled === 0) {
-        closedCountEl.textContent = '✅ Barchasi belgilandi (35/35)';
+        closedCountEl.textContent = 'Barchasi belgilandi (35/35)';
         closedCountEl.style.color = '#10B981';
       } else {
         closedCountEl.textContent = `${closedUnfilled} ta belgilanmagan (${35 - closedUnfilled}/35)`;
@@ -524,7 +524,7 @@ const AdminApp = {
 
     if (openCountEl) {
       if (openUnfilled === 0) {
-        openCountEl.textContent = '✅ Barchasi kiritildi (20/20)';
+        openCountEl.textContent = 'Barchasi kiritildi (20/20)';
         openCountEl.style.color = '#10B981';
       } else {
         openCountEl.textContent = `${openUnfilled} ta kiritilmagan (${20 - openUnfilled}/20)`;
@@ -536,10 +536,10 @@ const AdminApp = {
     const sec1El = document.getElementById('cnt-sec-1');
     if (sec1El) {
       if (sec1Unfilled === 0) {
-        sec1El.textContent = '✅ Barchasi belgilandi (32/32)';
+        sec1El.textContent = 'Barchasi belgilandi (32/32)';
         sec1El.style.color = '#10B981';
       } else {
-        sec1El.textContent = `⚠️ ${sec1Unfilled} ta belgilanmagan`;
+        sec1El.textContent = `${sec1Unfilled} ta belgilanmagan`;
         sec1El.style.color = '#EF4444';
       }
     }
@@ -547,10 +547,10 @@ const AdminApp = {
     const sec2El = document.getElementById('cnt-sec-2');
     if (sec2El) {
       if (sec2Unfilled === 0) {
-        sec2El.textContent = '✅ Barchasi belgilandi (3/3)';
+        sec2El.textContent = 'Barchasi belgilandi (3/3)';
         sec2El.style.color = '#10B981';
       } else {
-        sec2El.textContent = `⚠️ ${sec2Unfilled} ta belgilanmagan`;
+        sec2El.textContent = `${sec2Unfilled} ta belgilanmagan`;
         sec2El.style.color = '#EF4444';
       }
     }
@@ -558,10 +558,10 @@ const AdminApp = {
     const sec3El = document.getElementById('cnt-sec-3');
     if (sec3El) {
       if (openUnfilled === 0) {
-        sec3El.textContent = '✅ Barchasi kiritildi (20/20)';
+        sec3El.textContent = 'Barchasi kiritildi (20/20)';
         sec3El.style.color = '#10B981';
       } else {
-        sec3El.textContent = `⚠️ ${openUnfilled} ta kiritilmagan`;
+        sec3El.textContent = `${openUnfilled} ta kiritilmagan`;
         sec3El.style.color = '#EF4444';
       }
     }
@@ -570,10 +570,10 @@ const AdminApp = {
     const dockUnfilled = document.getElementById('admin-dock-unfilled');
     if (dockUnfilled) {
       if (totalUnfilled === 0) {
-        dockUnfilled.textContent = '✅ 55/55 to\'liq belgilandi';
+        dockUnfilled.textContent = '55/55 to\'liq belgilandi';
         dockUnfilled.style.color = '#10B981';
       } else {
-        dockUnfilled.textContent = `⚠️ ${totalUnfilled} ta javob qoldi (Yopiq: ${closedUnfilled}, Ochiq: ${openUnfilled})`;
+        dockUnfilled.textContent = `${totalUnfilled} ta javob qoldi (Yopiq: ${closedUnfilled}, Ochiq: ${openUnfilled})`;
         dockUnfilled.style.color = '#EF4444';
       }
     }
@@ -613,9 +613,9 @@ const AdminApp = {
     const { totalUnfilled, closedUnfilled, openUnfilled } = this.updateUnfilledStats();
 
     if (totalUnfilled > 0) {
-      const confirmMsg = `⚠️ DIQQAT! Jami 55 ta savoldan ${totalUnfilled} tasiga javob belgilanmagan:\n\n` +
-        `• 🔘 Yopiq savollarda (1-35): ${closedUnfilled} ta belgilanmagan\n` +
-        `• ✍️ Ochiq savollarda (36-45): ${openUnfilled} ta kiritilmagan\n\n` +
+      const confirmMsg = `DIQQAT! Jami 55 ta savoldan ${totalUnfilled} tasiga javob belgilanmagan:\n\n` +
+        `• Yopiq savollarda (1-35): ${closedUnfilled} ta belgilanmagan\n` +
+        `• Ochiq savollarda (36-45): ${openUnfilled} ta kiritilmagan\n\n` +
         `Iltimos, avval barcha savollarga to'g'ri javobni belgilang!`;
       
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
@@ -658,7 +658,7 @@ const AdminApp = {
     const saveBtn = document.querySelector('.btn-submit-test');
     if (saveBtn) {
       saveBtn.disabled = true;
-      saveBtn.textContent = this.isEditMode ? 'Kalitlar yangilanmoqda... ⏳' : 'Saqlanmoqda... ⏳';
+      saveBtn.textContent = this.isEditMode ? 'Kalitlar yangilanmoqda...' : 'Saqlanmoqda...';
     }
 
     const initData = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) || '';
@@ -692,7 +692,7 @@ const AdminApp = {
         const res = await response.json();
         if (res.success) {
           const recnt = res.recalculated_count !== undefined ? res.recalculated_count : 0;
-          const msg = `✅ Test kalitlari muvaffaqiyatli yangilandi!\n\n👥 ${recnt} nafar o'quvchi javoblari yangi kalitlar bo'yicha qayta tekshirildi, Rasch modeli va reyting avtomatik yangilandi.`;
+          const msg = `Test kalitlari muvaffaqiyatli yangilandi!\n\n${recnt} nafar o'quvchi javoblari yangi kalitlar bo'yicha qayta tekshirildi, Rasch modeli va reyting avtomatik yangilandi.`;
           if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
             window.Telegram.WebApp.showAlert(msg, () => {
               window.Telegram.WebApp.close();
@@ -708,7 +708,7 @@ const AdminApp = {
           this._isSaving = false;
           if (saveBtn) {
             saveBtn.disabled = false;
-            saveBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
+            saveBtn.innerHTML = '<span>Kalitlarni saqlash va natijalarni yangilash</span>';
           }
           alert(res.message || 'Kalitlarni yangilashda xatolik yuz berdi!');
         }
@@ -716,7 +716,7 @@ const AdminApp = {
         this._isSaving = false;
         if (saveBtn) {
           saveBtn.disabled = false;
-          saveBtn.innerHTML = '<span>💾 Kalitlarni saqlash va natijalarni yangilash</span>';
+          saveBtn.innerHTML = '<span>Kalitlarni saqlash va natijalarni yangilash</span>';
         }
         alert('Server bilan bog\'lanishda xatolik: ' + e.message);
       }
@@ -735,7 +735,7 @@ const AdminApp = {
 
       const res = await response.json();
       if (res.success) {
-        const msg = "✅ Test muvaffaqiyatli saqlandi va e'lon qilindi!\n\nBotga o'tib, test uchun PDF faylni yuborishingiz mumkin 📥";
+        const msg = "Test muvaffaqiyatli saqlandi va e'lon qilindi!\n\nBotga o'tib, test uchun PDF faylni yuborishingiz mumkin.";
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
           window.Telegram.WebApp.showAlert(msg);
           setTimeout(() => {
@@ -749,7 +749,7 @@ const AdminApp = {
         this._isSaving = false;
         if (saveBtn) {
           saveBtn.disabled = false;
-          saveBtn.textContent = '💾 Testni saqlash';
+          saveBtn.textContent = 'Testni saqlash';
         }
         alert(res.message || 'Saqlashda xatolik yuz berdi!');
       }
@@ -757,7 +757,7 @@ const AdminApp = {
       this._isSaving = false;
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.textContent = '💾 Testni saqlash';
+        saveBtn.textContent = 'Testni saqlash';
       }
       alert('Server bilan bog\'lanishda xatolik: ' + e.message);
     }
@@ -820,7 +820,7 @@ const AdminApp = {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
         }
 
-        const msg = `✅ Rasmdan ${recognizedCount} ta savol kaliti muvaffaqiyatli aniqlandi va to'ldirildi!`;
+        const msg = `Rasmdan ${recognizedCount} ta savol kaliti muvaffaqiyatli aniqlandi va to'ldirildi!`;
         if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.showAlert) {
           window.Telegram.WebApp.showAlert(msg);
         } else {
@@ -838,8 +838,10 @@ const AdminApp = {
       alert('Rasm yuklashda xatolik yuz berdi: ' + err.message);
     } finally {
       if (btn) btn.disabled = false;
-      if (btnIcon) btnIcon.textContent = '⚡';
-      if (btnText) btnText.textContent = '📷 Rasm yuklash';
+      if (btnIcon) {
+        btnIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>';
+      }
+      if (btnText) btnText.textContent = 'Rasm yuklash';
     }
   },
 
@@ -859,12 +861,12 @@ const AdminApp = {
       });
       const res = await resp.json();
       if (res.success) {
-        alert("✅ Gemini API kaliti muvaffaqiyatli saqlandi! Endi rasmni bemalol skanerlashingiz mumkin.");
+        alert("Gemini API kaliti muvaffaqiyatli saqlandi! Endi rasmni bemalol skanerlashingiz mumkin.");
       } else {
-        alert("❌ Kalitni saqlashda xatolik: " + res.message);
+        alert("Kalitni saqlashda xatolik: " + res.message);
       }
     } catch (e) {
-      alert("❌ Serverga ulanishda xatolik: " + e.message);
+      alert("Serverga ulanishda xatolik: " + e.message);
     }
   },
 

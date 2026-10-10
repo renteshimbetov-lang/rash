@@ -977,7 +977,7 @@ async function warnUserDirect(tgId, testsCount, fullname) {
     ? `Hurmatli ${fullname}!\nSiz birorta ham test ishlamagansiz (0 ta). Bugungi testda qatnashmasangiz botdan chiqarib yuborilishingiz haqida rasmiy ogohlantirish yuborilsinmi?`
     : `Hurmatli ${fullname}!\nSiz hozirgacha faqat ${countNum} ta test ishlagansiz. Bugungi testda qatnashmasangiz botdan chiqarib yuborilishingiz haqida rasmiy ogohlantirish yuborilsinmi?`;
 
-  if (!confirm(`⚠️ TELEGRAM RASMIY OGOHLANTIRISH:\n\n${msgIntro}`)) {
+  if (!confirm(`TELEGRAM RASMIY OGOHLANTIRISH:\n\n${msgIntro}`)) {
     return;
   }
 
@@ -1027,7 +1027,7 @@ async function sendWarningToAllFilteredUsers() {
     return;
   }
 
-  const promptMsg = `⚠️ DIQQAT!\n\nFiltrlangan barcha ${targetUsers.length} nafar foydalanuvchiga Telegram orqali rasmiy ogohlantirish xabari yuborilsinmi?\n\n(Bu foydalanuvchilar hozirgacha ${targetTc} ta test ishlagan)`;
+  const promptMsg = `DIQQAT!\n\nFiltrlangan barcha ${targetUsers.length} nafar foydalanuvchiga Telegram orqali rasmiy ogohlantirish xabari yuborilsinmi?\n\n(Bu foydalanuvchilar hozirgacha ${targetTc} ta test ishlagan)`;
   if (!confirm(promptMsg)) {
     return;
   }
@@ -2593,7 +2593,11 @@ function playNotifSound() {
 function toggleNotifSound() {
   State.notifSoundEnabled = !State.notifSoundEnabled;
   const icon = document.getElementById('notif-sound-icon');
-  if (icon) icon.textContent = State.notifSoundEnabled ? '🔔' : '🔕';
+  if (icon) {
+    icon.innerHTML = State.notifSoundEnabled
+      ? '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
+      : '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  }
   showToast(State.notifSoundEnabled ? 'Ovozli bildirishnomalar yoqildi' : 'Ovozli bildirishnomalar o\'chirildi', 'info');
 }
 
@@ -2631,7 +2635,7 @@ function initPushNotifications() {
         if (permission === 'granted') {
           State.browserPushGranted = true;
           dismissPushBanner();
-          showToast('✅ Brauzer bildirishnomalari faollashtirildi!', 'success');
+          showToast('Brauzer bildirishnomalari faollashtirildi!', 'success');
         }
         updatePushPermissionUI();
       }).catch(() => {});
@@ -2652,7 +2656,7 @@ function requestBrowserNotificationPermission(isUserAction = false) {
     updatePushPermissionUI();
     dismissPushBanner();
     if (isUserAction) {
-      showToast('✅ Brauzer bildirishnomalari allaqachon faollashtirilgan!', 'success');
+      showToast('Brauzer bildirishnomalari allaqachon faollashtirilgan!', 'success');
       sendBrowserNotification('Shohruh Matematika Dashboard', 'Bildirishnomalar muvaffaqiyatli ulangan! Yangi o\'quvchilar darhol ekranda ko\'rinadi.');
     }
     return;
@@ -2662,7 +2666,7 @@ function requestBrowserNotificationPermission(isUserAction = false) {
     State.browserPushGranted = false;
     updatePushPermissionUI();
     if (isUserAction) {
-      showToast('⚠️ Bildirishnomalar brauzerda bloklangan. Manzil satridagi qulf (lock) belgisidan ruxsat bering.', 'warning');
+      showToast('Bildirishnomalar brauzerda bloklangan. Manzil satridagi qulf (lock) belgisidan ruxsat bering.', 'warning');
     }
     return;
   }
@@ -2673,7 +2677,7 @@ function requestBrowserNotificationPermission(isUserAction = false) {
       State.browserPushGranted = true;
       updatePushPermissionUI();
       dismissPushBanner();
-      showToast('✅ Brauzer bildirishnomalari muvaffaqiyatli yoqildi!', 'success');
+      showToast('Brauzer bildirishnomalari muvaffaqiyatli yoqildi!', 'success');
       playNotifSound();
       sendBrowserNotification('Shohruh Matematika Dashboard', 'Bildirishnomalar muvaffaqiyatli faollashtirildi! Yangi o\'quvchilar va natijalar xabar qilinadi.');
     } else {
@@ -2722,14 +2726,14 @@ function updatePushPermissionUI() {
 
   if (Notification.permission === 'granted') {
     if (banner) banner.style.display = 'none';
-    if (pushIcon) pushIcon.innerHTML = '🔔 Push: Faol';
+    if (pushIcon) pushIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Push: Faol';
     if (btnPushToggle) {
       btnPushToggle.title = 'Push bildirishnomalari faol';
       btnPushToggle.style.color = 'var(--success)';
     }
   } else if (Notification.permission === 'denied') {
     if (banner) banner.style.display = 'none';
-    if (pushIcon) pushIcon.innerHTML = '🚫 Push: Bloklangan';
+    if (pushIcon) pushIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Push: Bloklangan';
     if (btnPushToggle) {
       btnPushToggle.title = 'Bildirishnomalar bloklangan. Sozlamalardan ruxsat bering.';
       btnPushToggle.style.color = 'var(--danger)';
@@ -2739,7 +2743,7 @@ function updatePushPermissionUI() {
     if (banner && !dismissed) {
       banner.style.display = 'flex';
     }
-    if (pushIcon) pushIcon.innerHTML = '🔔 Push: Yoqish';
+    if (pushIcon) pushIcon.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Push: Yoqish';
     if (btnPushToggle) {
       btnPushToggle.title = 'Brauzer bildirishnomasiga ruxsat berish';
       btnPushToggle.style.color = 'var(--warning)';
@@ -2756,12 +2760,12 @@ window.dismissPushBanner = dismissPushBanner;
 
 function testNotificationFlow() {
   playNotifSound();
-  showToast('🔔 Sinov bildirishnomasi jo\'natildi!', 'info');
+  showToast('Sinov bildirishnomasi jo\'natildi!', 'info');
   sendBrowserNotification('Shohruh Matematika Dashboard', 'Sinov: Yangi o\'quvchi yoki natija kelganda xuddi shunday bildirishnoma chiqadi!');
   const testNotif = {
     id: 'test-' + Date.now(),
     type: 'user',
-    title: '🔔 Sinov bildirishnomasi',
+    title: 'Sinov bildirishnomasi',
     desc: 'Bildirishnomalar tizimi sozlandi va a\'lo darajada ishlamoqda.',
     time: 'Hozir',
     rawTime: Date.now(),
@@ -2806,7 +2810,7 @@ function checkNewLiveEvents(data) {
         if (uId > State.lastKnownUserId) {
           State.lastKnownUserId = uId;
         }
-        const userTitle = `👤 Yangi o'quvchi ro'yxatdan o'tdi!`;
+        const userTitle = `Yangi o'quvchi ro'yxatdan o'tdi!`;
         const userDesc = `${u.fullname}${u.username ? ' (@' + u.username + ')' : ''} matematika botida ro'yxatdan o'tdi.`;
         const notifItem = {
           id: 'user-' + u.id,
@@ -2822,7 +2826,7 @@ function checkNewLiveEvents(data) {
         State.unreadNotifsCount++;
         hasNew = true;
 
-        showToast(`👤 Yangi o'quvchi: ${u.fullname}`, 'info');
+        showToast(`Yangi o'quvchi: ${u.fullname}`, 'info');
         sendBrowserNotification(userTitle, userDesc, 'user-' + u.id);
       });
       State.lastKnownUsersCount = currentTotalUsers;
@@ -2831,7 +2835,7 @@ function checkNewLiveEvents(data) {
     // Fallback if recentUsers array didn't capture the diff
     const diff = currentTotalUsers - State.lastKnownUsersCount;
     State.lastKnownUsersCount = currentTotalUsers;
-    const userTitle = `👤 ${diff} nafar yangi o'quvchi qo'shildi`;
+    const userTitle = `${diff} nafar yangi o'quvchi qo'shildi`;
     const userDesc = `Jami o'quvchilar soni: ${currentTotalUsers} nafarga yetdi.`;
     const notifItem = {
       id: 'user-' + Date.now(),
@@ -2860,8 +2864,8 @@ function checkNewLiveEvents(data) {
         if (subId > State.lastKnownSubmissionId) {
           State.lastKnownSubmissionId = subId;
         }
-        const subTitle = `🏆 Yangi natija: ${s.fullname}`;
-        const subDesc = `${s.test_title || 'Test #' + s.test_code} — ${s.score || 0} ball (${s.is_late ? '⚠️ Kechikkan' : 'O\'z vaqtida'})`;
+        const subTitle = `Yangi natija: ${s.fullname}`;
+        const subDesc = `${s.test_title || 'Test #' + s.test_code} — ${s.score || 0} ball (${s.is_late ? 'Kechikkan' : 'O\'z vaqtida'})`;
         const notifItem = {
           id: 'sub-' + s.id,
           type: 'submission',
@@ -2877,7 +2881,7 @@ function checkNewLiveEvents(data) {
         State.unreadNotifsCount++;
         hasNew = true;
 
-        showToast(`🔔 Yangi natija: ${s.fullname} (${s.score || 0} ball)`, s.is_late ? 'warning' : 'success');
+        showToast(`Yangi natija: ${s.fullname} (${s.score || 0} ball)`, s.is_late ? 'warning' : 'success');
         sendBrowserNotification(subTitle, subDesc, 'sub-' + s.id);
       });
     }
@@ -2928,7 +2932,7 @@ function renderNotificationList() {
   if (items.length === 0) {
     listBody.innerHTML = `
       <div class="notif-empty-state">
-        <div style="font-size:32px;margin-bottom:8px;opacity:0.6;">🔔</div>
+        <div style="display:flex;justify-content:center;margin-bottom:8px;opacity:0.6;"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
         <div style="font-weight:700;font-size:13px;color:var(--text-main);">Hozircha yangi bildirishnomalar yo'q</div>
         <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">Yangi test topshirilganda yoki yangi o'quvchi qo'shilganda bildirishnomalar shu yerda ko'rinadi.</div>
       </div>
@@ -2939,18 +2943,18 @@ function renderNotificationList() {
   let html = '';
   items.forEach(n => {
     let iconClass = 'notif-icon-submission';
-    let iconEmoji = '🏆';
+    let iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>';
     if (n.type === 'user') {
       iconClass = 'notif-icon-user';
-      iconEmoji = '👤';
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
     } else if (n.isLate) {
       iconClass = 'notif-icon-warning';
-      iconEmoji = '⚠️';
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
     }
 
     html += `
       <div class="notif-card-item ${n.unread ? 'unread' : ''}" onclick="handleNotifItemClick('${n.id}', ${n.dataId || 'null'})">
-        <div class="notif-item-icon ${iconClass}">${iconEmoji}</div>
+        <div class="notif-item-icon ${iconClass}">${iconSvg}</div>
         <div class="notif-item-content">
           <div class="notif-item-title">
             <span>${esc(n.title)}</span>
@@ -3084,23 +3088,23 @@ function handleBroadcastTestSelected() {
 
 const BROADCAST_TEMPLATES = {
   new_test: {
-    message: `📢 <b>DIQQAT, YANGI TEST E'LON QILINDI!</b>\n\nHurmatli {fullname}!\n\nShohruh Matematika bo'yicha navbatdagi <b>Milliy Sertifikat Standarti</b> blok testi tizimga yuklandi.\n\n⏰ <b>Vaqt:</b> Bugun 19:30 dan 22:00 gacha\n❓ <b>Savollar:</b> 45 ta (A-B-C-D, Moslik va Yozma ochiq savollar)\n\n<i>O'z bilimingizni sinab ko'rish uchun testni o'z vaqtida topshirishni unutmang!</i>`,
-    btnText: `🚀 Testni Boshlash`,
+    message: `<b>DIQQAT, YANGI TEST E'LON QILINDI!</b>\n\nHurmatli {fullname}!\n\nShohruh Matematika bo'yicha navbatdagi <b>Milliy Sertifikat Standarti</b> blok testi tizimga yuklandi.\n\n<b>Vaqt:</b> Bugun 19:30 dan 22:00 gacha\n<b>Savollar:</b> 45 ta (A-B-C-D, Moslik va Yozma ochiq savollar)\n\n<i>O'z bilimingizni sinab ko'rish uchun testni o'z vaqtida topshirishni unutmang!</i>`,
+    btnText: `Testni Boshlash`,
     btnUrl: `https://t.me/shohruh_matematika_bot`
   },
   results: {
-    message: `🏆 <b>TEST NATIJALARI E'LON QILINDI!</b>\n\nHurmatli {fullname}!\n\nSiz ishlagan testning rasmiy natijalari va ballari e'lon qilindi.\n\n📊 O'z natijangiz, to'plagan balingiz va sertifikat darajangizni bilish uchun quyidagi tugmani bosing:`,
-    btnText: `📊 Natijamni Ko'rish`,
+    message: `<b>TEST NATIJALARI E'LON QILINDI!</b>\n\nHurmatli {fullname}!\n\nSiz ishlagan testning rasmiy natijalari va ballari e'lon qilindi.\n\nO'z natijangiz, to'plagan balingiz va sertifikat darajangizni bilish uchun quyidagi tugmani bosing:`,
+    btnText: `Natijamni Ko'rish`,
     btnUrl: `https://t.me/shohruh_matematika_bot`
   },
   warning: {
-    message: `⚠️ <b>MUHIM OGOHLANTIRISH</b>\n\nHurmatli {fullname}!\n\nSiz tizimimizda ro'yxatdan o'tgan bo'lsangiz-da, testlarda faol ishtirok etmayapsiz.\n\n📌 <b>Eslatma:</b> Berilgan imkoniyatdan foydalanmasangiz va faoliyatsiz qolsangiz, profilingiz tizimdan o'chirilishi mumkin.\n\n<i>O'z o'rningizni saqlab qolish uchun bugungi testda albatta qatnashing!</i>`,
-    btnText: `✍️ Testga Kirish`,
+    message: `<b>MUHIM OGOHLANTIRISH</b>\n\nHurmatli {fullname}!\n\nSiz tizimimizda ro'yxatdan o'tgan bo'lsangiz-da, testlarda faol ishtirok etmayapsiz.\n\n<b>Eslatma:</b> Berilgan imkoniyatdan foydalanmasangiz va faoliyatsiz qolsangiz, profilingiz tizimdan o'chirilishi mumkin.\n\n<i>O'z o'rningizni saqlab qolish uchun bugungi testda albatta qatnashing!</i>`,
+    btnText: `Testga Kirish`,
     btnUrl: `https://t.me/shohruh_matematika_bot`
   },
   motivation: {
-    message: `✨ <b>XAYRLI KUN, {fullname}!</b>\n\nMatematika — fikrlash gimnastikasi! Har bir ishlangan masala sizni orzuingizdagi oliy natijaga yaqinlashtiradi.\n\nBugungi mashg'ulotlaringizda omad va kuch-g'ayrat tilaymiz!\n\n<i>Shohruh Matematika Jamoasi</i>`,
-    btnText: `📱 Botga O'tish`,
+    message: `<b>XAYRLI KUN, {fullname}!</b>\n\nMatematika — fikrlash gimnastikasi! Har bir ishlangan masala sizni orzuingizdagi oliy natijaga yaqinlashtiradi.\n\nBugungi mashg'ulotlaringizda omad va kuch-g'ayrat tilaymiz!\n\n<i>Shohruh Matematika Jamoasi</i>`,
+    btnText: `Botga O'tish`,
     btnUrl: `https://t.me/shohruh_matematika_bot`
   }
 };
@@ -3323,7 +3327,7 @@ async function executeBroadcastSend() {
     }
 
     closeBroadcastConfirmModal();
-    showToast(`✅ ${data.message}`, 'success');
+    showToast(`${data.message}`, 'success');
 
     // Add notification to live notification center
     const notifItem = {
@@ -3348,7 +3352,7 @@ async function executeBroadcastSend() {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'Ha, hoziroq yuborilsin ➔';
+      btn.innerHTML = 'Ha, hoziroq yuborilsin <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:4px;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
     }
   }
 }
@@ -3396,8 +3400,8 @@ function renderBroadcastHistoryTable() {
 
     const deleteBtn = isDeleted
       ? '<span style="color:var(--text-dim);font-size:11.5px;">Allaqachon o\'chirilgan</span>'
-      : `<button class="btn btn-secondary btn-sm" style="color:#ef4444;border-color:rgba(239,68,68,0.3);" onclick="deleteBroadcastBatch('${h.batch_id}')">
-           🗑 Chatlardan o'chirish
+      : `<button class="btn btn-secondary btn-sm" style="color:#ef4444;border-color:rgba(239,68,68,0.3);display:inline-flex;align-items:center;gap:5px;" onclick="deleteBroadcastBatch('${h.batch_id}')">
+           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Chatlardan o'chirish
          </button>`;
 
     html += `
